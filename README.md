@@ -4,6 +4,8 @@ A cosmic desktop app for **roleplay**, **creative writing**, and **craft coachin
 
 Constellation is a *client*: it has no AI of its own. It wraps your API key and steers, formats, and remembers your conversations with GLM. Your key and your chats stay on your computer.
 
+Yes this is all AI generated code, I don't know how to code. What do you want from me?
+
 > Pair this with [`BUILD_SPEC.md`](./BUILD_SPEC.md) for the full technical/architecture reference. This README is the plain-English user guide.
 
 ---
