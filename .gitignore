@@ -1,0 +1,16 @@
+node_modules/
+dist/
+out/
+
+# Keep your API key and personal data out of any shared repo:
+config/settings.txt
+data/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+npm-debug.log*
+yarn-debug.log*
+*.log
+.vscode/
+.idea/

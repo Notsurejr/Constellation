@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self';" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Constellation</title>
+  <link rel="stylesheet" href="styles/theme.css" />
+  <link rel="stylesheet" href="styles/app.css" />
+</head>
+<body>
+  <canvas id="starfield"></canvas>
+
+  <div class="app">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="icon-btn" id="sidebarToggle" title="Chats">☰</button>
+        <button class="brand-btn" id="brandBtn" title="Settings"><span class="star">✦</span> Constellation</button>
+      </div>
+      <div class="topbar-right">
+        <span class="ctx-meter" id="ctxMeter" title="Estimated conversation size" hidden>◐ 0</span>
+        <button class="icon-btn" id="exportBtn" title="Export this chat">⤓</button>
+        <button class="icon-btn" id="craftBtn" title="Craft — writing coach">✒</button>
+        <button class="icon-btn" id="zenBtn" title="Zen mode — hide the chrome (Esc to exit)">☾</button>
+        <button class="icon-btn" id="shortcutsBtn" title="Keyboard shortcuts (?)">?</button>
+        <select id="topModel" class="top-model" title="Model for this chat"></select>
+        <div class="status" id="status">starting…</div>
+      </div>
+    </header>
+
+    <main class="chat" id="messages">
+      <div class="empty-hint">
+        <div class="empty-hint-title">The sky is quiet.</div>
+        <div class="empty-hint-sub">Write something to begin.</div>
+      </div>
+    </main>
+
+    <button id="jumpBottom" class="jump-btn" title="Jump to latest" hidden>↓</button>
+
+    <div class="read-progress" id="readProgress" aria-hidden="true"><div class="read-progress-fill"></div></div>
+
+    <div class="zen-hint" id="zenHint" title="Exit Zen (Esc)">Zen mode — Esc to exit</div>
+
+    <footer class="composer">
+      <div class="attachments" id="attachments" hidden></div>
+      <div class="composer-row">
+        <textarea id="input" placeholder="Write here…  (Enter to send, Shift+Enter for a new line)" rows="1"></textarea>
+        <button id="attachBtn" class="btn-attach" type="button" title="Attach files (markdown, text) for context">📎</button>
+        <button id="send" class="btn-send" title="Send (Enter)">➤</button>
+      </div>
+      <input type="file" id="fileInput" multiple hidden accept=".md,.markdown,.mdown,.txt,.text,.json,.csv,.log,.org,.rst" />
+    </footer>
+  </div>
+
+  <!-- Toast notifications -->
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <!-- Chat sessions drawer -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-head">
+      <button class="new-chat" id="newChat">＋ New chat</button>
+      <input type="text" id="sessionSearch" class="session-search" placeholder="🔍 Search chats…" autocomplete="off" />
+    </div>
+    <div class="session-list" id="sessionList"></div>
+    <div class="sidebar-foot" id="sidebarFoot"></div>
+    <div class="sidebar-empty">No saved chats yet.</div>
+  </aside>
+
+  <!-- Craft overlay (writing coach) -->
+  <div class="settings-overlay" id="craftOverlay">
+    <div class="settings-panel">
+      <h2 class="lead">✒ Craft — your writing coach</h2>
+      <div class="hint">Review your writing and turn it into lessons that build your craft over time.</div>
+
+      <div class="settings-section">
+        <div class="craft-source">
+          <button class="btn" id="craftPull" type="button">Pull my writing from current chat</button>
+          <span class="saved-tag" id="craftPulled">pulled ✓</span>
+        </div>
+        <textarea id="craftInput" class="craft-input" placeholder="Paste the writing you want reviewed — or pull it from your current chat above."></textarea>
+        <div class="settings-actions">
+          <button class="btn" id="craftAnalyze" type="button">Analyze</button>
+          <button class="btn ghost" id="closeCraft" type="button">Close</button>
+        </div>
+      </div>
+
+      <div class="settings-section" id="craftResultSection" hidden>
+        <h2>Review</h2>
+        <div class="craft-result" id="craftResult"><div class="body"></div></div>
+      </div>
+
+      <div class="settings-section">
+        <h2>Craft journal</h2>
+        <div class="hint">Accumulated takeaways from every review.</div>
+        <div class="craft-journal" id="craftJournal">No lessons yet.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings overlay (toggled by the ✦ star) -->
+  <div class="settings-overlay" id="settingsOverlay">
+    <div class="settings-panel">
+      <h2 class="lead">✦ Settings</h2>
+      <div class="hint">Shape how the model behaves. Changes apply to your next message.</div>
+
+      <div class="settings-section">
+        <h2>Presets</h2>
+        <div class="hint">Save and switch between complete sets of system + project instructions.</div>
+        <label class="field">
+          <span>Load a preset</span>
+          <select id="presetSelect">
+            <option value="">— Select a preset —</option>
+          </select>
+        </label>
+        <div class="settings-actions">
+          <span class="saved-tag" id="presetLoaded">loaded ✓</span>
+          <button class="btn ghost" id="deletePreset">Delete preset</button>
+        </div>
+        <label class="field">
+          <span>Save current editors as</span>
+          <input type="text" id="presetName" placeholder="name this preset" />
+        </label>
+        <div class="settings-actions">
+          <span class="saved-tag" id="presetSaved">saved ✓</span>
+          <button class="btn" id="savePreset">Save preset</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2>System instructions <em class="hint-inline">this chat</em></h2>
+        <div class="hint">The core prompt that steers this chat. New chats start from your default file (config/modes/roleplay.txt).</div>
+        <textarea id="promptEditor" placeholder="Write the system instructions…"></textarea>
+        <div class="settings-actions">
+          <span class="saved-tag" id="promptSaved">saved ✓</span>
+          <button class="btn" id="savePrompt">Save</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2>Project instructions <em class="hint-inline">this chat</em></h2>
+        <div class="hint">Extra context or rules sent with every message in this chat (optional).</div>
+        <textarea id="projectEditor" placeholder="e.g. This is a noir detective story set in 1940s LA…"></textarea>
+        <div class="settings-actions">
+          <span class="saved-tag" id="projectSaved">saved ✓</span>
+          <button class="btn" id="saveProject">Save</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2>Connection <em class="hint-inline">global</em></h2>
+        <div class="hint">Your GLM API key and endpoint. (The model is per-chat — see Generation.)</div>
+        <label class="field">
+          <span>API key</span>
+          <input type="password" id="apiKeyInput" placeholder="paste your GLM API key" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span>Endpoint</span>
+          <select id="endpointInput">
+            <option value="https://api.z.ai/api/coding/paas/v4">Coding plan (api.z.ai) — for GLM Coding Plan keys</option>
+            <option value="https://api.z.ai/api/paas/v4">General (api.z.ai)</option>
+            <option value="https://open.bigmodel.cn/api/paas/v4/">General (bigmodel.cn)</option>
+          </select>
+        </label>
+        <div class="settings-actions">
+          <span class="saved-tag" id="connSaved">saved ✓</span>
+          <button class="btn" id="saveConnection">Save</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2>Generation <em class="hint-inline">this chat</em></h2>
+        <div class="hint">How the model writes each reply. These follow the chat; saving also sets the default for new chats. GLM advises picking Creativity <em>or</em> Nucleus.</div>
+        <label class="field">
+          <span>Model</span>
+          <select id="modelInput"></select>
+        </label>
+        <label class="field">
+          <span>Creativity <em id="tempVal">0.80</em></span>
+          <input type="range" id="tempInput" min="0" max="1" step="0.01" value="0.8" />
+        </label>
+        <label class="field">
+          <span>Nucleus sampling <em id="topPVal">0.95</em></span>
+          <input type="range" id="topPInput" min="0" max="1" step="0.01" value="0.95" />
+        </label>
+        <label class="field">
+          <span>Max reply length <em id="maxVal">4096</em></span>
+          <input type="range" id="maxInput" min="512" max="16384" step="512" value="4096" />
+        </label>
+        <label class="field">
+          <span>Context window <em class="hint-inline">cap sent history; 0 = all</em> <em id="contextWindowVal">Off</em></span>
+          <input type="range" id="contextWindowInput" min="0" max="131072" step="1024" value="0" />
+        </label>
+        <label class="field checkbox">
+          <input type="checkbox" id="thinkingInput" />
+          <span>Thinking mode — reason before answering (slower; good for analysis)</span>
+        </label>
+        <label class="field">
+          <span>Thinking effort <em class="hint-inline">how hard it reasons (GLM-5.2+)</em></span>
+          <select id="effortInput">
+            <option value="max">Max — deepest (slowest)</option>
+            <option value="high">High — strong</option>
+            <option value="minimal">Minimal — skip thinking (fastest)</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Text flow speed <em id="streamVal">Instant</em></span>
+          <input type="range" id="streamInput" min="0" max="100" step="1" value="100" />
+        </label>
+        <div class="settings-actions">
+          <span class="saved-tag" id="genSaved">saved ✓</span>
+          <button class="btn" id="saveGeneration">Save</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2>Appearance</h2>
+        <div class="hint">Tune the reading size and how wide the chat column is. The app window also remembers its size now.</div>
+        <label class="field">
+          <span>Text size <em id="fontVal">1.00×</em></span>
+          <input type="range" id="fontInput" min="0.8" max="1.6" step="0.05" value="1" />
+        </label>
+        <label class="field">
+          <span>Chat width <em id="widthVal">880px</em></span>
+          <input type="range" id="widthInput" min="600" max="1500" step="20" value="880" />
+        </label>
+        <label class="field">
+          <span>Accent color <em class="hint-inline">recolors the stars' light</em></span>
+          <input type="color" id="accentInput" value="#9fb8ff" />
+        </label>
+        <label class="field">
+          <span>Star density <em id="starDensityVal">1.00×</em></span>
+          <input type="range" id="starDensityInput" min="20" max="250" step="5" value="100" />
+        </label>
+        <label class="field">
+          <span>Twinkle speed <em id="twinkleVal">1.00×</em></span>
+          <input type="range" id="twinkleInput" min="0" max="250" step="5" value="100" />
+        </label>
+        <div class="settings-actions">
+          <span class="saved-tag" id="appearSaved">saved ✓</span>
+          <button class="btn ghost" id="resetAccent" type="button">Reset accent</button>
+          <button class="btn" id="saveAppearance" type="button">Save</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2>Data</h2>
+        <div class="hint">Back up everything — chats, settings, prompts, and the craft journal — to one file, or restore from one. (Restore overwrites current data.)</div>
+        <div class="settings-actions" style="justify-content:flex-start">
+          <button class="btn" id="backupBtn" type="button">Backup</button>
+          <button class="btn ghost" id="restoreBtn" type="button">Restore…</button>
+        </div>
+      </div>
+
+      <div class="settings-actions">
+        <button class="btn ghost" id="closeSettings">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shortcuts overlay (?) -->
+  <div class="settings-overlay" id="shortcutsOverlay">
+    <div class="settings-panel" style="max-width:440px">
+      <h2 class="lead">⌨ Shortcuts</h2>
+      <div class="settings-section">
+        <div class="shortcut"><kbd>Enter</kbd><span>Send message</span></div>
+        <div class="shortcut"><kbd>Shift</kbd> + <kbd>Enter</kbd><span>New line</span></div>
+        <div class="shortcut"><kbd>Esc</kbd><span>Close a panel / exit Zen</span></div>
+        <div class="shortcut"><kbd>?</kbd><span>Show or hide this sheet</span></div>
+      </div>
+      <div class="settings-section">
+        <div class="hint">Hover any message for <b>✎ Edit</b> · <b>↻ Retry</b> · <b>⑂ Fork</b> · <b>⎘ Copy</b>. Click <b>■</b> while writing to stop a reply.</div>
+      </div>
+      <div class="settings-actions">
+        <button class="btn" id="closeShortcuts" type="button">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/starfield.js"></script>
+  <script src="lib/marked.umd.js"></script>
+  <script src="js/md.js"></script>
+  <script src="js/chat.js"></script>
+  <script src="js/settings.js"></script>
+  <script src="js/sessions.js"></script>
+  <script src="js/craft.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

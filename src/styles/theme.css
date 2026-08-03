@@ -1,0 +1,32 @@
+/* ============================================================
+   CONSTELLATION — THEME
+   This is the file you tweak to retune the LOOK.
+   Each --something is a value (color/font). Change them freely.
+   ============================================================ */
+
+:root {
+  --bg: #000000;                       /* deep-space black */
+  --star-rgb: 255, 255, 255;           /* main star color */
+  --star-tint-rgb: 190, 210, 255;      /* faint blue-white for some stars */
+
+  --panel-bg: rgba(8, 10, 18, 0.62);   /* glassy panels */
+  --panel-border: rgba(150, 175, 230, 0.14);
+
+  --text: #e9eef9;                     /* main text */
+  --text-dim: #8b94a8;                 /* secondary text */
+  --text-faint: #5a6172;               /* faint text */
+
+  --accent: #9fb8ff;                   /* starlight accent */
+  --accent-dim: rgba(159, 184, 255, 0.5);
+  --user-bubble: rgba(120, 145, 220, 0.16);
+  --danger: #ff9b9b;
+
+  --font-ui: 'Literata', Georgia, 'Times New Roman', serif;
+  --font-prose: 'Literata', Georgia, 'Times New Roman', serif;
+
+  --radius: 14px;
+  --glow: 0 0 18px rgba(159, 184, 255, 0.25);
+
+  --font-scale: 1;       /* text-size preference (set by Settings → Appearance) */
+  --chat-col: 880px;     /* width of the centered chat column (set by Settings → Appearance) */
+}

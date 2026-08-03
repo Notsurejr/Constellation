@@ -1,0 +1,11 @@
+# Constellation settings — copy this to settings.txt and fill in your API key.
+# (The app reads settings from your user-data folder on first run and seeds
+#  sensible defaults, so you usually just need to paste a key in Settings.)
+
+api_key:
+model: glm-5.2
+base_url: https://api.z.ai/api/coding/paas/v4
+temperature: 0.8
+top_p: 0.95
+max_tokens: 4096
+thinking: off
