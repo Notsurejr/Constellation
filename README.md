@@ -14,7 +14,7 @@ Yes this is all AI generated code, I don't know how to code. What do you want fr
 
 You only need **two things**: the installer, and a GLM API key.
 
-1. **Double-click `Constellation Setup 0.1.0.exe`** (in the `dist\` folder).
+1. **Double-click `Constellation Setup 0.1.0.exe`**.
 2. Pick an install folder (or accept the default) and let it install.
 3. Launch **Constellation** from the Start Menu or desktop shortcut.
 
