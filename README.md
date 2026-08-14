@@ -127,6 +127,16 @@ Stack: Electron + vanilla JS (no build step), `marked` for markdown, `@huggingfa
 
 ---
 
+## 📄 Credits & licenses
+
+Constellation is [MIT-licensed](LICENSE). It bundles MIT/Apache-2.0/BSD-licensed
+libraries — full inventory in [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
+The optional semantic-matching feature downloads
+[nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5)
+(Apache-2.0, © Nomic AI) at runtime; the model itself is not bundled.
+
+---
+
 <div align="center">
 
 *Made with GLM. The sky is yours.* ✦
