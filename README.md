@@ -118,14 +118,6 @@ Stack: Electron + vanilla JS (no build step), `marked` for markdown, `@huggingfa
 
 ---
 
-## 🗺️ Roadmap
-
-- **Character & persona cards** — standalone cast sheets (SillyTavern-importable) that join a chat without cluttering the system prompt
-- **A sky that reads the room** — mood tints and weather-reactive starfield driven by the model's own reading of the prose
-- Folder-tied lorebook defaults · more sky events · pattern swatches
-
----
-
 ## 🆘 Troubleshooting
 
 - **`429` / out of credits:** almost always the wrong endpoint — Coding Plan keys need the Coding Plan endpoint.
