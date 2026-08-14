@@ -1,6 +1,6 @@
 {
   "name": "constellation",
-  "version": "0.1.0",
+  "version": "0.5.0",
   "description": "A cosmic desktop writing & roleplay app for GLM",
   "main": "main.js",
   "scripts": {
@@ -16,6 +16,7 @@
     "to-ico": "^1.1.5"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
     "openai": "^4.67.0"
   },
   "build": {

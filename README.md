@@ -1,150 +1,142 @@
-# Constellation ✦
+<div align="center">
+  <img src="docs/banner.svg" width="100%" alt="Constellation — your stories, written among the stars" />
+</div>
 
-A cosmic desktop app for **roleplay**, **creative writing**, and **craft coaching** — powered by your own GLM (Zhipu AI / Z.ai) API key.
+<div align="center">
 
-Constellation is a *client*: it has no AI of its own. It wraps your API key and steers, formats, and remembers your conversations with GLM. Your key and your chats stay on your computer.
+[![version](https://img.shields.io/badge/version-0.5.0-9fb8ff?style=flat-square)](https://github.com/Notsurejr/Constellation/releases)
+[![platform](https://img.shields.io/badge/platform-Windows-0078D6?style=flat-square)](https://github.com/Notsurejr/Constellation/releases)
+[![license](https://img.shields.io/badge/license-MIT-4a7a4a?style=flat-square)](LICENSE)
+[![engine](https://img.shields.io/badge/made%20with-Electron-9feaf9?style=flat-square)](https://www.electronjs.org/)
 
-Yes this is all AI generated code, I don't know how to code. What do you want from me?
+**A private, local-first writing companion for roleplay, fiction, and craft — set against a night sky that reacts to your story.**
 
-> Pair this with [`BUILD_SPEC.md`](./BUILD_SPEC.md) for the full technical/architecture reference. This README is the plain-English user guide.
+</div>
 
----
-
-## 🚀 Install & run (the easy way)
-
-You only need **two things**: the installer, and a GLM API key.
-
-1. **Double-click `Constellation Setup 0.1.0.exe`**.
-2. Pick an install folder (or accept the default) and let it install.
-3. Launch **Constellation** from the Start Menu or desktop shortcut.
-
-That's it for installation — **no Node.js, no command line, nothing else to install.** The whole runtime is bundled in the installer.
-
-### First launch — add your API key
-The app opens to an empty, starry chat. The first time:
-
-1. Click the **✦ Constellation** star (top-left) to open **Settings**.
-2. Under **Connection**, paste your **GLM API key**.
-3. Pick the right **Endpoint**:
-   - **Coding plan (api.z.ai)** — if your key is a *GLM Coding Plan* key (most common).
-   - **General (api.z.ai)** or **General (bigmodel.cn)** — for standard keys.
-4. Click **Save**. The status (top-right) should read `connected`.
-
-You're ready. Type a message and press **Enter**.
-
-> 💡 The app remembers your key and settings, so you only do this once.
+*Yes this is all AI generated code, I don't know how to code. What do you want from me?*
 
 ---
 
-## ✨ What you can do
+Constellation is a desktop home for long-form AI-assisted writing. Bring your own GLM (Zhipu AI / Z.ai) API key and get a calm, focused space built for *stories*, not chat transcripts: per-chat instructions and models, a lorebook that only sends the passages your scene needs, variant takes you can flip between, and phrase bans that quietly scrub the AI-isms out of the prose. Everything — chats, lore, settings — lives in plain files on your machine.
 
-**Chat**
-- Streamed replies with live **markdown** formatting (bold, lists, code, tables, quotes, links).
-- **Expandable code blocks** — wide code fences get an **Expand** button so they wrap to the window instead of forcing a left/right scrollbar.
-- **Edit** any of your messages (✎) and resend, or **regenerate** GLM's reply (↻).
-- **Stop** a reply mid-stream — the send button turns into a Stop button while generating, and whatever's already written is kept.
-- **Continue** — if a reply is cut off by your max-length cap, a Continue button appears on it (and *only* then) to pick up where it stopped.
-- **Copy** any message (⎘) or any code block.
-- A collapsible **✦ Thinking** block when the model reasons before answering — **saved with the chat**, and when thinking is on the model **carries its reasoning between turns** (so it builds on, and corrects, earlier thinking instead of starting fresh).
-- **Smart scroll**: if you scroll up to read while it's writing, it won't yank you back down. A **↓** button appears to jump to the latest.
-
-**Files for context**
-- Click **📎** (or drag files onto the chat) to attach `.md`/`.txt` files. Their text is read in and given to GLM as context — perfect for feeding it past markdown notes. Attachments stay with the message across saves/edits.
-
-**Saved chats** (☰ sidebar)
-- Chats auto-save. **New chat**, load, **rename** (✎), or delete (×). Rename once and it sticks (it won't revert to your first message).
-- **Export** any chat to a Markdown/text file with the **⤓** button (top bar).
-- **Pin** chats (☆) to keep the important ones at the top of the list.
-- **Search** (🔍 in the sidebar) finds any phrase across all your chats; click a result to jump straight to it.
-- **Fork** (⑂ on any message): branch a new chat off that point — the original stays intact. Forks are marked with a **↳ from** link back to their parent.
-- Each chat shows its cumulative **token usage**; the sidebar footer totals it across all chats.
-
-**Prompt presets**
-- Save complete sets of system + project instructions and switch between them from Settings → Presets.
-
-**Craft mode** (✒ top bar)
-- A writing coach: pull your writing from the current chat (or paste text), get a streamed review, and any "Craft takeaway" gets logged to a growing **craft journal**.
-
-**Appearance** (Settings → Appearance)
-- **Text size**, **chat width**, **accent color**, **star density**, and **twinkle speed** sliders (live preview). The stars also **parallax** with your mouse for depth, and the app remembers its window size.
-
-**Generation** (Settings → Generation · per-chat)
-- **Model**, **Creativity** (0.01 steps), **Nucleus sampling**, **max reply length**, **Context window** (cap how much history is sent — 0 = all), **Thinking mode** + **effort**, and **Text flow speed**. These follow the chat; saving also sets the default for new chats.
-
-**Quality-of-life**
-- **Quick model switcher** — change the current chat's model from the dropdown in the top bar (no need to open Settings).
-- **Draft autosave** — half-finished messages are saved per chat, so switching away and back never loses what you typed.
-- **Zen mode** (☾ top bar, or Esc to exit): fades out the top bar and widens the conversation so you can focus — hover the top edge to bring the bar back.
-- A **reading-progress** hairline on the right edge shows how far through a long chat you've scrolled.
-- A **context meter** (◐ top-right) estimates how full the conversation is.
-- **Backup / restore** (Settings → Data): save everything — chats, settings, prompts, craft journal — to one JSON file, or restore from one (overwrites current data).
-- **Spellcheck**: right-click a misspelled word for corrections or "Add to dictionary."
-
-**Keyboard**
-- **Enter** = send · **Shift+Enter** = new line · **Esc** = close a panel / exit Zen · **?** = shortcuts cheat sheet.
+> It's a *client*: Constellation has no AI of its own and no accounts. Your key talks straight to GLM; your writing never touches anyone else's server.
 
 ---
 
-## 💾 Where your stuff lives
+## ✦ Why you might want it
 
-Everything you create is stored in your user-data folder and **survives updates and reinstalls**:
+**🏰 Worlds that stay consistent.** A **lorebook** holds your world bible — a whole 300 KB encyclopedia if you like — and only the passages relevant to the current scene are sent to the model. Entries fire on trigger words, or let smart retrieval find the right paragraph on its own. Enable a lorebook *per chat*, so your Warhammer campaign and your romance novella never contaminate each other.
+
+**📜 Instructions that follow the story.** Every chat carries its own system prompt, project notes, model, and generation settings — switch chats and everything switches with them. Save whole instruction sets as **presets** (Novelist, Editor, Brainstorm) and swap in one click. Attach `.md`/`.txt` files as living context.
+
+**✍️ Prose without the tells.** A **phrase-ban list** quietly swaps or strips the words models overuse ("delve into", "a tapestry of") *after* generation — the model never sees the list, so it never leans into it. Your voice stays yours.
+
+**🎚️ Take the best take.** **Regenerate variants** keeps every version of a reply — flip between them with ‹ 1/3 › and continue from the one you like. **Fork** any message into a branching chat. **Bookmark** lines worth coming back to.
+
+**🌌 A sky that listens.** When a color word crosses the center of your screen, the background blooms with that color — and optional cosmic events (comets, planets, supernovas, flaring stars) fire in that hue. Reading a sunset becomes *seeing* one, a little.
+
+**🔒 Private and portable.** No cloud, no accounts, no telemetry. Chats, lorebooks, presets and journals are plain JSON/text in `%AppData%\constellation` — back up and restore the whole app to one file.
+
+**🖼️ And the practical bits.** Image input (vision models), collapsible preserved thinking, folders and pinned chats, full-text search, drafts, export to Markdown, a writing **coach** with a craft journal, zen mode, and a token meter.
+
+---
+
+## 🚀 Quick start
+
+You need two things: the installer and a GLM API key.
+
+1. Download **`Constellation Setup 0.5.0.exe`** from [Releases](https://github.com/Notsurejr/Constellation/releases) and run it. No Node.js, no command line — the runtime is bundled.
+2. Launch Constellation, click the **✦ star** (top-left) → **Connection**.
+3. Paste your **GLM API key** and pick the matching **endpoint**:
+   - **Coding plan (api.z.ai)** — for *GLM Coding Plan* keys (most common)
+   - **General (api.z.ai / bigmodel.cn)** — standard keys
+4. **Save** — the status should read `connected`. Type something and press **Enter**.
+
+> 💡 Wrong endpoint is the #1 cause of `429` errors. If you're on a Coding Plan key, use the Coding Plan endpoint.
+
+### First things to try
+
+- Open **❖ Lorebook** → create one called *My World* → paste your setting notes → tick it on for your chat.
+- Settings → **Phrase bans** → add `delve into = explore` and watch it vanish from replies.
+- Ask for a vivid description of a sunset, then scroll through it slowly. 🌌
+
+---
+
+## ✨ Feature tour
+
+| | |
+|---|---|
+| **Chat** | Streamed markdown replies · expandable code blocks · edit & resend · stop mid-stream · continue after length-cuts · copy anything |
+| **Thinking** | Collapsible reasoning blocks, saved with the chat; models carry reasoning between turns (Preserved Thinking) |
+| **Lorebooks** | Titled collection · per-chat enable/disable · trigger-word entries · smart passage retrieval (BM25 + optional on-device semantic matching via nomic embeddings) · attach files to entries · 🌍 log shows exactly what was pulled |
+| **Instructions** | Per-chat system + project prompts · presets · file attachments as context · first-run template files you can rewrite freely |
+| **Writing tools** | Phrase bans & substitutions · variant takes ‹ n/m › · forks with lineage links · bookmarks (★) · craft coach + journal |
+| **Media** | Image input for vision models · thumbnails in chat · export to Markdown |
+| **Organize** | Folders · pinned chats · full-text search with jump-to-match · drafts per chat · usage/token tracking per chat |
+| **The sky** | Color-word glow + cosmic events (toggleable, size/blend/reach controls) · parallax starfield · twinkle & density controls · zen mode |
+| **Data** | One-file backup & restore · everything in plain files under `%AppData%\constellation` |
+| **For tinkerers** | Opt-in localhost test server + read-only `cli.js` for headless poking · tweak theme/star colors in plain CSS |
+
+**Keyboard:** `Enter` send · `Shift+Enter` newline · `Esc` close panel / exit Zen · `?` cheat sheet.
+
+---
+
+## 🔒 Privacy & where your stuff lives
+
+Constellation is a client around **your** key. Nothing is sent anywhere except your prompts to the GLM endpoint you configure.
 
 ```
 %AppData%\constellation\
-├── config\   settings.txt, project.txt, modes\ (your prompts)
-└── data\     sessions\ (saved chats), presets\, craft_journal.txt
+├── config\    settings.txt, phrase_bans.txt, project.txt, modes\ (your prompts)
+└── data\      sessions\ (chats), lorebooks.json, presets\, bookmarks.json,
+               craft_journal.txt, drafts.json, folders.json
 ```
 
-To back up Constellation, just copy that folder. To fully reset, delete it (the app recreates defaults on next launch).
+Copy that folder to back up; delete it to fully reset. The in-app **Backup** button bundles everything into one JSON file. Semantic matching (optional, off by default) runs a local embedding model — your lore never leaves the machine for it.
 
 ---
 
-## 🔁 Updating
+## 🛠️ Developers — run from source
 
-Run the newer `Constellation Setup 0.1.0.exe` over your existing install. Your key, settings, and saved chats in `%AppData%\constellation` are untouched.
+```powershell
+git clone https://github.com/Notsurejr/Constellation.git
+cd Constellation
+npm install
+npm start        # run from source
+npm run dist     # build the Windows installer into dist\
+```
 
----
+Stack: Electron + vanilla JS (no build step), `marked` for markdown, `@huggingface/transformers` for optional on-device embeddings. See [`BUILD_SPEC.md`](./BUILD_SPEC.md) for the full architecture reference.
 
-## 🛠️ Running from source / building (for developers)
+### Tweaking without code
 
-If you want to modify the code or rebuild the installer:
-
-1. Install **Node.js LTS** from <https://nodejs.org>.
-2. Open a terminal in the `Constellation\` folder.
-3. Install dependencies (once):
-   ```powershell
-   npm install
-   ```
-4. Run from source:
-   ```powershell
-   npm start
-   ```
-5. Build a fresh installer:
-   ```powershell
-   npm run dist
-   ```
-   Output lands in `dist\Constellation Setup 0.1.0.exe`.
+| File | Controls |
+|------|----------|
+| `config\modes\*.txt` | The system prompt templates — rewrite freely |
+| `src\styles\theme.css` | Colors, fonts, star color — the whole look (CSS variables) |
+| `build\icon-render.js` | Params for regenerating the app icon |
 
 ---
 
-## 🎨 Tweaking without code
+## 🗺️ Roadmap
 
-| File | What it controls |
-|------|------------------|
-| `config\modes\roleplay.txt` (etc.) | The system prompt that steers each mode. Rewrite freely. |
-| `config\settings.txt` | Key, model, endpoint, and all preferences (after install, this lives in `%AppData%\constellation\config\`). |
-| `src\styles\theme.css` | Colors, fonts, star color — the whole look (CSS variables). |
-| `build\icon-render.js` | Tunable params for regenerating the app icon (`node build\icon-render.js`). |
+- **Character & persona cards** — standalone cast sheets (SillyTavern-importable) that join a chat without cluttering the system prompt
+- **A sky that reads the room** — mood tints and weather-reactive starfield driven by the model's own reading of the prose
+- Folder-tied lorebook defaults · more sky events · pattern swatches
 
 ---
 
 ## 🆘 Troubleshooting
 
-- **`429 余额不足` / "out of credits":** almost always the **wrong endpoint**. If you have a GLM Coding Plan key, choose the **Coding plan (api.z.ai)** endpoint in Settings. (If the endpoint is right, it genuinely means the account is out of credits/quota.)
-- **`401` / "invalid key":** the API key was rejected — re-paste it in Settings → Connection.
-- **Reply not appearing:** check the status (top-right) and the model/endpoint in Settings.
-- **App icon looks old after a rebuild:** press `F5` in the folder, or reinstall — Windows caches icons aggressively.
+- **`429` / out of credits:** almost always the wrong endpoint — Coding Plan keys need the Coding Plan endpoint.
+- **`401` / invalid key:** re-paste the key in Settings → Connection.
+- **Reply not appearing:** check the status light (top-right) and the model/endpoint in Settings.
+- **Old icon after rebuild:** Windows caches icons — reinstall or refresh the folder.
 
 ---
 
+<div align="center">
+
 *Made with GLM. The sky is yours.* ✦
+
+</div>

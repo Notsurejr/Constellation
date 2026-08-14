@@ -22,6 +22,10 @@ Constellation.chat = (function () {
   let usage = { tokens: 0, requests: 0 };   // cumulative estimated tokens for the current chat
   let pendingFiles = [];   // [{ name, size, text }] queued attachments for the next send
   let opts = { model: 'glm-5.2', temperature: 0.8, topP: 0.95, maxTokens: 0, thinking: false, reasoningEffort: 'max', streamCps: 0, contextWindow: 0 };
+  let activeLore = [];   // lorebooks enabled for the current chat (each { entries, semantic }); sessions applies this
+  let phraseBanRules = [];   // [{ re, replace }] tidied out of GLM's replies AFTER generation (the model never sees these)
+  let systemFiles = [];   // [{name,text}] .md/.txt attached to this chat's system instructions (inlined into the system prompt)
+  let projectFiles = [];  // [{name,text}] attached to this chat's project instructions
 
   function setStatus(text, cls) {
     statusEl.textContent = text;
@@ -37,6 +41,35 @@ Constellation.chat = (function () {
   function scrollToBottom() { messagesEl.scrollTop = messagesEl.scrollHeight; }
   function maybeScroll() { if (atBottom()) scrollToBottom(); }
   function updateJumpBtn() { if (jumpBtn) jumpBtn.hidden = atBottom(); }
+
+  // --- Scroll preservation across a reply's finish ---
+  // Finishing mutates layout ABOVE the reader's line (final markdown re-render, code-block toolbars,
+  // continue button), which yanks the viewport. captureScrollAnchor() records the tightest block
+  // straddling the viewport's top edge (any message); restoreScrollAnchor() puts it back where it
+  // was. Survives the streaming body's innerHTML replacement via a text-match fallback.
+  const ANCHOR_BLOCKS = '.role, .think-block, .think-body, .body p, .body li, .body pre, .body h1, .body h2, .body h3, .body h4, .msg-meta, .body';
+  function captureScrollAnchor() {
+    const viewTop = messagesEl.getBoundingClientRect().top + 2;
+    let best = null;
+    for (const b of messagesEl.querySelectorAll(ANCHOR_BLOCKS)) {
+      const r = b.getBoundingClientRect();
+      if (r.height === 0) continue;
+      if (r.bottom < viewTop || r.top > viewTop) continue;   // must straddle the viewport's top edge
+      if (!best || r.height < best.h) best = { el: b, h: r.height, text: (b.textContent || '').trim().slice(0, 80), off: r.top - viewTop };
+    }
+    return best;
+  }
+  function restoreScrollAnchor(a) {
+    if (!a) return;
+    const viewTop = messagesEl.getBoundingClientRect().top + 2;
+    let target = (a.el && a.el.isConnected) ? a.el : null;
+    if (!target) {
+      for (const b of messagesEl.querySelectorAll(ANCHOR_BLOCKS)) {
+        if ((b.textContent || '').trim().slice(0, 80) === a.text && b.getBoundingClientRect().height > 0) { target = b; break; }
+      }
+    }
+    if (target) messagesEl.scrollTop += (target.getBoundingClientRect().top - viewTop) - a.off;
+  }
 
   // Reading-progress hairline down the right edge: how far through the chat you've scrolled.
   function updateReadProgress() {
@@ -97,25 +130,41 @@ Constellation.chat = (function () {
     try { await window.api.exportMarkdown(title, lines.join('\n')); if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Exported "' + title + '"'); } catch (e) {}
   }
 
+  // Render attached .md/.txt files as delimited blocks (the model sees these as reference context).
+  function filesBlock(files) {
+    if (!files || !files.length) return '';
+    return files.map((f) => '===== ' + f.name + ' (' + (f.text || '').length + ' chars) =====\n' + (f.text || '')).join('\n\n');
+  }
   function buildSystem() {
     return [
       roleplayPrompt,
       projectInstructions && ('# Project instructions\n' + projectInstructions),
+      filesBlock(systemFiles),
+      filesBlock(projectFiles),
     ].filter(Boolean).join('\n\n');
   }
 
-  function setPrompts({ roleplay, project }) {
+  function setPrompts({ roleplay, project, systemFiles: sFiles, projectFiles: pFiles }) {
     if (roleplay !== undefined) roleplayPrompt = (roleplay || '').trim();
     if (project !== undefined) projectInstructions = (project || '').trim();
+    if (sFiles !== undefined) systemFiles = Array.isArray(sFiles) ? sFiles : [];
+    if (pFiles !== undefined) projectFiles = Array.isArray(pFiles) ? pFiles : [];
     const sys = buildSystem();
     if (conversation[0] && conversation[0].role === 'system') conversation[0].content = sys;
     else conversation.unshift({ role: 'system', content: sys });
+    updateContextMeter();
   }
 
   function setOptions(patch) {
     if (patch) Object.assign(opts, patch);
     if (topModel && opts.model) topModel.value = opts.model;   // keep the top-bar switcher in sync
   }
+  function setActiveLore(arr) { activeLore = Array.isArray(arr) ? arr.filter((lb) => lb && Array.isArray(lb.entries)) : []; updateContextMeter(); }
+
+  // Phrase bans (engine in Constellation.engines.bans — shared with the CLI). The model never sees
+  // this list; ticks are tidied out of replies after generation. Rules: `find = replace` (or `find =`).
+  function setPhraseBans(text) { phraseBanRules = Constellation.engines.bans.parse(text); }
+  function applyPhraseBans(text) { return Constellation.engines.bans.apply(text, phraseBanRules); }
 
   async function init() {
     try {
@@ -136,6 +185,7 @@ Constellation.chat = (function () {
     opts.reasoningEffort = cfg.reasoningEffort || 'max';
     opts.streamCps = cfg.streamCps ?? 0;
     opts.contextWindow = cfg.contextWindow ?? 0;
+    setPhraseBans(cfg.phraseBans || '');
     if (cfg.hasKey) setStatus('connected · ' + (cfg.model || 'glm-5.2'), 'ok');
     else setStatus('add your API key in Settings', 'err');
 
@@ -166,7 +216,7 @@ Constellation.chat = (function () {
     });
     autoGrow();
     messagesEl.addEventListener('click', onMessageClick);
-    messagesEl.addEventListener('scroll', () => { updateJumpBtn(); updateReadProgress(); }, { passive: true });
+    messagesEl.addEventListener('scroll', () => { updateJumpBtn(); updateReadProgress(); if (window.Constellation && window.Constellation.colorfx) window.Constellation.colorfx.scan(messagesEl); }, { passive: true });
     window.addEventListener('resize', updateReadProgress);
     if (jumpBtn) jumpBtn.addEventListener('click', () => { scrollToBottom(); updateJumpBtn(); });
 
@@ -200,23 +250,33 @@ Constellation.chat = (function () {
     inputEl.style.height = Math.min(160, inputEl.scrollHeight) + 'px';
   }
 
-  // ---- File attachments (markdown/text read as context for the model) ----
-  function formatCount(n) {
-    if (n >= 1000) return (Math.round(n / 100) / 10) + 'k chars';
-    return n + ' chars';
+  // ---- File attachments: text (.md/.txt) read as context, images read as base64 for vision ----
+  function fileSizeLabel(f) {
+    if (f.kind === 'image') {
+      const kb = (f.size || 0) / 1024;
+      return kb >= 1024 ? (kb / 1024).toFixed(1) + 'MB' : Math.round(kb) + 'KB';
+    }
+    const n = (f.text || '').length;
+    return n >= 1000 ? (Math.round(n / 100) / 10) + 'k chars' : n + ' chars';
   }
 
-  // Builds a chip element. removable=true -> shows an × (pending in the composer).
+  // Builds a chip element. removable=true -> shows an × (pending in the composer). Images show a thumbnail.
   function fileChipEl(f, removable) {
     const chip = document.createElement('div');
-    const big = f.text != null && f.text.length > 50000;
-    chip.className = 'attach-chip' + (big ? ' large' : '');
-    const ico = document.createElement('span'); ico.className = 'attach-ico'; ico.textContent = '📄';
+    const isImg = f.kind === 'image' && f.dataUrl;
+    const big = !isImg && f.text != null && f.text.length > 50000;
+    chip.className = 'attach-chip' + (big ? ' large' : '') + (isImg ? ' image' : '');
+    if (isImg) {
+      const thumb = document.createElement('img');
+      thumb.className = 'attach-thumb'; thumb.src = f.dataUrl; thumb.alt = f.name || ''; thumb.title = f.name || '';
+      chip.appendChild(thumb);
+    } else {
+      const ico = document.createElement('span'); ico.className = 'attach-ico'; ico.textContent = '📄';
+      chip.appendChild(ico);
+    }
     const nm = document.createElement('span'); nm.className = 'attach-name'; nm.textContent = f.name;
-    const sz = document.createElement('span');
-    sz.className = 'attach-size';
-    sz.textContent = formatCount(f.text != null ? f.text.length : (f.size || 0));
-    chip.appendChild(ico); chip.appendChild(nm); chip.appendChild(sz);
+    const sz = document.createElement('span'); sz.className = 'attach-size'; sz.textContent = fileSizeLabel(f);
+    chip.appendChild(nm); chip.appendChild(sz);
     if (removable) {
       const x = document.createElement('button');
       x.className = 'attach-x'; x.type = 'button'; x.title = 'Remove'; x.textContent = '×';
@@ -243,13 +303,18 @@ Constellation.chat = (function () {
     let remaining = arr.length;
     const done = () => { if (--remaining === 0) renderChips(); };
     for (const file of arr) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        pendingFiles.push({ name: file.name, size: file.size, text: String(reader.result || '') });
-        done();
-      };
-      reader.onerror = done;
-      reader.readAsText(file);
+      if (file.type.startsWith('image/')) {
+        if (file.size > 8 * 1024 * 1024) { done(); continue; }   // skip images over 8MB (would bloat storage)
+        const reader = new FileReader();
+        reader.onload = () => { pendingFiles.push({ name: file.name, size: file.size, kind: 'image', dataUrl: String(reader.result || '') }); done(); };
+        reader.onerror = done;
+        reader.readAsDataURL(file);   // base64 data URL — sent to a vision model as image_url
+      } else {
+        const reader = new FileReader();
+        reader.onload = () => { pendingFiles.push({ name: file.name, size: file.size, kind: 'text', text: String(reader.result || '') }); done(); };
+        reader.onerror = done;
+        reader.readAsText(file);
+      }
     }
   }
 
@@ -270,16 +335,37 @@ Constellation.chat = (function () {
   // reasoning_content verbatim (GLM "Preserved Thinking") so the model keeps reasoning continuity
   // across turns instead of re-deriving everything from scratch each time. The reasoning we stored
   // is the exact, unedited concatenation of the model's own reasoning_content deltas.
-  function toApiMessages() {
+  function toApiMessages(loreCtx, src) {
+    const list = src || conversation;
     const preserve = !!opts.thinking;
-    return conversation.map((m) => {
+    const out = list.map((m) => {
       if (m.role === 'user' && m.files && m.files.length) {
-        return { role: 'user', content: composeUserContent(m) };
+        const imgs = m.files.filter((f) => f.kind === 'image' && f.dataUrl);
+        if (imgs.length) {
+          // Multimodal content array: the typed text (+ any text files) then each image, for a vision model.
+          const textParts = [m.content || ''].concat(
+            m.files.filter((f) => f.kind !== 'image').map((f) => '===== ' + f.name + ' =====\n' + (f.text || ''))
+          );
+          const textJoin = textParts.filter(Boolean).join('\n\n');
+          const arr = [];
+          if (textJoin) arr.push({ type: 'text', text: textJoin });
+          for (const f of imgs) arr.push({ type: 'image_url', image_url: { url: f.dataUrl } });
+          return { role: 'user', content: arr };
+        }
+        return { role: 'user', content: composeUserContent(m) };   // text files only → single string
       }
-      const out = { role: m.role, content: m.content };
-      if (preserve && m.role === 'assistant' && m.reasoning) out.reasoning_content = m.reasoning;
-      return out;
+      const o = { role: m.role, content: m.content };
+      if (preserve && m.role === 'assistant' && m.reasoning) o.reasoning_content = m.reasoning;
+      return o;
     });
+    // Lorebook: inject only the RELEVANT world context (constant entries + keyword matches + the
+    // top BM25 passages from big reference docs) as a clearly-labeled section. `loreCtx` (if passed)
+    // is reused so the request and the 🌍 log stay in sync.
+    const lc = loreCtx != null ? loreCtx : buildLoreContext();
+    if (lc.body && out[0] && out[0].role === 'system') {
+      out[0] = { role: 'system', content: out[0].content + '\n\n# World\nBackground facts about this world (true; use as context):\n\n' + lc.body };
+    }
+    return out;
   }
 
   // Sliding context window: if a token cap is set, drop the OLDEST middle turns from what's sent
@@ -295,6 +381,58 @@ Constellation.chat = (function () {
     while (body.length > 1 && est(sys ? [sys].concat(body) : body) > win) body = body.slice(1);
     while (body.length > 1 && body[0].role === 'assistant') body = body.slice(1);   // keep it leading with a user turn
     return sys ? [sys].concat(body) : body;
+  }
+
+  // (Lorebook retrieval engine — tokenizing, chunking, BM25, fusion — now lives in
+  //  Constellation.engines.lore, shared with the CLI so both run identical code. loreQuery stays
+  //  here because it reads this chat's conversation.)
+  function loreQuery() {
+    return conversation.filter((m) => m.role !== 'system').slice(-4).map((m) => m.content || '').join('\n');
+  }
+  // Build the world-context payload for this turn by delegating to the shared engine (so the CLI
+  // and the app run identical retrieval). loreEmbedFn hands the semantic embedder to the engine.
+  function loreEmbedFn() {
+    return (window.api && window.api.embedTexts)
+      ? (async (t) => { try { const r = await window.api.embedTexts([t], true); return Array.isArray(r) && r[0] ? r[0] : null; } catch (e) { return null; } })
+      : null;
+  }
+  async function buildLoreContext() {
+    return Constellation.engines.lore.buildLoreContext(activeLore, loreQuery(), loreEmbedFn());
+  }
+  // Collect a streamed GLM reply into a string (no typewriter/DOM) — used by the dry-run test.
+  function completeGlm(reqMsgs) {
+    return new Promise((resolve, reject) => {
+      let full = '', reasoning = '';
+      window.api.chatStream(reqMsgs, opts, {
+        onThink: (d) => { reasoning += d; },
+        onChunk: (d) => { full += d; },
+        onDone: (f) => { resolve({ full: f || full, reasoning }); },
+        onError: (m) => { reject(new Error(m)); },
+      });
+    });
+  }
+  // Run the full send→GLM→phrase-ban pipeline for a HYPOTHETICAL message WITHOUT touching the real
+  // conversation or saving — a non-destructive test of what GLM would reply (uses one API call).
+  async function dryRun(msg) {
+    const conv = conversation.concat([{ role: 'user', content: String(msg || '') }]);
+    const recentText = conv.filter((m) => m.role !== 'system').slice(-4).map((m) => m.content || '').join('\n');
+    const lc = await Constellation.engines.lore.buildLoreContext(activeLore, recentText, loreEmbedFn());
+    const reqMsgs = trimForApi(toApiMessages(lc, conv));
+    const { full, reasoning } = await completeGlm(reqMsgs);
+    const cleaned = applyPhraseBans(full);
+    return { reply: cleaned, reasoning: reasoning || undefined, bansApplied: cleaned !== full, lore: lc.items.map((it) => ({ label: it.label, text: it.text })) };
+  }
+  // ---- CLI bridge handlers (Shape A) — non-destructive inspection/tests ----
+  function getState() {
+    return { model: opts.model, thinking: !!opts.thinking, contextWindow: opts.contextWindow, messageCount: Math.max(0, conversation.length - 1), activeLore: activeLore.length, banRules: phraseBanRules.length };
+  }
+  async function testRetrieve(q) {
+    const lc = await Constellation.engines.lore.buildLoreContext(activeLore, String(q || ''), loreEmbedFn());
+    return { query: q, count: lc.items.length, items: lc.items.map((it) => ({ label: it.label, text: it.text })) };
+  }
+  function testBans(text) {
+    const t = String(text || '');
+    return { in: t, out: applyPhraseBans(t), rules: phraseBanRules.length };
   }
 
   // Rough token estimate (chars/4) of the messages actually sent — used for the usage tracker.
@@ -325,7 +463,7 @@ Constellation.chat = (function () {
       copy.className = 'codeblock-toggle';
       copy.textContent = '⎘ Copy';
       copy.addEventListener('click', () => {
-        try { navigator.clipboard.writeText(pre.textContent || ''); } catch (e) {}
+        if (window.api && window.api.writeClipboard) window.api.writeClipboard(pre.textContent || '');
         copy.textContent = '✓ Copied';
         setTimeout(() => { copy.textContent = '⎘ Copy'; }, 1200);
       });
@@ -358,7 +496,36 @@ Constellation.chat = (function () {
     return b;
   }
 
-  function addMessage(role, content, files, reasoning) {
+  // Lorebook transparency log: a collapsible "🌍 N world entries used" note on a reply showing
+  // exactly which lorebook entries fired for that turn. Snapshotted onto the message so it survives
+  // reload — display-only metadata (never sent to the API, never re-scanned, so it can't compound).
+  function addLoreIndicator(el, items) {
+    if (!items || !items.length) return;
+    const old = el.querySelector('.lore-used');
+    if (old) old.remove();
+    const ind = document.createElement('div');
+    ind.className = 'lore-used';
+    const head = document.createElement('button');
+    head.type = 'button'; head.className = 'lore-used-head';
+    head.textContent = '🌍 ' + items.length + (items.length === 1 ? ' passage' : ' passages') + ' pulled';
+    const list = document.createElement('div');
+    list.className = 'lore-used-list'; list.hidden = true;
+    for (const it of items) {
+      const item = document.createElement('div'); item.className = 'lore-used-item';
+      const lab = document.createElement('div'); lab.className = 'lore-used-label';
+      lab.textContent = it.label || 'world context';
+      const bodyEl = document.createElement('div'); bodyEl.className = 'lore-used-body';
+      bodyEl.textContent = String(it.text || '').replace(/\s+/g, ' ').trim();
+      item.appendChild(lab); item.appendChild(bodyEl);
+      list.appendChild(item);
+    }
+    head.addEventListener('click', () => { const open = list.hidden; list.hidden = !open; head.classList.toggle('open', open); });
+    ind.appendChild(head); ind.appendChild(list);
+    const acts = el.querySelector('.msg-actions');
+    if (acts) el.insertBefore(ind, acts); else el.appendChild(ind);
+  }
+
+  function addMessage(role, content, files, reasoning, lore) {
     clearEmptyHint();
     const el = document.createElement('div');
     el.className = 'msg ' + role;
@@ -398,6 +565,7 @@ Constellation.chat = (function () {
     body.className = 'body md';
     body.innerHTML = Constellation.md.render(content);
     enhanceCodeBlocks(body);     // attach expand/collapse toggles to finished code blocks
+    if (window.Constellation && window.Constellation.colorfx) window.Constellation.colorfx.tagColors(body);   // tag color words for the scan flare
     el.appendChild(body);
 
     // Attachment chips shown inside the message bubble (display only).
@@ -422,7 +590,10 @@ Constellation.chat = (function () {
     else actions.appendChild(actionBtn('regen', '↻ Retry'));
     actions.appendChild(actionBtn('fork', '⑂ Fork'));
     actions.appendChild(actionBtn('copy', '⎘ Copy'));
+    actions.appendChild(actionBtn('bookmark', '☆'));
     el.appendChild(actions);
+    applyBookmarkGlyph(el);
+    if (role === 'assistant' && lore && lore.length) addLoreIndicator(el, lore);
 
     messagesEl.appendChild(el);
     if (!bulkScroll) { scrollToBottom(); updateJumpBtn(); updateReadProgress(); }
@@ -443,16 +614,56 @@ Constellation.chat = (function () {
   // Stream a fresh assistant reply. Text is revealed at a configurable flow rate
   // (opts.streamCps chars/sec; 0/Infinity = instant), markdown re-rendered on a throttle.
   // We only auto-scroll if the reader is already near the bottom.
-  function streamReply() {
+  // Animated "thinking" dots shown in an empty reply while we wait for the first token — hides any
+  // lore-processing / model-connect latency behind something that looks alive. Removed on first content.
+  function showThinking(el) {
+    hideThinking(el);
+    const w = document.createElement('div');
+    w.className = 'think-wait';
+    w.setAttribute('aria-label', 'Thinking');
+    w.innerHTML = '<span class="think-dot"></span><span class="think-dot"></span><span class="think-dot"></span>';
+    const b = el.querySelector('.body');
+    if (b && b.parentNode) b.parentNode.insertBefore(w, b.nextSibling); else el.appendChild(w);
+  }
+  function hideThinking(el) {
+    const w = el.querySelector('.think-wait');
+    if (w) w.remove();
+  }
+
+  async function streamReply(variantTarget) {
     busy = true;
     sendBtn.classList.add('stop'); sendBtn.textContent = '■'; sendBtn.title = 'Stop';
 
-    const { el, body, thinkDetails, thinkBody } = addMessage('assistant', '');
-    const meta = el.querySelector('.msg-meta');
-    body.classList.add('caret');
+    // variantTarget = an existing assistant message to stream a NEW take into (↻ Retry);
+    // otherwise this is a fresh reply appended at the end.
+    let el, body, thinkDetails, thinkBody, meta, variantCi;
+    if (variantTarget) {
+      el = variantTarget;
+      body = el.querySelector('.body');
+      thinkDetails = el.querySelector('.think-block');
+      thinkBody = thinkDetails ? thinkDetails.querySelector('.think-body') : null;
+      meta = el.querySelector('.msg-meta');
+      variantCi = convIndexForEl(el);
+      body.innerHTML = ''; body.classList.add('caret'); body.style.color = '';
+      if (thinkDetails) { thinkDetails.hidden = true; thinkDetails.open = false; }
+      if (thinkBody) thinkBody.textContent = '';
+      const oldLore = el.querySelector('.lore-used'); if (oldLore) oldLore.remove();
+      el.classList.remove('continuable');
+      const cont = el.querySelector('[data-action="continue"]'); if (cont) cont.remove();
+    } else {
+      const r = addMessage('assistant', '');
+      el = r.el; body = r.body; thinkDetails = r.thinkDetails; thinkBody = r.thinkBody;
+      meta = el.querySelector('.msg-meta');
+      body.classList.add('caret');
+    }
     setStatus('thinking…', 'ok');
     scrollToBottom();
     updateJumpBtn();
+    body.classList.remove('caret');
+    showThinking(el);   // animated "working" indicator while lore + the model get ready (hides any latency)
+
+    const loreCtx = await buildLoreContext();   // relevant world context (constant + keyword + hybrid BM25/semantic passages)
+    addLoreIndicator(el, loreCtx.items);
 
     let bodyBuf = '';
     let thinkBuf = '';
@@ -462,9 +673,10 @@ Constellation.chat = (function () {
     let lastTs = 0;
     let lastRender = 0;
     const rate = opts.streamCps > 0 ? opts.streamCps : Infinity;   // chars/sec to reveal at
+    let finishAnchor = null;   // the reader's pinned line across all finish mutations (see onDone)
 
     function renderPrefix() {
-      body.innerHTML = Constellation.md.render(bodyBuf.slice(0, Math.floor(revealedN)));
+      body.innerHTML = Constellation.md.render(applyPhraseBans(bodyBuf.slice(0, Math.floor(revealedN))));
       maybeScroll();
       updateJumpBtn();
       if (meta) updateMeta(meta, body.textContent);
@@ -484,17 +696,22 @@ Constellation.chat = (function () {
         body.classList.remove('caret');
         renderPrefix();
         enhanceCodeBlocks(body);   // finished streaming -> add expand/collapse toggles
+        if (window.Constellation && window.Constellation.colorfx) window.Constellation.colorfx.tagColors(body);   // tag colors in the finished reply
+        if (finishAnchor) restoreScrollAnchor(finishAnchor);   // final render settled — put the reader's line back
         rafId = null;
       }
     }
     rafId = requestAnimationFrame(pump);
 
-    const reqMsgs = trimForApi(toApiMessages());
+    // For a variant regen, the request excludes the message being re-answered (it's the last turn).
+    const reqSrc = variantTarget ? conversation.slice(0, variantCi) : conversation;
+    const reqMsgs = trimForApi(toApiMessages(loreCtx, reqSrc));
     usage.tokens += estTokens(reqMsgs);   // count this request's tokens (context actually sent)
     usage.requests++;
     currentRequest = window.api.chatStream(reqMsgs, opts, {
       onRetry: (attempt) => setStatus('retrying… (attempt ' + attempt + ')', 'ok'),
       onThink: (delta) => {
+        hideThinking(el);
         thinkBuf += delta;
         if (thinkDetails) {
           thinkDetails.hidden = false;
@@ -503,14 +720,31 @@ Constellation.chat = (function () {
         }
       },
       onChunk: (delta) => {
+        hideThinking(el);
+        if (!body.classList.contains('caret')) body.classList.add('caret');
         bodyBuf += delta;
         if (statusEl.textContent !== 'writing…') setStatus('writing…', 'ok');
       },
       onDone: (full, finishReason) => {
+        hideThinking(el);
+        finishAnchor = (!atBottom()) ? captureScrollAnchor() : null;   // pin the reader's line BEFORE any finish mutations
         streaming = false;
         if (full) bodyBuf = full;
-        conversation.push({ role: 'assistant', content: bodyBuf, reasoning: thinkBuf || undefined });
-        if (thinkDetails && thinkBuf) thinkDetails.open = false;   // fold thinking away once the answer is in
+        bodyBuf = applyPhraseBans(bodyBuf);   // tidy banned phrases out of the final reply (model never sees the list)
+        const vLore = loreCtx && loreCtx.items.length ? loreCtx.items.map((it) => ({ label: it.label, text: String(it.text || '').slice(0, 300) })) : undefined;
+        if (variantTarget) {
+          // Keep the prior take(s); add this one and make it the active variant.
+          const m = conversation[variantCi];
+          if (m) {
+            if (!Array.isArray(m.variants)) m.variants = [{ content: m.content || '', reasoning: m.reasoning, lore: m.lore }];
+            m.variants.push({ content: bodyBuf, reasoning: thinkBuf || undefined, lore: vLore });
+            m.vActive = m.variants.length - 1;
+            m.content = bodyBuf; m.reasoning = thinkBuf || undefined; m.lore = vLore;
+          }
+        } else {
+          conversation.push({ role: 'assistant', content: bodyBuf, reasoning: thinkBuf || undefined, lore: vLore });
+        }
+        if (thinkDetails && thinkBuf && atBottom()) thinkDetails.open = false;   // fold thinking away once the answer is in — but NOT while the reader is scrolled up (the collapse would yank their view)
         if (finishReason === 'length') {   // hit the max-length cap -> offer to continue from the cutoff
           el.classList.add('continuable');
           const acts = el.querySelector('.msg-actions');
@@ -523,18 +757,27 @@ Constellation.chat = (function () {
         inputEl.focus();
         usage.tokens += Math.round(((full || bodyBuf).length + (thinkBuf || '').length) / 4);   // count the reply's tokens too
         if (window.Constellation && window.Constellation.sessions) {
-          window.Constellation.sessions.saveCurrent(conversation.slice(1), roleplayPrompt, projectInstructions, genSnapshot(), usage);   // persist the chat + instructions + settings + usage
+          window.Constellation.sessions.saveCurrent(conversation.slice(1), roleplayPrompt, projectInstructions, genSnapshot(), usage, systemFiles, projectFiles);   // persist the chat + instructions + settings + usage + files
         }
+        if (variantTarget) renderVariantNav(el);
+        if (finishAnchor) { restoreScrollAnchor(finishAnchor); requestAnimationFrame(() => restoreScrollAnchor(finishAnchor)); }
         if (!rafId) rafId = requestAnimationFrame(pump);   // flush any buffered tail at the flow rate
       },
       onError: (message) => {
+        hideThinking(el);
         streaming = false;
         if (rafId) cancelAnimationFrame(rafId);
         rafId = null;
-        body.classList.remove('caret');
-        revealedN = bodyBuf.length;
-        body.textContent = '⚠ ' + friendlyError(message);
-        body.style.color = 'var(--danger)';
+        const friendly = friendlyError(message);
+        if (window.Constellation && window.Constellation.toast) window.Constellation.toast(friendly);
+        if (variantTarget) {
+          renderActiveVariant(el);   // regen failed — restore the existing active take
+        } else {
+          body.classList.remove('caret');
+          revealedN = bodyBuf.length;
+          body.textContent = '⚠ ' + friendly;
+          body.style.color = 'var(--danger)';
+        }
         busy = false;
         restoreSendBtn();
         setStatus('error', 'err');
@@ -576,9 +819,60 @@ Constellation.chat = (function () {
   function copyMessage(el) {
     const body = el.querySelector('.body');
     const text = el.__raw != null ? el.__raw : (body ? body.textContent : '');
-    try { navigator.clipboard.writeText(text); } catch (e) {}
+    if (window.api && window.api.writeClipboard) window.api.writeClipboard(text);   // main-process clipboard (handles large text reliably)
     const btn = el.querySelector('[data-action="copy"]');
     if (btn) { const orig = btn.textContent; btn.textContent = '✓ Copied'; setTimeout(() => { btn.textContent = orig; }, 1200); }
+  }
+
+  // ---- bookmarks (star a passage; jump back to it from the Bookmarks overlay) ----
+  // Set the ☆/★ glyph + accent from a data-bookmarked flag on the message element.
+  function applyBookmarkGlyph(el) {
+    const btn = el.querySelector('.msg-action[data-action="bookmark"]');
+    if (!btn) return;
+    const on = el.dataset.bookmarked === '1';
+    btn.textContent = on ? '★' : '☆';
+    btn.classList.toggle('on', on);
+    btn.title = on ? 'Bookmarked' : 'Bookmark this passage';
+  }
+  async function toggleBookmark(el) {
+    const msgs = Array.from(messagesEl.querySelectorAll('.msg'));
+    const msgIndex = msgs.indexOf(el);
+    if (msgIndex === -1) return;
+    const raw = el.__raw != null ? el.__raw : (el.querySelector('.body') ? el.querySelector('.body').textContent : '');
+    const head = String(raw).replace(/\s+/g, ' ').trim().slice(0, 80);   // stored so a jump can re-find the message even if its index shifts
+    const role = el.classList.contains('user') ? 'user' : 'assistant';
+    if (!(window.Constellation && window.Constellation.sessions && window.Constellation.sessions.toggleBookmark)) return;
+    const res = await window.Constellation.sessions.toggleBookmark({ msgIndex, head, role });
+    el.dataset.bookmarked = res.bookmarked ? '1' : '';
+    applyBookmarkGlyph(el);
+    if (window.Constellation.toast) window.Constellation.toast(res.bookmarked ? 'Bookmarked' : 'Bookmark removed');
+  }
+  // Mark which messages in the current chat are already bookmarked (called after a chat loads).
+  function markBookmarks(indices) {
+    const set = new Set(indices);
+    messagesEl.querySelectorAll('.msg').forEach((el, i) => { el.dataset.bookmarked = set.has(i) ? '1' : ''; applyBookmarkGlyph(el); });
+  }
+  function refreshBookmarkGlyphs() {
+    if (window.Constellation && window.Constellation.sessions && window.Constellation.sessions.bookmarksForCurrent) {
+      window.Constellation.sessions.bookmarksForCurrent().then((list) => markBookmarks(list.map((b) => b.msgIndex)));
+    }
+  }
+  // Jump to a specific message (by index, verified by its stored head text) and flash it — used by the overlay.
+  function scrollToMessage(msgIndex, head) {
+    const msgs = Array.from(messagesEl.querySelectorAll('.msg'));
+    let el = (msgIndex != null && msgs[msgIndex]) ? msgs[msgIndex] : null;
+    if (!el && head) {
+      const h = String(head).toLowerCase().slice(0, 60);
+      el = msgs.find((m) => {
+        const raw = m.__raw != null ? m.__raw : (m.querySelector('.body') ? m.querySelector('.body').textContent : '');
+        return h && String(raw).toLowerCase().includes(h);
+      }) || null;
+    }
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('match-flash');
+      setTimeout(() => el.classList.remove('match-flash'), 1600);
+    }
   }
   // Continue a reply that was cut off by the length cap: ask the model to pick up where it stopped.
   function continueReply(el) {
@@ -603,6 +897,7 @@ Constellation.chat = (function () {
     else if (action === 'regen') regenerate(el);
     else if (action === 'fork') forkFromEl(el);
     else if (action === 'copy') copyMessage(el);
+    else if (action === 'bookmark') toggleBookmark(el);
     else if (action === 'continue') continueReply(el);
   }
 
@@ -626,6 +921,20 @@ Constellation.chat = (function () {
     if (idx === -1) return;
     for (let i = msgs.length - 1; i >= idx; i--) msgs[i].remove();
     conversation.length = idx + 1;
+  }
+  // conversation[0] is the system message (no DOM node), so a .msg at DOM index i is conversation[i+1].
+  function convIndexForEl(el) {
+    const msgs = Array.from(messagesEl.querySelectorAll('.msg'));
+    return msgs.indexOf(el) + 1;
+  }
+  // Remove messages strictly AFTER el (keep el) — used when re-rolling a reply, so anything that
+  // followed it (responses to the old take) is dropped while the message itself stays for variants.
+  function truncateAfterEl(el) {
+    const msgs = Array.from(messagesEl.querySelectorAll('.msg'));
+    const idx = msgs.indexOf(el);
+    if (idx === -1) return;
+    for (let i = msgs.length - 1; i > idx; i--) msgs[i].remove();
+    conversation.length = idx + 2;   // keep through conversation[idx+1] (= msgs[idx] = el)
   }
 
   function startEdit(el) {
@@ -685,14 +994,65 @@ Constellation.chat = (function () {
       actions.appendChild(actionBtn('edit', '✎ Edit'));
       actions.appendChild(actionBtn('fork', '⑂ Fork'));
       actions.appendChild(actionBtn('copy', '⎘ Copy'));
+      actions.appendChild(actionBtn('bookmark', '☆'));
       bar.replaceWith(actions);
+      applyBookmarkGlyph(el);
     }
   }
 
   function regenerate(el) {
     if (busy) return;
-    truncateFromEl(el);
-    streamReply();
+    truncateAfterEl(el);   // keep this reply, drop anything after it; we're adding another take
+    streamReply(el);
+  }
+
+  // ---- regenerate variants: keep multiple takes of a reply, flip between them ----
+  // Re-render a message's active variant (content + thinking + meta + lore log + nav).
+  function renderActiveVariant(el) {
+    const m = conversation[convIndexForEl(el)];
+    if (!m) return;
+    const body = el.querySelector('.body');
+    if (body) { body.classList.remove('caret'); body.style.color = ''; body.innerHTML = Constellation.md.render(m.content || ''); enhanceCodeBlocks(body); }
+    const think = el.querySelector('.think-block');
+    if (think) {
+      if (m.reasoning) { think.hidden = false; think.open = false; const tb = think.querySelector('.think-body'); if (tb) tb.textContent = m.reasoning; }
+      else think.hidden = true;
+    }
+    const metaEl = el.querySelector('.msg-meta'); if (metaEl) updateMeta(metaEl, body ? body.textContent : '');
+    const oldLore = el.querySelector('.lore-used'); if (oldLore) oldLore.remove();
+    if (m.lore && m.lore.length) addLoreIndicator(el, m.lore);
+    renderVariantNav(el);
+  }
+  // Add/refresh the ‹ n/total › control (only shown when there's more than one take).
+  function renderVariantNav(el) {
+    const m = conversation[convIndexForEl(el)];
+    if (!m || !Array.isArray(m.variants) || m.variants.length < 2) { const nav = el.querySelector('.variant-nav'); if (nav) nav.remove(); return; }
+    let nav = el.querySelector('.variant-nav');
+    if (!nav) {
+      nav = document.createElement('div'); nav.className = 'variant-nav';
+      const prev = document.createElement('button'); prev.type = 'button'; prev.className = 'variant-arrow'; prev.textContent = '‹'; prev.title = 'Previous take';
+      prev.addEventListener('click', () => switchVariant(el, -1));
+      const label = document.createElement('span'); label.className = 'variant-label';
+      const next = document.createElement('button'); next.type = 'button'; next.className = 'variant-arrow'; next.textContent = '›'; next.title = 'Next take';
+      next.addEventListener('click', () => switchVariant(el, 1));
+      nav.appendChild(prev); nav.appendChild(label); nav.appendChild(next);
+      const acts = el.querySelector('.msg-actions');
+      if (acts) el.insertBefore(nav, acts); else el.appendChild(nav);
+    }
+    nav.querySelector('.variant-label').textContent = ((m.vActive || 0) + 1) + '/' + m.variants.length;
+  }
+  function switchVariant(el, dir) {
+    if (busy) return;
+    const m = conversation[convIndexForEl(el)];
+    if (!m || !Array.isArray(m.variants) || m.variants.length < 2) return;
+    let n = (m.vActive || 0) + dir;
+    if (n < 0) n = m.variants.length - 1;
+    if (n >= m.variants.length) n = 0;
+    m.vActive = n;
+    const v = m.variants[n] || {};
+    m.content = v.content || ''; m.reasoning = v.reasoning; m.lore = v.lore;   // mirror active → what gets sent/continued
+    renderActiveVariant(el);
+    persist();
   }
 
   // Start a fresh empty chat (keeps the current system prompt + project instructions).
@@ -718,8 +1078,8 @@ Constellation.chat = (function () {
   // Load a saved chat. The DOM swap runs inside a View Transition so the old thread dissolves into
   // the new one (a real crossfade, not a dip-to-black). Per-message auto-scroll is suppressed during
   // the bulk render so there's no vertical snap; we land once at the latest message.
-  function loadSession(msgs, system, project, gen, incomingUsage) {
-    if (system !== undefined || project !== undefined) setPrompts({ roleplay: system, project });
+  function loadSession(msgs, system, project, gen, incomingUsage, systemFiles, projectFiles) {
+    if (system !== undefined || project !== undefined) setPrompts({ roleplay: system, project, systemFiles, projectFiles });
     if (gen) setOptions(gen);   // restore THIS chat's generation settings
     const swap = () => {
       reset();
@@ -728,19 +1088,23 @@ Constellation.chat = (function () {
       const turns = (msgs || []).filter((m) => m.role === 'user' || m.role === 'assistant')
         .map((m) => ({ role: m.role, content: m.content, files: m.files, reasoning: m.reasoning }));
       conversation = [{ role: 'system', content: buildSystem() }].concat(turns);
-      for (const m of turns) addMessage(m.role, m.content, m.files, m.reasoning);
+      for (const m of turns) {
+        const r = addMessage(m.role, m.content, m.files, m.reasoning, m.lore);
+        if (m.role === 'assistant' && Array.isArray(m.variants) && m.variants.length > 1 && r && r.el) renderVariantNav(r.el);
+      }
       bulkScroll = false;
       scrollToBottom();           // land at the latest message in one move (no top→bottom snap)
       updateJumpBtn(); updateReadProgress();
       setStatus('connected · ' + opts.model, 'ok');
       updateContextMeter();
+      refreshBookmarkGlyphs();    // restore ☆/★ on this chat's bookmarked messages
     };
     if (document.startViewTransition) document.startViewTransition(swap);   // crossfade where supported
     else swap();                                                             // plain instant swap fallback
   }
 
   // The active chat's instructions — Settings reads these so the editors show what THIS chat uses.
-  function getPrompts() { return { roleplay: roleplayPrompt, project: projectInstructions }; }
+  function getPrompts() { return { roleplay: roleplayPrompt, project: projectInstructions, systemFiles, projectFiles }; }
 
   // The active chat's generation settings — Settings + Craft read these so they reflect THIS chat.
   function getOptions() { return Object.assign({}, opts); }
@@ -758,7 +1122,7 @@ Constellation.chat = (function () {
   // instructions or generation in Settings without sending a new message.
   function persist() {
     if (conversation.length > 1 && window.Constellation && window.Constellation.sessions) {
-      window.Constellation.sessions.saveCurrent(conversation.slice(1), roleplayPrompt, projectInstructions, genSnapshot(), usage);
+      window.Constellation.sessions.saveCurrent(conversation.slice(1), roleplayPrompt, projectInstructions, genSnapshot(), usage, systemFiles, projectFiles);
     }
   }
 
@@ -787,5 +1151,5 @@ Constellation.chat = (function () {
     }
   }
 
-  return { init, setPrompts, getPrompts, getOptions, persist, setOptions, setDraft, scrollToMatch, reset, loadSession, getUserWriting };
+  return { init, setPrompts, getPrompts, getOptions, persist, setOptions, setActiveLore, setPhraseBans, setDraft, scrollToMatch, scrollToMessage, refreshBookmarkGlyphs, reset, loadSession, getUserWriting, getState, testRetrieve, testBans, dryRun };
 })();

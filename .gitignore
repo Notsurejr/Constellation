@@ -14,3 +14,6 @@ yarn-debug.log*
 *.log
 .vscode/
 .idea/
+
+# user phrase-ban list (personal data)
+config/phrase_bans.txt

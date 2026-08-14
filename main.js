@@ -2,9 +2,11 @@
 // This is the only place that touches the network or your API key.
 // The UI (renderer) talks to it through the safe window.api bridge (see preload.js).
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, MenuItem } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, MenuItem, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
+const crypto = require('crypto');
 
 // Defensive require: openai v4 exposes the class at .default under CommonJS.
 const _openai = require('openai');
@@ -15,11 +17,16 @@ const OpenAI = _openai.default || _openai.OpenAI || _openai;
 const USER_DATA_DIR = app.getPath('userData');
 const CONFIG_DIR = path.join(USER_DATA_DIR, 'config');
 const SETTINGS_FILE = path.join(CONFIG_DIR, 'settings.txt');
+const PHRASE_BANS_FILE = path.join(CONFIG_DIR, 'phrase_bans.txt');   // global phrase-ban/substitution list (multiline)
 const MODES_DIR = path.join(CONFIG_DIR, 'modes');
 const DATA_DIR = path.join(USER_DATA_DIR, 'data');
 const SESSIONS_DIR = path.join(DATA_DIR, 'sessions');
 const PRESETS_DIR = path.join(DATA_DIR, 'presets');
 const DRAFTS_FILE = path.join(DATA_DIR, 'drafts.json');
+const FOLDERS_FILE = path.join(DATA_DIR, 'folders.json');
+const BOOKMARKS_FILE = path.join(DATA_DIR, 'bookmarks.json');
+const LOREBOOK_FILE = path.join(DATA_DIR, 'lorebook.json');        // legacy single-lorebook (migrated on first run)
+const LOREBOOKS_FILE = path.join(DATA_DIR, 'lorebooks.json');      // collection: { id: { id, name, entries, semantic } }
 const WINDOW_STATE_FILE = path.join(USER_DATA_DIR, 'window-state.json');
 
 // Shipped defaults (read-only once packaged) — used to seed user data on first run.
@@ -29,7 +36,7 @@ const SOURCE_DATA_DIR = path.join(__dirname, 'data');
 const DEFAULT_SETTINGS = [
   '# Constellation settings — edit values after the colons.',
   'api_key:',
-  'model: glm-5.2',
+  'model: glm-5.3',
   'base_url: https://api.z.ai/api/coding/paas/v4',
   'temperature: 0.8',
   'top_p: 0.95',
@@ -135,7 +142,7 @@ function getSettings() {
   try { s = parseTxt(SETTINGS_FILE); } catch (e) { /* file missing -> defaults */ }
   return {
     apiKey: s.api_key || process.env.ZAI_API_KEY || '',
-    model: s.model || 'glm-5.2',
+    model: s.model || 'glm-5.3',
     baseUrl: s.base_url || 'https://open.bigmodel.cn/api/paas/v4/',
     temperature: parseFloat(s.temperature || '0.8'),
     topP: parseFloat(s.top_p || '0.95'),
@@ -149,6 +156,13 @@ function getSettings() {
     starDensity: clamp(parseFloat(s.star_density || '1') || 1, 0.2, 2.5),
     twinkleSpeed: clamp(parseFloat(s.twinkle_speed || '1') || 1, 0, 2.5),   // 0 = frozen
     contextWindow: clamp(parseInt(s.context_window || '0', 10) || 0, 0, 1000000),   // 0 = unlimited
+    cliServer: /^(on|true|1)$/i.test(s.cli_server || ''),
+    flareIntensity: clamp(parseFloat(s.flare_intensity || '0.5') || 0.5, 0, 1),
+    flareRange: clamp(parseInt(s.flare_range || '140', 10) || 140, 50, 400),
+    flareSize: clamp(parseInt(s.flare_size || '35', 10) || 35, 20, 100),
+    flareBlend: ['screen','soft-light','overlay','normal'].includes(s.flare_blend) ? s.flare_blend : 'screen',
+    fxEvents: s.fx_events === undefined ? true : /^(on|true|1)$/i.test(s.fx_events || ''),
+    fxSize: clamp(parseFloat(s.fx_size || '1') || 1, 0.4, 2.5),
   };
 }
 
@@ -171,6 +185,10 @@ ipcMain.handle('config:load', () => {
     starDensity: s.starDensity,
     twinkleSpeed: s.twinkleSpeed,
     contextWindow: s.contextWindow,
+    cliServer: s.cliServer,
+    flareIntensity: s.flareIntensity, flareRange: s.flareRange, flareSize: s.flareSize, flareBlend: s.flareBlend,
+    fxEvents: s.fxEvents, fxSize: s.fxSize,
+    phraseBans: readTextSafe(PHRASE_BANS_FILE) || '',
     hasKey: !!s.apiKey,
   };
 });
@@ -207,11 +225,23 @@ ipcMain.handle('config:save', (_e, patch) => {
   if (patch.star_density !== undefined) setLine('star_density', patch.star_density);
   if (patch.twinkle_speed !== undefined) setLine('twinkle_speed', patch.twinkle_speed);
   if (patch.context_window !== undefined) setLine('context_window', patch.context_window);
+  if (patch.cli_server !== undefined) setLine('cli_server', patch.cli_server);
+  if (patch.flare_intensity !== undefined) setLine('flare_intensity', patch.flare_intensity);
+  if (patch.flare_range !== undefined) setLine('flare_range', patch.flare_range);
+  if (patch.flare_size !== undefined) setLine('flare_size', patch.flare_size);
+  if (patch.flare_blend !== undefined) setLine('flare_blend', patch.flare_blend);
+  if (patch.fx_events !== undefined) setLine('fx_events', patch.fx_events);
+  if (patch.fx_size !== undefined) setLine('fx_size', patch.fx_size);
   fs.writeFileSync(SETTINGS_FILE, lines.join('\n'), 'utf8');
   return getSettings();
 });
 
 // ---------- IPC: mode prompts ----------
+ipcMain.handle('phrasebans:save', (_e, text) => {
+  try { fs.mkdirSync(CONFIG_DIR, { recursive: true }); fs.writeFileSync(PHRASE_BANS_FILE, String(text || ''), 'utf8'); return { ok: true }; }
+  catch (e) { return { ok: false }; }
+});
+
 ipcMain.handle('modes:load', () => {
   const modes = {};
   try {
@@ -251,7 +281,7 @@ ipcMain.handle('sessions:list', () => {
       .map((f) => {
         try {
           const d = JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, f), 'utf8'));
-          return { id: d.id || f.replace(/\.json$/, ''), title: d.title || 'Untitled', updatedAt: d.updatedAt || 0, pinned: !!d.pinned, usage: d.usage || { tokens: 0, requests: 0 }, parentId: d.parentId, parentTitle: d.parentTitle };
+          return { id: d.id || f.replace(/\.json$/, ''), title: d.title || 'Untitled', updatedAt: d.updatedAt || 0, pinned: !!d.pinned, usage: d.usage || { tokens: 0, requests: 0 }, parentId: d.parentId, parentTitle: d.parentTitle, folder: d.folder || null };
         } catch (e) { return null; }
       })
       .filter(Boolean)
@@ -266,19 +296,20 @@ ipcMain.handle('sessions:list', () => {
 ipcMain.handle('sessions:load', (_e, id) => {
   try {
     const d = JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, id + '.json'), 'utf8'));
-    return { id: d.id, title: d.title, messages: d.messages || [], system: d.system, project: d.project, gen: d.gen, usage: d.usage, parentId: d.parentId, parentTitle: d.parentTitle };
+    return { id: d.id, title: d.title, messages: d.messages || [], system: d.system, project: d.project, systemFiles: d.systemFiles || [], projectFiles: d.projectFiles || [], gen: d.gen, usage: d.usage, parentId: d.parentId, parentTitle: d.parentTitle, lore: Array.isArray(d.lore) ? d.lore : [] };
   } catch (e) { return { id, title: 'Untitled', messages: [] }; }
 });
 
-ipcMain.handle('sessions:save', (_e, { id, title, messages, system, project, gen, usage, parentId, parentTitle }) => {
+ipcMain.handle('sessions:save', (_e, { id, title, messages, system, project, gen, usage, parentId, parentTitle, systemFiles, projectFiles, lore }) => {
   fs.mkdirSync(SESSIONS_DIR, { recursive: true });
   if (!id) id = 's_' + Date.now() + '_' + Math.floor(Math.random() * 1e9);
   const file = path.join(SESSIONS_DIR, id + '.json');
-  let pinned = false, pId, pTitle;
-  try { const ex = JSON.parse(fs.readFileSync(file, 'utf8')); pinned = !!ex.pinned; pId = ex.parentId; pTitle = ex.parentTitle; } catch (e) {}
+  let pinned = false, pId, pTitle, folder = null, pLore = null;
+  try { const ex = JSON.parse(fs.readFileSync(file, 'utf8')); pinned = !!ex.pinned; pId = ex.parentId; pTitle = ex.parentTitle; folder = ex.folder || null; pLore = Array.isArray(ex.lore) ? ex.lore : null; } catch (e) {}
   const data = {
-    id, title: title || 'Untitled', messages: messages || [], system, project, gen, usage, pinned,
+    id, title: title || 'Untitled', messages: messages || [], system, project, systemFiles: systemFiles || [], projectFiles: projectFiles || [], gen, usage, pinned,
     parentId: parentId !== undefined ? parentId : pId, parentTitle: parentTitle !== undefined ? parentTitle : pTitle,
+    folder, lore: Array.isArray(lore) ? lore : (pLore || []),
     updatedAt: Date.now(),
   };
   fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8');
@@ -287,6 +318,11 @@ ipcMain.handle('sessions:save', (_e, { id, title, messages, system, project, gen
 
 ipcMain.handle('sessions:delete', (_e, id) => {
   try { fs.unlinkSync(path.join(SESSIONS_DIR, id + '.json')); } catch (e) {}
+  try {   // a deleted chat's bookmarks are now orphans — drop them
+    const bms = readBookmarks();
+    const next = bms.filter((b) => b.chatId !== id);
+    if (next.length !== bms.length) writeBookmarks(next);
+  } catch (e) {}
   return { ok: true };
 });
 
@@ -306,6 +342,59 @@ ipcMain.handle('sessions:setPinned', (_e, { id, pinned }) => {
     const d = JSON.parse(fs.readFileSync(file, 'utf8'));
     d.pinned = !!pinned;
     fs.writeFileSync(file, JSON.stringify(d, null, 2), 'utf8');
+    return { ok: true };
+  } catch (e) { return { ok: false }; }
+});
+
+ipcMain.handle('sessions:setFolder', (_e, { id, folder }) => {
+  try {
+    const file = path.join(SESSIONS_DIR, id + '.json');
+    const d = JSON.parse(fs.readFileSync(file, 'utf8'));
+    d.folder = folder || null;
+    fs.writeFileSync(file, JSON.stringify(d, null, 2), 'utf8');
+    return { ok: true };
+  } catch (e) { return { ok: false }; }
+});
+
+// Which lorebooks a chat has enabled (per-chat lorebook selection). Empty = lore off for that chat.
+ipcMain.handle('sessions:setLore', (_e, { id, lore }) => {
+  try {
+    const file = path.join(SESSIONS_DIR, id + '.json');
+    const d = JSON.parse(fs.readFileSync(file, 'utf8'));
+    d.lore = Array.isArray(lore) ? lore : [];
+    fs.writeFileSync(file, JSON.stringify(d, null, 2), 'utf8');
+    return { ok: true };
+  } catch (e) { return { ok: false }; }
+});
+
+// ---------- IPC: folders ----------
+ipcMain.handle('folders:load', () => {
+  try { return JSON.parse(fs.readFileSync(FOLDERS_FILE, 'utf8')) || {}; } catch (e) { return {}; }
+});
+ipcMain.handle('folders:save', (_e, { id, name }) => {
+  try {
+    let d = {};
+    try { d = JSON.parse(fs.readFileSync(FOLDERS_FILE, 'utf8')) || {}; } catch (e) {}
+    if (!id) id = 'f_' + Date.now() + '_' + Math.floor(Math.random() * 1e9);
+    d[id] = { id, name: (name || 'Folder').trim().slice(0, 60), collapsed: d[id] ? !!d[id].collapsed : false };
+    fs.writeFileSync(FOLDERS_FILE, JSON.stringify(d, null, 2), 'utf8');
+    return { id };
+  } catch (e) { return { id: null }; }
+});
+ipcMain.handle('folders:delete', (_e, { id }) => {
+  try {
+    let d = {};
+    try { d = JSON.parse(fs.readFileSync(FOLDERS_FILE, 'utf8')) || {}; } catch (e) {}
+    delete d[id];
+    fs.writeFileSync(FOLDERS_FILE, JSON.stringify(d, null, 2), 'utf8');
+    return { ok: true };
+  } catch (e) { return { ok: false }; }
+});
+ipcMain.handle('folders:toggle', (_e, { id, collapsed }) => {
+  try {
+    let d = {};
+    try { d = JSON.parse(fs.readFileSync(FOLDERS_FILE, 'utf8')) || {}; } catch (e) {}
+    if (d[id]) { d[id].collapsed = !!collapsed; fs.writeFileSync(FOLDERS_FILE, JSON.stringify(d, null, 2), 'utf8'); }
     return { ok: true };
   } catch (e) { return { ok: false }; }
 });
@@ -335,6 +424,97 @@ ipcMain.handle('sessions:search', (_e, q) => {
     out.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     return out;
   } catch (e) { return []; }
+});
+
+// ---------- IPC: bookmarks (starred messages across all chats) ----------
+// Stored as one flat list so the Bookmarks overlay can show favourites from every chat at once.
+function readBookmarks() {
+  try { return JSON.parse(fs.readFileSync(BOOKMARKS_FILE, 'utf8')) || []; } catch (e) { return []; }
+}
+function writeBookmarks(list) {
+  try { fs.mkdirSync(DATA_DIR, { recursive: true }); fs.writeFileSync(BOOKMARKS_FILE, JSON.stringify(list, null, 2), 'utf8'); } catch (e) {}
+}
+ipcMain.handle('bookmarks:load', () => readBookmarks());
+ipcMain.handle('bookmarks:add', (_e, { chatId, chatTitle, msgIndex, head, role }) => {
+  const list = readBookmarks().filter((b) => !(b.chatId === chatId && b.msgIndex === msgIndex));   // one per chat+message
+  const entry = {
+    id: 'b_' + Date.now() + '_' + Math.floor(Math.random() * 1e9),
+    chatId, chatTitle: chatTitle || 'Untitled',
+    msgIndex: Number(msgIndex) || 0, head: String(head || '').slice(0, 160), role: role || 'assistant',
+    ts: Date.now(),
+  };
+  list.push(entry);
+  writeBookmarks(list);
+  return entry;
+});
+ipcMain.handle('bookmarks:remove', (_e, { id }) => {
+  writeBookmarks(readBookmarks().filter((b) => b.id !== id));
+  return { ok: true };
+});
+
+// ---------- IPC: lorebook (keyword-triggered world context) ----------
+// Lorebook collection: many titled lorebooks, each enabled per-chat. Stored as one map file.
+function readLorebooks() {
+  try { const d = JSON.parse(fs.readFileSync(LOREBOOKS_FILE, 'utf8')); return (d && typeof d === 'object') ? d : {}; }
+  catch (e) { return {}; }
+}
+function writeLorebooks(map) {
+  try { fs.mkdirSync(DATA_DIR, { recursive: true }); fs.writeFileSync(LOREBOOKS_FILE, JSON.stringify(map || {}, null, 2), 'utf8'); } catch (e) {}
+}
+// One-time migration: fold the legacy single lorebook into the collection as "Main".
+function migrateLorebook() {
+  try {
+    if (fs.existsSync(LOREBOOKS_FILE)) return;
+    const raw = (() => { try { return JSON.parse(fs.readFileSync(LOREBOOK_FILE, 'utf8')); } catch (e) { return null; } })();
+    if (!raw) return;
+    const id = 'lb_' + Date.now() + '_' + Math.floor(Math.random() * 1e9);
+    writeLorebooks({ [id]: { id, name: 'Main', semantic: raw.semantic === true, entries: Array.isArray(raw.entries) ? raw.entries : [] } });
+  } catch (e) {}
+}
+ipcMain.handle('lorebooks:load', () => readLorebooks());
+ipcMain.handle('lorebooks:save', (_e, map) => { writeLorebooks(map); return readLorebooks(); });
+
+// ---------- IPC: local embeddings (semantic lorebook retrieval) ----------
+// Lazy + resilient: the model and ONNX runtime only spin up on first use, so app startup is
+// unaffected and BM25 keeps carrying retrieval if this ever fails. The model id is a constant —
+// swap it (or the dtype) to adopt a newer/better embedder without touching anything else.
+const EMBED_MODEL = 'nomic-ai/nomic-embed-text-v1.5';
+const EMBED_DIM = 256;   // Matryoshka-truncate the 768-dim vector (≈ same quality, 3× smaller storage)
+let _extractorPromise = null;
+function getExtractor() {
+  if (!_extractorPromise) {
+    _extractorPromise = (async () => {
+      const { pipeline, env } = require('@huggingface/transformers');
+      env.cacheDir = path.join(USER_DATA_DIR, 'transformers-cache');
+      env.allowLocalModels = false;   // always fetch from the Hub (we don't bundle a local model)
+      return pipeline('feature-extraction', EMBED_MODEL, { dtype: 'q8' });
+    })();
+    _extractorPromise.catch(() => { _extractorPromise = null; });   // allow a retry after a failure
+  }
+  return _extractorPromise;
+}
+function truncateEmbedding(v) {   // Matryoshka: keep the first EMBED_DIM dims, then renormalize
+  const a = (Array.isArray(v) ? v : []).slice(0, EMBED_DIM);
+  let n = 0; for (const x of a) n += x * x; n = Math.sqrt(n) || 1;
+  return a.map((x) => x / n);
+}
+ipcMain.handle('lore:embed', async (_e, { texts, query }) => {
+  if (!(texts && texts.length)) return [];
+  try {
+    const extractor = await getExtractor();
+    const prefix = query ? 'search_query: ' : 'search_document: ';   // nomic distinguishes corpus vs query
+    const docs = texts.map((t) => prefix + String(t || ''));
+    const output = await extractor(docs, { pooling: 'mean', normalize: true });
+    let vecs;
+    if (typeof output.tolist === 'function') vecs = output.tolist();
+    else {   // fallback: reconstruct from the flat tensor data + last dim
+      const data = output.data, d = output.dims[output.dims.length - 1];
+      vecs = []; for (let i = 0; i < data.length; i += d) vecs.push(Array.from(data.slice(i, i + d)));
+    }
+    return vecs.map(truncateEmbedding);
+  } catch (e) {
+    return { error: String((e && e.message) || e) };
+  }
 });
 
 // Per-chat draft autosave (a single map of sessionId -> draft text).
@@ -421,6 +601,13 @@ ipcMain.handle('export:markdown', async (_e, { defaultName, content }) => {
   }
 });
 
+// ---------- IPC: clipboard ----------
+// Main-process clipboard write is reliable for large payloads; navigator.clipboard.writeText is
+// async (returns a Promise) and silently rejects on big text, so the renderer routes copies here.
+ipcMain.handle('clipboard:write', (_e, text) => {
+  try { clipboard.writeText(String(text || '')); return true; } catch (e) { return false; }
+});
+
 // ---------- IPC: backup / restore ----------
 function readTextSafe(p) { try { return fs.readFileSync(p, 'utf8'); } catch (e) { return null; } }
 function readJsonDir(dir) {
@@ -444,10 +631,13 @@ ipcMain.handle('backup:export', async () => {
           creative: readTextSafe(path.join(MODES_DIR, 'creative.txt')),
           craft: readTextSafe(path.join(MODES_DIR, 'craft.txt')),
         },
+        phraseBans: readTextSafe(PHRASE_BANS_FILE),
       },
       sessions: readJsonDir(SESSIONS_DIR),
       presets: readJsonDir(PRESETS_DIR),
       drafts: (() => { try { return JSON.parse(fs.readFileSync(DRAFTS_FILE, 'utf8')); } catch (e) { return {}; } })(),
+      folders: (() => { try { return JSON.parse(fs.readFileSync(FOLDERS_FILE, 'utf8')) || {}; } catch (e) { return {}; } })(),
+      lorebooks: readLorebooks(),
       craftJournal: readTextSafe(path.join(DATA_DIR, 'craft_journal.txt')),
     };
     const res = await dialog.showSaveDialog({
@@ -481,12 +671,15 @@ ipcMain.handle('backup:import', async () => {
       if (bundle.config.settings != null) fs.writeFileSync(path.join(CONFIG_DIR, 'settings.txt'), bundle.config.settings, 'utf8');
       if (bundle.config.project != null) fs.writeFileSync(path.join(CONFIG_DIR, 'project.txt'), bundle.config.project, 'utf8');
       if (bundle.config.modes) for (const k of ['roleplay', 'creative', 'craft']) if (bundle.config.modes[k] != null) fs.writeFileSync(path.join(MODES_DIR, k + '.txt'), bundle.config.modes[k], 'utf8');
+      if (bundle.config.phraseBans != null) fs.writeFileSync(PHRASE_BANS_FILE, bundle.config.phraseBans, 'utf8');
     }
     fs.mkdirSync(SESSIONS_DIR, { recursive: true }); clearJsonDir(SESSIONS_DIR);
     if (bundle.sessions) for (const [sid, data] of Object.entries(bundle.sessions)) fs.writeFileSync(path.join(SESSIONS_DIR, sid + '.json'), JSON.stringify(data, null, 2), 'utf8');
     fs.mkdirSync(PRESETS_DIR, { recursive: true }); clearJsonDir(PRESETS_DIR);
     if (bundle.presets) for (const [pid, data] of Object.entries(bundle.presets)) fs.writeFileSync(path.join(PRESETS_DIR, pid + '.json'), JSON.stringify(data, null, 2), 'utf8');
     if (bundle.drafts) fs.writeFileSync(DRAFTS_FILE, JSON.stringify(bundle.drafts, null, 2), 'utf8');
+    if (bundle.folders) fs.writeFileSync(FOLDERS_FILE, JSON.stringify(bundle.folders, null, 2), 'utf8');
+    if (bundle.lorebooks) writeLorebooks(bundle.lorebooks);
     if (bundle.craftJournal != null) fs.writeFileSync(path.join(DATA_DIR, 'craft_journal.txt'), bundle.craftJournal, 'utf8');
     return { ok: true, sessions: bundle.sessions ? Object.keys(bundle.sessions).length : 0 };
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
@@ -629,6 +822,59 @@ function backfillUsage() {
   } catch (e) {}
 }
 
+// ---------- Local CLI server (Shape A) — localhost-only, token-protected, off by default ----------
+// Lets the assistant drive the running app over HTTP for testing. Security: bound to 127.0.0.1 only,
+// a per-launch random token (written to userData/cli-server.json), the Host header must be localhost,
+// and it only starts when cli_server is on. Commands are read-only / non-destructive (dry-send runs a
+// real GLM call but never persists anything).
+let cliServer = null;
+const cliPending = new Map();
+let cliSeq = 0;
+ipcMain.on('cli:res', (_e, payload) => {
+  const p = cliPending.get(payload.id);
+  if (p) { cliPending.delete(payload.id); clearTimeout(p.timer); p.resolve(payload.res); }
+});
+function rendererCmd(cmd, args, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (!win) return reject(new Error('no window'));
+    const id = 'c' + (++cliSeq);
+    const timer = setTimeout(() => { cliPending.delete(id); reject(new Error('timeout')); }, timeoutMs || 30000);
+    cliPending.set(id, { resolve, timer });
+    win.webContents.send('cli:req', { id, cmd, args });
+  });
+}
+async function handleCliHttp(req, res, token) {
+  try {
+    const host = String(req.headers.host || '').split(':')[0];
+    if (host !== '127.0.0.1' && host !== 'localhost') { res.writeHead(403); return res.end('forbidden'); }   // anti DNS-rebinding
+    if ((req.headers.authorization || '') !== 'Bearer ' + token) { res.writeHead(401); return res.end('unauthorized'); }
+    const u = new URL(req.url, 'http://127.0.0.1');
+    const cmd = { '/ping': 'ping', '/state': 'state', '/retrieve': 'retrieve', '/bans': 'bans', '/dry-send': 'dry-send' }[u.pathname];
+    if (!cmd) { res.writeHead(404, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ error: 'unknown route: ' + u.pathname })); }
+    let args = {};
+    if (req.method === 'GET') u.searchParams.forEach((v, k) => { args[k] = v; });
+    else { const body = await new Promise((r) => { let d = ''; req.on('data', (c) => (d += c)); req.on('end', () => r(d)); }); try { args = JSON.parse(body || '{}'); } catch (e) {} }
+    const result = await rendererCmd(cmd, args, cmd === 'dry-send' ? 180000 : 30000);
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify(result));
+  } catch (e) {
+    res.writeHead(500, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ error: String((e && e.message) || e) }));
+  }
+}
+function startCliServer() {
+  if (cliServer) return;
+  if (!getSettings().cliServer) return;   // off by default
+  const PORT = 7331;
+  const token = crypto.randomBytes(16).toString('hex');
+  cliServer = http.createServer((req, res) => handleCliHttp(req, res, token));
+  cliServer.on('error', () => { cliServer = null; });
+  cliServer.listen(PORT, '127.0.0.1', () => {
+    try { fs.writeFileSync(path.join(USER_DATA_DIR, 'cli-server.json'), JSON.stringify({ port: PORT, token, enabled: true }), 'utf8'); } catch (e) {}
+  });
+}
+
 app.whenReady().then(() => {
   copyTreeIfMissing(SOURCE_CONFIG_DIR, CONFIG_DIR);
   copyTreeIfMissing(SOURCE_DATA_DIR, DATA_DIR);
@@ -637,7 +883,9 @@ app.whenReady().then(() => {
     fs.writeFileSync(SETTINGS_FILE, DEFAULT_SETTINGS, 'utf8');
   }
   backfillUsage();
+  migrateLorebook();
   createWindow();
+  startCliServer();
 });
 
 app.on('window-all-closed', () => {

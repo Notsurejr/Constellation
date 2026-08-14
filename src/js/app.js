@@ -13,7 +13,8 @@ Constellation.toast = function (msg) {
 
 // The single source of truth for model options — populates both the top-bar switcher and Settings.
 const MODELS = [
-  { id: 'glm-5.2', label: 'glm-5.2 — Flagship (1M context)' },
+  { id: 'glm-5.3', label: 'glm-5.3 — Flagship' },
+  { id: 'glm-5.2', label: 'glm-5.2' },
   { id: 'glm-5.1', label: 'glm-5.1' },
   { id: 'glm-5-turbo', label: 'glm-5-turbo — Fast' },
   { id: 'glm-5', label: 'glm-5' },
@@ -23,6 +24,8 @@ const MODELS = [
   { id: 'glm-4.5-air', label: 'glm-4.5-air — Lighter / cheaper' },
   { id: 'glm-4.7-flash', label: 'glm-4.7-flash — Free' },
   { id: 'glm-4.5-flash', label: 'glm-4.5-flash — Free' },
+  { id: 'glm-4.5v', label: 'glm-4.5v — Vision (image input)' },
+  { id: 'glm-4v-flash', label: 'glm-4v-flash — Vision (free)' },
 ];
 function populateModels() {
   const top = document.getElementById('topModel');
@@ -60,6 +63,9 @@ window.addEventListener('DOMContentLoaded', async () => {
       window.Constellation.starfield.setDensity(cfg.starDensity != null ? cfg.starDensity : 1);
       window.Constellation.starfield.setTwinkle(cfg.twinkleSpeed != null ? cfg.twinkleSpeed : 1);
     }
+    if (window.Constellation && window.Constellation.colorfx) {
+      window.Constellation.colorfx.setParams({ intensity: cfg.flareIntensity != null ? cfg.flareIntensity : 0.5, range: cfg.flareRange || 140, size: cfg.flareSize || 35, blend: cfg.flareBlend || 'screen', events: cfg.fxEvents !== false, fxSize: cfg.fxSize != null ? cfg.fxSize : 1 });
+    }
   } catch (e) {}
 
   if (window.Constellation && window.Constellation.settings) {
@@ -70,6 +76,15 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
   if (window.Constellation && window.Constellation.craft) {
     window.Constellation.craft.init();
+  }
+  if (window.Constellation && window.Constellation.bookmarks) {
+    window.Constellation.bookmarks.init();
+  }
+  if (window.Constellation && window.Constellation.lorebook) {
+    window.Constellation.lorebook.init();
+  }
+  if (window.Constellation && window.Constellation.cliBridge) {
+    window.Constellation.cliBridge.init();
   }
   if (window.Constellation && window.Constellation.chat) {
     await window.Constellation.chat.init();

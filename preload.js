@@ -6,6 +6,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   loadConfig: () => ipcRenderer.invoke('config:load'),
   saveConfig: (patch) => ipcRenderer.invoke('config:save', patch),
+  savePhraseBans: (text) => ipcRenderer.invoke('phrasebans:save', text),
   loadModes: () => ipcRenderer.invoke('modes:load'),
   saveMode: (name, content) => ipcRenderer.invoke('modes:save', name, content),
   loadProject: () => ipcRenderer.invoke('project:load'),
@@ -17,7 +18,23 @@ contextBridge.exposeInMainWorld('api', {
   deleteSession: (id) => ipcRenderer.invoke('sessions:delete', id),
   renameSession: (id, title) => ipcRenderer.invoke('sessions:rename', { id, title }),
   setPinned: (id, pinned) => ipcRenderer.invoke('sessions:setPinned', { id, pinned }),
+  setSessionFolder: (id, folder) => ipcRenderer.invoke('sessions:setFolder', { id, folder }),
+  setSessionLore: (id, lore) => ipcRenderer.invoke('sessions:setLore', { id, lore }),
   searchSessions: (q) => ipcRenderer.invoke('sessions:search', q),
+
+  loadFolders: () => ipcRenderer.invoke('folders:load'),
+  saveFolder: (data) => ipcRenderer.invoke('folders:save', data),
+  deleteFolder: (id) => ipcRenderer.invoke('folders:delete', { id }),
+  toggleFolder: (id, collapsed) => ipcRenderer.invoke('folders:toggle', { id, collapsed }),
+
+  loadBookmarks: () => ipcRenderer.invoke('bookmarks:load'),
+  addBookmark: (data) => ipcRenderer.invoke('bookmarks:add', data),
+  removeBookmark: (id) => ipcRenderer.invoke('bookmarks:remove', { id }),
+
+  loadLorebooks: () => ipcRenderer.invoke('lorebooks:load'),
+  saveLorebooks: (map) => ipcRenderer.invoke('lorebooks:save', map),
+
+  embedTexts: (texts, query) => ipcRenderer.invoke('lore:embed', { texts, query }),
 
   loadDrafts: () => ipcRenderer.invoke('drafts:load'),
   saveDraft: (id, text) => ipcRenderer.invoke('drafts:save', { id, text }),
@@ -32,7 +49,13 @@ contextBridge.exposeInMainWorld('api', {
 
   exportMarkdown: (defaultName, content) => ipcRenderer.invoke('export:markdown', { defaultName, content }),
 
+  writeClipboard: (text) => ipcRenderer.invoke('clipboard:write', text),
+
   cancelStream: (requestId) => ipcRenderer.invoke('chat:cancel', { requestId }),
+
+  // Shape A: local CLI bridge (main → renderer → main). Renderer listens for requests, replies.
+  onCliReq: (cb) => { ipcRenderer.on('cli:req', (_e, p) => cb(p)); },
+  sendCliRes: (p) => { ipcRenderer.send('cli:res', p); },
 
   backupExport: () => ipcRenderer.invoke('backup:export'),
   backupRestore: () => ipcRenderer.invoke('backup:import'),
