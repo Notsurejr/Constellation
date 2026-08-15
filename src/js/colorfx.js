@@ -78,19 +78,24 @@ Constellation.colorfx = (function () {
     return flare;
   }
 
-  // --- Celestial events (supernova / star / comet / planet) ---
-  const FX_TYPES = ['fx-supernova', 'fx-star', 'fx-comet', 'fx-planet'];
+  // --- Celestial events: weighted archetype pool ---
+  // The old ray-burst dominated and everything read as the same "pinwheel"; now soft nebulae,
+  // crisp glints, expanding rings and stardust clusters share the sky, with the supernova rare.
+  const FX_POOL = [
+    'fx-nebula', 'fx-nebula', 'fx-glint', 'fx-glint', 'fx-ring', 'fx-ring',
+    'fx-stardust', 'fx-stardust', 'fx-star', 'fx-star', 'fx-comet', 'fx-comet',
+    'fx-planet', 'fx-planet', 'fx-supernova',
+  ];
+  let activeFx = 0;      // concurrency cap — a 15-color passage must not stack a wall of shapes
+  let lastSpawnAt = 0;   // minimum spacing between spawns
   function spawnEffect(color) {
     if (!params.events) return;   // cosmic events toggled off — glow only
-    const type = FX_TYPES[Math.floor(Math.random() * FX_TYPES.length)];
+    const now = Date.now();
+    if (activeFx >= 4 || now - lastSpawnAt < 350) return;   // declutter: cap concurrency + spacing
+    const type = FX_POOL[Math.floor(Math.random() * FX_POOL.length)];
     const el = document.createElement('div');
     el.className = type;
     el.style.setProperty('--fx-color', color);
-    // Spread: left events roam 0–45%, right events 55–100% — the middle 10% stays clear so the
-    // chat column is never obscured. Vertically 10–90% so they don't cluster at mid-screen.
-    const leftSide = Math.random() < 0.5;
-    el.style.left = (leftSide ? Math.random() * 45 : 55 + Math.random() * 45) + '%';
-    el.style.top = (10 + Math.random() * 80) + '%';
     const dx = Math.round(Math.random() * 240 - 120);
     const dy = Math.round(Math.random() * 180 - 90);
     el.style.setProperty('--fx-dx', dx + 'px');
@@ -103,11 +108,26 @@ Constellation.colorfx = (function () {
     // For comets: orient the tail opposite to travel direction; others: random rotation.
     if (type === 'fx-comet') el.style.setProperty('--fx-angle', Math.round(Math.atan2(dy, dx) * 180 / Math.PI) + 'deg');
     else el.style.setProperty('--fx-angle', Math.round(Math.random() * 360) + 'deg');
+    if (type === 'fx-nebula') {
+      // Nebulae are the wash layer: huge, faint, and free to roam the full width — the frosted
+      // chat bubbles (backdrop-blur) tint through them, so color washes over the reading column.
+      el.style.left = (5 + Math.random() * 90) + '%';
+      el.style.top = (15 + Math.random() * 70) + '%';
+      el.style.setProperty('--fx-scale', ((0.85 + Math.random() * 0.4) * params.fxSize).toFixed(2));
+    } else {
+      // Spread: left events roam 0–45%, right events 55–100% — the middle stays clear of the chat.
+      // Vertically 10–90% so they don't cluster at mid-screen.
+      const leftSide = Math.random() < 0.5;
+      el.style.left = (leftSide ? Math.random() * 45 : 55 + Math.random() * 45) + '%';
+      el.style.top = (10 + Math.random() * 80) + '%';
+    }
     const canvas = document.getElementById('starfield');
     if (canvas && canvas.parentNode) canvas.parentNode.insertBefore(el, canvas.nextSibling);
     else document.body.appendChild(el);
-    el.addEventListener('animationend', function () { el.remove(); });
-    setTimeout(function () { if (el.parentNode) el.remove(); }, 5500);   // safety
+    activeFx++; lastSpawnAt = now;
+    const gone = function () { if (!el.parentNode) return; el.remove(); activeFx = Math.max(0, activeFx - 1); };
+    el.addEventListener('animationend', gone);
+    setTimeout(gone, 8000);   // safety (longest animation is 7s)
   }
 
   // --- Phase 2: queue cascade for multi-color lines ---

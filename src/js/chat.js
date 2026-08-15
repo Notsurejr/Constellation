@@ -186,7 +186,7 @@ Constellation.chat = (function () {
     opts.streamCps = cfg.streamCps ?? 0;
     opts.contextWindow = cfg.contextWindow ?? 0;
     setPhraseBans(cfg.phraseBans || '');
-    if (cfg.hasKey) setStatus('connected · ' + (cfg.model || 'glm-5.2'), 'ok');
+    if (cfg.hasKey) setStatus('connected', 'ok');   // model lives in the top-bar dropdown next to this pill
     else setStatus('add your API key in Settings', 'err');
 
     bind();
@@ -211,7 +211,7 @@ Constellation.chat = (function () {
     if (topModel) topModel.addEventListener('change', () => {
       const model = topModel.value;
       setOptions({ model });
-      setStatus('connected · ' + model, 'ok');
+      setStatus('connected', 'ok');
       persist();   // model is per-chat -> save it with this chat
     });
     autoGrow();
@@ -1068,7 +1068,7 @@ Constellation.chat = (function () {
     const s = document.createElement('div'); s.className = 'empty-hint-sub'; s.textContent = 'Write something to begin.';
     hint.appendChild(t); hint.appendChild(s);
     messagesEl.appendChild(hint);
-    setStatus('connected · ' + opts.model, 'ok');
+    setStatus('connected', 'ok');
     updateContextMeter();
     updateReadProgress();
   }
@@ -1095,7 +1095,7 @@ Constellation.chat = (function () {
       bulkScroll = false;
       scrollToBottom();           // land at the latest message in one move (no top→bottom snap)
       updateJumpBtn(); updateReadProgress();
-      setStatus('connected · ' + opts.model, 'ok');
+      setStatus('connected', 'ok');
       updateContextMeter();
       refreshBookmarkGlyphs();    // restore ☆/★ on this chat's bookmarked messages
     };

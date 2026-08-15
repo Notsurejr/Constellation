@@ -65,12 +65,22 @@ html, body {
 .brand-btn:hover .star { transform: rotate(72deg); }
 
 .status {
+  display: inline-flex; align-items: center; gap: 6px;
   font-size: 12px;
   color: var(--text-faint);
   letter-spacing: 0.5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: rgba(0,0,0,0.25);
 }
+.status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
 .status.ok { color: var(--accent-dim); }
+.status.ok::before { background: #58d68d; box-shadow: 0 0 6px rgba(88,214,141,0.5); }
 .status.err { color: var(--danger); }
+.status.err::before { background: var(--danger); box-shadow: 0 0 6px rgba(224,64,64,0.5); }
+.status.breathe { animation: statusBreathe 3.2s ease-in-out infinite; }
+@keyframes statusBreathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.65; } }
 
 /* ---------- Chat thread ---------- */
 .chat {
@@ -456,23 +466,29 @@ html, body {
   top: 10px;
   right: 12px;
   display: flex;
-  gap: 6px;
+  gap: 2px;
+  padding: 3px 5px;
+  border-radius: 9px;
+  border: 1px solid var(--panel-border);
+  background: rgba(8,11,20,0.88);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
   opacity: 0;
   transition: opacity .2s;
 }
 .msg:hover .msg-actions { opacity: 1; }
 .msg-action {
-  background: rgba(159,184,255,0.08);
-  border: 1px solid var(--panel-border);
+  background: none;
+  border: none;
   color: var(--text-dim);
   font-family: var(--font-ui);
   font-size: 11px;
-  padding: 3px 9px;
-  border-radius: 7px;
+  padding: 3px 8px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: color .2s, border-color .2s, background .2s;
+  transition: color .2s, background .2s;
 }
-.msg-action:hover { color: var(--accent); border-color: var(--accent-dim); background: rgba(159,184,255,0.16); }
+.msg-action:hover { color: var(--accent); background: rgba(159,184,255,0.14); }
 .edit-area {
   width: 100%;
   min-height: 80px;
@@ -489,7 +505,8 @@ html, body {
   outline: none;
 }
 .edit-bar { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
-.edit-bar .msg-action { font-size: 12px; padding: 5px 11px; }
+.edit-bar .msg-action { font-size: 12px; padding: 5px 11px; background: rgba(159,184,255,0.08); border: 1px solid var(--panel-border); }
+.edit-bar .msg-action:hover { border-color: var(--accent-dim); }
 
 /* ---------- Collapsible "thinking" block ---------- */
 .think-block {
@@ -568,7 +585,7 @@ html, body {
   transition: background .2s, box-shadow .2s;
 }
 .new-chat:hover { background: rgba(159,184,255,0.22); box-shadow: var(--glow); }
-.session-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.session-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding-bottom: 24px; }
 .session-item {
   display: flex;
   align-items: center;
@@ -692,9 +709,7 @@ html, body {
   background: radial-gradient(circle, #fff 0%, var(--fx-color, #fff) 30%, transparent 65%);
   animation: fxSupernova 3.5s ease-in-out forwards; }
 .fx-supernova::before { content: ''; position: absolute; inset: -200%; border-radius: 50%; opacity: 0.25;
-  background: conic-gradient(from var(--fx-angle, 0deg),
-    transparent 0%, var(--fx-color, #fff) 1%, transparent 5%, transparent 20%, var(--fx-color, #fff) 21%, transparent 25%,
-    transparent 45%, var(--fx-color, #fff) 46%, transparent 50%, transparent 70%, var(--fx-color, #fff) 71%, transparent 75%); }
+  background: repeating-conic-gradient(from var(--fx-angle, 0deg), var(--fx-color, #fff) 0deg 0.8deg, transparent 0.8deg 90deg); }
 @keyframes fxSupernova {
   0% { transform: scale(0); opacity: 0; }
   30% { transform: scale(calc(var(--fx-scale, 1) * 6)); opacity: 0.6; }
@@ -750,6 +765,57 @@ html, body {
   25% { transform: scale(1); opacity: 0.85; }
   75% { transform: scale(1); opacity: 0.6; }
   100% { transform: scale(0.6); opacity: 0; }
+}
+
+/* --- Nebula: huge soft wash — roams the full width, tints through the frosted chat glass --- */
+.fx-nebula { width: 55vmin; height: 55vmin; border-radius: 50%; mix-blend-mode: screen;
+  filter: blur(22px);
+  background: radial-gradient(circle at 42% 42%, var(--fx-color, #fff) 0%, transparent 62%);
+  animation: fxNebula 7s ease-in-out forwards; }
+@keyframes fxNebula {
+  0% { transform: scale(0.55); opacity: 0; }
+  35% { opacity: 0.15; }
+  70% { opacity: 0.11; }
+  100% { transform: scale(1.15) translate(calc(var(--fx-dx, 100px) * 0.25), calc(var(--fx-dy, -60px) * 0.25)); opacity: 0; }
+}
+
+/* --- Nova ring: a thin expanding ring with a soft glow --- */
+.fx-ring { width: 12px; height: 12px; border-radius: 50%; mix-blend-mode: screen;
+  border: 1.5px solid var(--fx-color, #fff);
+  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--fx-color, #fff) 60%, transparent);
+  animation: fxRing 3.2s ease-out forwards; }
+@keyframes fxRing {
+  0% { transform: scale(0.3); opacity: 0; }
+  20% { opacity: 0.8; }
+  100% { transform: scale(calc(var(--fx-scale, 1) * 9)); opacity: 0; }
+}
+
+/* --- Glint: bright core + six crisp white diffraction needles --- */
+.fx-glint { width: 6px; height: 6px; border-radius: 50%; mix-blend-mode: screen;
+  background: radial-gradient(circle, #fff 0%, var(--fx-color, #fff) 45%, transparent 70%);
+  animation: fxGlint 3.2s ease-in-out forwards; }
+.fx-glint::before { content: ''; position: absolute; inset: -450%; opacity: 0.8;
+  background: repeating-conic-gradient(from calc(var(--fx-angle, 0deg) + 15deg), #fff 0deg 0.5deg, transparent 0.5deg 60deg); }
+@keyframes fxGlint {
+  0% { transform: scale(0) rotate(0deg); opacity: 0; }
+  30% { transform: scale(calc(var(--fx-scale, 1) * 2.2)) rotate(8deg); opacity: 0.9; }
+  75% { transform: scale(calc(var(--fx-scale, 1) * 1.9)) rotate(16deg); opacity: 0.55; }
+  100% { transform: scale(0.2) rotate(20deg); opacity: 0; }
+}
+
+/* --- Stardust: a drifting cluster of specks orbiting a center point --- */
+.fx-stardust { width: 3px; height: 3px; border-radius: 50%; mix-blend-mode: screen;
+  background: var(--fx-color, #fff);
+  box-shadow: 14px 6px 0 -0.5px var(--fx-color, #fff), -10px 12px 0 -1px var(--fx-color, #fff),
+    22px -8px 0 -1px color-mix(in srgb, var(--fx-color, #fff) 70%, #fff), -20px -6px 0 -0.5px var(--fx-color, #fff),
+    4px 18px 0 -1px color-mix(in srgb, var(--fx-color, #fff) 60%, transparent), 30px 14px 0 -1.5px var(--fx-color, #fff),
+    -28px 2px 0 -1.5px color-mix(in srgb, var(--fx-color, #fff) 75%, #fff);
+  animation: fxStardust 4.5s ease-in-out forwards; }
+@keyframes fxStardust {
+  0% { transform: scale(0.4) rotate(0deg); opacity: 0; }
+  30% { opacity: 0.9; }
+  75% { opacity: 0.5; }
+  100% { transform: scale(1.1) rotate(calc(var(--fx-scale, 1) * 40deg)) translate(calc(var(--fx-dx, 100px) * 0.15), calc(var(--fx-dy, -60px) * 0.15)); opacity: 0; }
 }
 
 /* ---------- Folders (collapsible chat groups) ---------- */
