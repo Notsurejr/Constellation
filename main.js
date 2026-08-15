@@ -2,7 +2,7 @@
 // This is the only place that touches the network or your API key.
 // The UI (renderer) talks to it through the safe window.api bridge (see preload.js).
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, MenuItem, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, MenuItem, clipboard, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -67,11 +67,19 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
   });
   win.setMenuBarVisibility(false);
   win.loadFile(path.join(__dirname, 'src', 'index.html'));
+
+  // Security: the chat must never navigate away or spawn raw Electron windows. External links
+  // (http/https) are handed to the user's real browser; everything else is denied.
+  win.webContents.on('will-navigate', (e) => e.preventDefault());
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:/i.test(url)) shell.openExternal(url);
+    return { action: 'deny' };
+  });
 
   // Remember the window size across launches (skip while maximized, so a normal size is restored).
   let saveTimer = null;
@@ -273,6 +281,14 @@ ipcMain.handle('project:save', (_e, content) => {
 });
 
 // ---------- IPC: sessions (saved chats) ----------
+// ---------- IPC hardening ----------
+// Every handler that touches a file by a renderer-supplied id validates it here: plain word
+// characters only (no dots/slashes), which blocks path traversal ("../../") if the renderer is
+// ever compromised. Defense in depth behind contextIsolation + the markdown sanitizer + CSP.
+function safeId(id) {
+  return (typeof id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(id)) ? id : null;
+}
+
 ipcMain.handle('sessions:list', () => {
   try {
     fs.mkdirSync(SESSIONS_DIR, { recursive: true });
@@ -294,6 +310,7 @@ ipcMain.handle('sessions:list', () => {
 });
 
 ipcMain.handle('sessions:load', (_e, id) => {
+  if (!safeId(id)) return { id: null, title: 'Untitled', messages: [] };
   try {
     const d = JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, id + '.json'), 'utf8'));
     return { id: d.id, title: d.title, messages: d.messages || [], system: d.system, project: d.project, systemFiles: d.systemFiles || [], projectFiles: d.projectFiles || [], gen: d.gen, usage: d.usage, parentId: d.parentId, parentTitle: d.parentTitle, lore: Array.isArray(d.lore) ? d.lore : [] };
@@ -302,7 +319,7 @@ ipcMain.handle('sessions:load', (_e, id) => {
 
 ipcMain.handle('sessions:save', (_e, { id, title, messages, system, project, gen, usage, parentId, parentTitle, systemFiles, projectFiles, lore }) => {
   fs.mkdirSync(SESSIONS_DIR, { recursive: true });
-  if (!id) id = 's_' + Date.now() + '_' + Math.floor(Math.random() * 1e9);
+  id = safeId(id) || 's_' + Date.now() + '_' + Math.floor(Math.random() * 1e9);   // invalid/absent id → fresh one, never trusted
   const file = path.join(SESSIONS_DIR, id + '.json');
   let pinned = false, pId, pTitle, folder = null, pLore = null;
   try { const ex = JSON.parse(fs.readFileSync(file, 'utf8')); pinned = !!ex.pinned; pId = ex.parentId; pTitle = ex.parentTitle; folder = ex.folder || null; pLore = Array.isArray(ex.lore) ? ex.lore : null; } catch (e) {}
@@ -317,6 +334,7 @@ ipcMain.handle('sessions:save', (_e, { id, title, messages, system, project, gen
 });
 
 ipcMain.handle('sessions:delete', (_e, id) => {
+  if (!safeId(id)) return { ok: false };
   try { fs.unlinkSync(path.join(SESSIONS_DIR, id + '.json')); } catch (e) {}
   try {   // a deleted chat's bookmarks are now orphans — drop them
     const bms = readBookmarks();
@@ -327,6 +345,7 @@ ipcMain.handle('sessions:delete', (_e, id) => {
 });
 
 ipcMain.handle('sessions:rename', (_e, { id, title }) => {
+  if (!safeId(id)) return { ok: false };
   try {
     const file = path.join(SESSIONS_DIR, id + '.json');
     const d = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -337,6 +356,7 @@ ipcMain.handle('sessions:rename', (_e, { id, title }) => {
 });
 
 ipcMain.handle('sessions:setPinned', (_e, { id, pinned }) => {
+  if (!safeId(id)) return { ok: false };
   try {
     const file = path.join(SESSIONS_DIR, id + '.json');
     const d = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -347,10 +367,11 @@ ipcMain.handle('sessions:setPinned', (_e, { id, pinned }) => {
 });
 
 ipcMain.handle('sessions:setFolder', (_e, { id, folder }) => {
+  if (!safeId(id)) return { ok: false };
   try {
     const file = path.join(SESSIONS_DIR, id + '.json');
     const d = JSON.parse(fs.readFileSync(file, 'utf8'));
-    d.folder = folder || null;
+    d.folder = (folder != null && safeId(folder)) ? folder : null;
     fs.writeFileSync(file, JSON.stringify(d, null, 2), 'utf8');
     return { ok: true };
   } catch (e) { return { ok: false }; }
@@ -358,10 +379,11 @@ ipcMain.handle('sessions:setFolder', (_e, { id, folder }) => {
 
 // Which lorebooks a chat has enabled (per-chat lorebook selection). Empty = lore off for that chat.
 ipcMain.handle('sessions:setLore', (_e, { id, lore }) => {
+  if (!safeId(id)) return { ok: false };
   try {
     const file = path.join(SESSIONS_DIR, id + '.json');
     const d = JSON.parse(fs.readFileSync(file, 'utf8'));
-    d.lore = Array.isArray(lore) ? lore : [];
+    d.lore = (Array.isArray(lore) ? lore : []).filter((x) => safeId(x));   // only valid lorebook ids
     fs.writeFileSync(file, JSON.stringify(d, null, 2), 'utf8');
     return { ok: true };
   } catch (e) { return { ok: false }; }
@@ -375,13 +397,14 @@ ipcMain.handle('folders:save', (_e, { id, name }) => {
   try {
     let d = {};
     try { d = JSON.parse(fs.readFileSync(FOLDERS_FILE, 'utf8')) || {}; } catch (e) {}
-    if (!id) id = 'f_' + Date.now() + '_' + Math.floor(Math.random() * 1e9);
+    id = safeId(id) || 'f_' + Date.now() + '_' + Math.floor(Math.random() * 1e9);
     d[id] = { id, name: (name || 'Folder').trim().slice(0, 60), collapsed: d[id] ? !!d[id].collapsed : false };
     fs.writeFileSync(FOLDERS_FILE, JSON.stringify(d, null, 2), 'utf8');
     return { id };
   } catch (e) { return { id: null }; }
 });
 ipcMain.handle('folders:delete', (_e, { id }) => {
+  if (!safeId(id)) return { ok: false };
   try {
     let d = {};
     try { d = JSON.parse(fs.readFileSync(FOLDERS_FILE, 'utf8')) || {}; } catch (e) {}
@@ -391,6 +414,7 @@ ipcMain.handle('folders:delete', (_e, { id }) => {
   } catch (e) { return { ok: false }; }
 });
 ipcMain.handle('folders:toggle', (_e, { id, collapsed }) => {
+  if (!safeId(id)) return { ok: false };
   try {
     let d = {};
     try { d = JSON.parse(fs.readFileSync(FOLDERS_FILE, 'utf8')) || {}; } catch (e) {}
@@ -436,6 +460,7 @@ function writeBookmarks(list) {
 }
 ipcMain.handle('bookmarks:load', () => readBookmarks());
 ipcMain.handle('bookmarks:add', (_e, { chatId, chatTitle, msgIndex, head, role }) => {
+  if (!safeId(chatId)) return null;   // bookmarks only attach to real chats
   const list = readBookmarks().filter((b) => !(b.chatId === chatId && b.msgIndex === msgIndex));   // one per chat+message
   const entry = {
     id: 'b_' + Date.now() + '_' + Math.floor(Math.random() * 1e9),
@@ -448,6 +473,7 @@ ipcMain.handle('bookmarks:add', (_e, { chatId, chatTitle, msgIndex, head, role }
   return entry;
 });
 ipcMain.handle('bookmarks:remove', (_e, { id }) => {
+  if (!safeId(id)) return { ok: false };
   writeBookmarks(readBookmarks().filter((b) => b.id !== id));
   return { ok: true };
 });
@@ -550,6 +576,7 @@ ipcMain.handle('presets:list', () => {
 });
 
 ipcMain.handle('presets:load', (_e, id) => {
+  if (!safeId(id)) return { id: null, name: 'Untitled', system: '', project: '' };
   try {
     const d = JSON.parse(fs.readFileSync(path.join(PRESETS_DIR, id + '.json'), 'utf8'));
     return { id: d.id, name: d.name, system: d.system || '', project: d.project || '' };
@@ -558,13 +585,14 @@ ipcMain.handle('presets:load', (_e, id) => {
 
 ipcMain.handle('presets:save', (_e, { id, name, system, project }) => {
   fs.mkdirSync(PRESETS_DIR, { recursive: true });
-  if (!id) id = 'p_' + Date.now() + '_' + Math.floor(Math.random() * 1e9);
+  id = safeId(id) || 'p_' + Date.now() + '_' + Math.floor(Math.random() * 1e9);
   const data = { id, name: name || 'Untitled', system: system || '', project: project || '' };
   fs.writeFileSync(path.join(PRESETS_DIR, id + '.json'), JSON.stringify(data, null, 2), 'utf8');
   return { id };
 });
 
 ipcMain.handle('presets:delete', (_e, id) => {
+  if (!safeId(id)) return { ok: false };
   try { fs.unlinkSync(path.join(PRESETS_DIR, id + '.json')); } catch (e) {}
   return { ok: true };
 });
@@ -674,9 +702,9 @@ ipcMain.handle('backup:import', async () => {
       if (bundle.config.phraseBans != null) fs.writeFileSync(PHRASE_BANS_FILE, bundle.config.phraseBans, 'utf8');
     }
     fs.mkdirSync(SESSIONS_DIR, { recursive: true }); clearJsonDir(SESSIONS_DIR);
-    if (bundle.sessions) for (const [sid, data] of Object.entries(bundle.sessions)) fs.writeFileSync(path.join(SESSIONS_DIR, sid + '.json'), JSON.stringify(data, null, 2), 'utf8');
+    if (bundle.sessions) for (const [sid, data] of Object.entries(bundle.sessions)) { if (!safeId(sid)) continue; fs.writeFileSync(path.join(SESSIONS_DIR, sid + '.json'), JSON.stringify(data, null, 2), 'utf8'); }
     fs.mkdirSync(PRESETS_DIR, { recursive: true }); clearJsonDir(PRESETS_DIR);
-    if (bundle.presets) for (const [pid, data] of Object.entries(bundle.presets)) fs.writeFileSync(path.join(PRESETS_DIR, pid + '.json'), JSON.stringify(data, null, 2), 'utf8');
+    if (bundle.presets) for (const [pid, data] of Object.entries(bundle.presets)) { if (!safeId(pid)) continue; fs.writeFileSync(path.join(PRESETS_DIR, pid + '.json'), JSON.stringify(data, null, 2), 'utf8'); }
     if (bundle.drafts) fs.writeFileSync(DRAFTS_FILE, JSON.stringify(bundle.drafts, null, 2), 'utf8');
     if (bundle.folders) fs.writeFileSync(FOLDERS_FILE, JSON.stringify(bundle.folders, null, 2), 'utf8');
     if (bundle.lorebooks) writeLorebooks(bundle.lorebooks);
