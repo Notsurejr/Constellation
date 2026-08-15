@@ -470,9 +470,9 @@ html, body {
   padding: 3px 5px;
   border-radius: 9px;
   border: 1px solid var(--panel-border);
-  background: rgba(8,11,20,0.88);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
+  background: rgba(8,11,20,0.92);   /* solid enough that it needs no backdrop-filter — one per
+                                       message, and dozens of backdrop-captures per frame crashed
+                                       the GPU process while scrolling */
   opacity: 0;
   transition: opacity .2s;
 }
@@ -700,8 +700,9 @@ html, body {
 }
 
 /* Celestial color events — fire when a color word crosses the scan line */
-.fx-supernova, .fx-star, .fx-comet, .fx-planet {
+.fx-supernova, .fx-star, .fx-comet, .fx-planet, .fx-nebula, .fx-ring, .fx-glint, .fx-stardust {
   position: fixed; pointer-events: none; z-index: 0; opacity: 0;
+  will-change: transform, opacity;   /* own compositing layer, so animations never re-composite the page */
 }
 
 /* --- Supernova: gentle burst, soft fade (toned down from flashbang) --- */
@@ -767,10 +768,14 @@ html, body {
   100% { transform: scale(0.6); opacity: 0; }
 }
 
-/* --- Nebula: huge soft wash — roams the full width, tints through the frosted chat glass --- */
+/* --- Nebula: huge soft wash — roams the full width, tints through the frosted chat glass.
+       Softness comes from the gradient falloff, NOT a blur filter (a 55vmin blur surface was
+       heavy enough to help crash the GPU process when two overlapped). --- */
 .fx-nebula { width: 55vmin; height: 55vmin; border-radius: 50%; mix-blend-mode: screen;
-  filter: blur(22px);
-  background: radial-gradient(circle at 42% 42%, var(--fx-color, #fff) 0%, transparent 62%);
+  background: radial-gradient(circle at 45% 45%,
+    color-mix(in srgb, var(--fx-color, #fff) 55%, transparent) 0%,
+    color-mix(in srgb, var(--fx-color, #fff) 22%, transparent) 38%,
+    transparent 72%);
   animation: fxNebula 7s ease-in-out forwards; }
 @keyframes fxNebula {
   0% { transform: scale(0.55); opacity: 0; }
@@ -794,7 +799,7 @@ html, body {
 .fx-glint { width: 6px; height: 6px; border-radius: 50%; mix-blend-mode: screen;
   background: radial-gradient(circle, #fff 0%, var(--fx-color, #fff) 45%, transparent 70%);
   animation: fxGlint 3.2s ease-in-out forwards; }
-.fx-glint::before { content: ''; position: absolute; inset: -450%; opacity: 0.8;
+.fx-glint::before { content: ''; position: absolute; inset: -350%; opacity: 0.8;
   background: repeating-conic-gradient(from calc(var(--fx-angle, 0deg) + 15deg), #fff 0deg 0.5deg, transparent 0.5deg 60deg); }
 @keyframes fxGlint {
   0% { transform: scale(0) rotate(0deg); opacity: 0; }

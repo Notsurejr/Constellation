@@ -92,7 +92,8 @@ Constellation.colorfx = (function () {
     if (!params.events) return;   // cosmic events toggled off — glow only
     const now = Date.now();
     if (activeFx >= 4 || now - lastSpawnAt < 350) return;   // declutter: cap concurrency + spacing
-    const type = FX_POOL[Math.floor(Math.random() * FX_POOL.length)];
+    let type = FX_POOL[Math.floor(Math.random() * FX_POOL.length)];
+    if (type === 'fx-nebula' && document.querySelector('.fx-nebula')) type = 'fx-ring';   // one nebula at a time — two overlapping 55vmin washes overloads compositing
     const el = document.createElement('div');
     el.className = type;
     el.style.setProperty('--fx-color', color);
