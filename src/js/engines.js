@@ -30,6 +30,9 @@
   function loreSource(e) {
     return [e.content || '', filesBlock(e.files)].filter(Boolean).join('\n\n').trim();
   }
+  // Stable identity for an entry (its id, or a content hash for legacy id-less entries) — used by
+  // the Living Constellations sky so each entry owns one consistent star pattern.
+  const eidOf = (e) => e.id || simpleHash(loreSource(e));
   function chunkText(text, maxChars) {
     maxChars = maxChars || LORE_CHUNK_CHARS;
     const paras = String(text || '').split(/\n{1,}/).map((p) => p.trim()).filter(Boolean);
@@ -89,18 +92,18 @@
     if (!enabled.length) return finalizeLore(out);
     const queryTokens = loreTokenize(query);
     let budget = LORE_BUDGET_CHARS;
-    const push = (label, text) => {
+    const push = (label, text, eid) => {
       const piece = String(text || '').slice(0, budget);
       if (!piece.trim()) return;
-      out.items.push({ label, text: piece });
+      out.items.push({ label, text: piece, eid: eid });
       budget -= piece.length;
     };
-    for (const e of enabled.filter((e) => e.constant)) { push(loreLabel(e), loreSource(e)); if (budget <= 0) return finalizeLore(out); }
+    for (const e of enabled.filter((e) => e.constant)) { push(loreLabel(e), loreSource(e), eidOf(e)); if (budget <= 0) return finalizeLore(out); }
     if (query) {
       const q = query.toLowerCase();
       for (const e of enabled.filter((e) => !e.constant && (e.keys || []).length)) {
         const keys = e.keys.map((k) => String(k).trim().toLowerCase()).filter(Boolean);
-        if (keys.some((k) => q.includes(k))) { push(loreLabel(e), loreSource(e)); if (budget <= 0) return finalizeLore(out); }
+        if (keys.some((k) => q.includes(k))) { push(loreLabel(e), loreSource(e), eidOf(e)); if (budget <= 0) return finalizeLore(out); }
       }
     }
     const smart = enabled.filter((e) => !e.constant && !(e.keys || []).length);
@@ -109,7 +112,7 @@
       for (const e of smart) {
         const stored = Array.isArray(e.chunks) && e.chunks.length ? e.chunks : null;
         const chunks = stored ? stored : chunkText(loreSource(e)).map((text) => ({ text }));
-        for (const ch of chunks) docs.push({ label: loreLabel(e), tokens: loreTokenize(ch.text), text: ch.text, vector: ch.vector });
+        for (const ch of chunks) docs.push({ label: loreLabel(e), eid: eidOf(e), tokens: loreTokenize(ch.text), text: ch.text, vector: ch.vector });
       }
       const N = docs.length;
       const df = {};
@@ -128,7 +131,7 @@
         cands.slice().sort((a, b) => b.cos - a.cos).forEach((s, i) => { s.fused = (s.fused || 0) + (queryVec && s.d.vector ? rrf(i + 1) : 0); });
         cands.sort((a, b) => b.fused - a.fused);
         let pulled = 0;
-        for (const s of cands) { if (budget <= 0 || pulled >= LORE_MAX_PASSAGES) break; push(s.d.label + ' · passage', s.d.text); pulled++; }
+        for (const s of cands) { if (budget <= 0 || pulled >= LORE_MAX_PASSAGES) break; push(s.d.label + ' · passage', s.d.text, s.d.eid); pulled++; }
       }
     }
     return finalizeLore(out);

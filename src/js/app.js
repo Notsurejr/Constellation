@@ -27,12 +27,26 @@ const MODELS = [
   { id: 'glm-4.5v', label: 'glm-4.5v — Vision (image input)' },
   { id: 'glm-4v-flash', label: 'glm-4v-flash — Vision (free)' },
 ];
-function populateModels() {
+let _modelsPopulated = false;
+function populateModels(current) {
   const top = document.getElementById('topModel');
   const set = document.getElementById('modelInput');
-  for (const m of MODELS) {
-    if (top) { const o = document.createElement('option'); o.value = m.id; o.textContent = m.id; top.appendChild(o); }
-    if (set) { const o = document.createElement('option'); o.value = m.id; o.textContent = m.label; set.appendChild(o); }
+  if (!_modelsPopulated) {
+    for (const m of MODELS) {
+      if (top) { const o = document.createElement('option'); o.value = m.id; o.textContent = m.id; top.appendChild(o); }
+      if (set) { const o = document.createElement('option'); o.value = m.id; o.textContent = m.label; set.appendChild(o); }
+    }
+    const c = document.createElement('option'); c.value = '__custom__'; c.textContent = 'Custom…';
+    if (set) set.appendChild(c);   // any provider's model id (OpenRouter & friends)
+    _modelsPopulated = true;
+  }
+  if (current) {   // a custom model id from settings stays selectable in both dropdowns
+    for (const sel of [top, set]) {
+      if (sel && !Array.from(sel.options).some((o) => o.value === current)) {
+        const o = document.createElement('option'); o.value = current; o.textContent = current;
+        sel.appendChild(o);
+      }
+    }
   }
 }
 
@@ -44,6 +58,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   // Apply saved text-size + chat-width preferences early so layout is right from the first paint.
   try {
     const cfg = await window.api.loadConfig();
+    populateModels(cfg.model);   // a custom model id (e.g. OpenRouter's) joins the dropdowns
     const fs2 = cfg.fontScale != null ? cfg.fontScale : 1;
     const cw = cfg.chatWidth != null ? cfg.chatWidth : 880;
     document.documentElement.style.setProperty('--font-scale', fs2);

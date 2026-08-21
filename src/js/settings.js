@@ -20,7 +20,12 @@ Constellation.settings = (function () {
     renderFileTray('projectFilesTray', edProjectFiles);
     // Generation + model reflect THIS chat (per-chat).
     const o = Constellation.chat.getOptions ? Constellation.chat.getOptions() : {};
-    if ($('modelInput')) $('modelInput').value = o.model || 'glm-5.2';
+    const msel = $('modelInput');
+    if (msel) {
+      const cur = o.model || 'glm-5.3';
+      if (Array.from(msel.options).some((op) => op.value === cur)) { msel.value = cur; $('customModelField').hidden = true; }
+      else { msel.value = '__custom__'; $('customModelField').hidden = false; $('customModelInput').value = cur; }
+    }
     if ($('tempInput')) { const tv = o.temperature != null ? o.temperature : 0.8; $('tempInput').value = tv; $('tempVal').textContent = Number(tv).toFixed(2); }
     if ($('topPInput')) { const tpv = o.topP != null ? o.topP : 0.95; $('topPInput').value = tpv; $('topPVal').textContent = Number(tpv).toFixed(2); }
     if ($('maxInput')) { const mv = o.maxTokens || 4096; $('maxInput').value = mv; $('maxVal').textContent = mv; }
@@ -34,7 +39,13 @@ Constellation.settings = (function () {
     try {
       const cfg = await window.api.loadConfig();
       if ($('apiKeyInput')) $('apiKeyInput').value = cfg.apiKey || '';
-      if ($('endpointInput')) $('endpointInput').value = cfg.baseUrl || 'https://api.z.ai/api/coding/paas/v4';
+      const ep = $('endpointInput');
+      if (ep) {
+        const cur = cfg.baseUrl || 'https://api.z.ai/api/coding/paas/v4';
+        const known = Array.from(ep.options).some((o) => o.value === cur);
+        if (known) { ep.value = cur; $('customEndpointField').hidden = true; }
+        else { ep.value = 'custom'; $('customEndpointField').hidden = false; $('customEndpointInput').value = cur; }
+      }
       const fs2 = cfg.fontScale != null ? cfg.fontScale : 1;
       const chatW = cfg.chatWidth != null ? cfg.chatWidth : 880;
       $('fontInput').value = fs2;
@@ -119,7 +130,10 @@ Constellation.settings = (function () {
 
   async function saveConnection() {
     const apiKey = $('apiKeyInput').value.trim();
-    const baseUrl = $('endpointInput').value;
+    const sel = $('endpointInput').value;
+    const baseUrl = sel === 'custom'
+      ? ($('customEndpointInput').value.trim().replace(/\/+$/, '') || 'https://openrouter.ai/api/v1')
+      : sel;
     await window.api.saveConfig({ api_key: apiKey, base_url: baseUrl });   // key + endpoint are global; model is per-chat (Generation)
     flash('connSaved');
   }
@@ -151,7 +165,9 @@ Constellation.settings = (function () {
   }
 
   async function saveGeneration() {
-    const model = $('modelInput').value.trim() || 'glm-5.2';
+    const model = $('modelInput').value === '__custom__'
+      ? ($('customModelInput').value.trim() || 'glm-5.3')
+      : ($('modelInput').value.trim() || 'glm-5.3');
     const temperature = parseFloat($('tempInput').value);
     const topP = parseFloat($('topPInput').value);
     const maxTokens = parseInt($('maxInput').value, 10);
@@ -345,6 +361,18 @@ Constellation.settings = (function () {
     $('saveConnection').addEventListener('click', saveConnection);
     const spb = $('savePhraseBans'); if (spb) spb.addEventListener('click', savePhraseBans);
     const cli = $('cliServerInput'); if (cli) cli.addEventListener('change', () => window.api.saveConfig({ cli_server: cli.checked ? 'on' : 'off' }));
+    const epSel = $('endpointInput');
+    if (epSel) epSel.addEventListener('change', () => {
+      const custom = epSel.value === 'custom';
+      $('customEndpointField').hidden = !custom;
+      if (custom) { $('customEndpointInput').focus(); }
+    });
+    const mSel2 = $('modelInput');
+    if (mSel2) mSel2.addEventListener('change', () => {
+      const custom = mSel2.value === '__custom__';
+      $('customModelField').hidden = !custom;
+      if (custom) { $('customModelInput').focus(); }
+    });
     $('saveGeneration').addEventListener('click', saveGeneration);
     $('savePreset').addEventListener('click', savePreset);
     const pl = $('presetList');

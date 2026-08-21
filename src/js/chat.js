@@ -157,7 +157,13 @@ Constellation.chat = (function () {
 
   function setOptions(patch) {
     if (patch) Object.assign(opts, patch);
-    if (topModel && opts.model) topModel.value = opts.model;   // keep the top-bar switcher in sync
+    if (topModel && opts.model) {
+      if (!Array.from(topModel.options).some((o) => o.value === opts.model)) {
+        const o = document.createElement('option'); o.value = opts.model; o.textContent = opts.model;
+        topModel.appendChild(o);   // custom model ids (OpenRouter etc.) stay selectable in the top bar
+      }
+      topModel.value = opts.model;   // keep the top-bar switcher in sync
+    }
   }
   function setActiveLore(arr) { activeLore = Array.isArray(arr) ? arr.filter((lb) => lb && Array.isArray(lb.entries)) : []; updateContextMeter(); }
 
@@ -246,6 +252,9 @@ Constellation.chat = (function () {
   }
 
   function autoGrow() {
+    // Giant pastes: the height is already at its cap, and forcing a reflow on a huge textarea is
+    // what made the composer lag after repeated long pastes — skip the re-measure for big values.
+    if (inputEl.value.length > 4000) { inputEl.style.height = '160px'; return; }
     inputEl.style.height = 'auto';
     inputEl.style.height = Math.min(160, inputEl.scrollHeight) + 'px';
   }
@@ -664,6 +673,7 @@ Constellation.chat = (function () {
 
     const loreCtx = await buildLoreContext();   // relevant world context (constant + keyword + hybrid BM25/semantic passages)
     addLoreIndicator(el, loreCtx.items);
+    if (window.Constellation && window.Constellation.stars) window.Constellation.stars.illuminate(loreCtx.items);   // light the sky's lore constellations
 
     let bodyBuf = '';
     let thinkBuf = '';
@@ -731,6 +741,7 @@ Constellation.chat = (function () {
         streaming = false;
         if (full) bodyBuf = full;
         bodyBuf = applyPhraseBans(bodyBuf);   // tidy banned phrases out of the final reply (model never sees the list)
+        el.__raw = bodyBuf;   // the streamed reply's raw source was never set (placeholder was '') — copy/edit need it
         const vLore = loreCtx && loreCtx.items.length ? loreCtx.items.map((it) => ({ label: it.label, text: String(it.text || '').slice(0, 300) })) : undefined;
         if (variantTarget) {
           // Keep the prior take(s); add this one and make it the active variant.
@@ -818,7 +829,9 @@ Constellation.chat = (function () {
   // Copy a message's raw markdown source (falls back to visible text).
   function copyMessage(el) {
     const body = el.querySelector('.body');
-    const text = el.__raw != null ? el.__raw : (body ? body.textContent : '');
+    // NOTE: a freshly-streamed reply's element is created with __raw='' — empty must fall through
+    // to the rendered text, or long fresh replies copy as blank (the old "hit or miss").
+    const text = el.__raw ? el.__raw : (body ? body.textContent : '');
     if (window.api && window.api.writeClipboard) window.api.writeClipboard(text);   // main-process clipboard (handles large text reliably)
     const btn = el.querySelector('[data-action="copy"]');
     if (btn) { const orig = btn.textContent; btn.textContent = '✓ Copied'; setTimeout(() => { btn.textContent = orig; }, 1200); }
@@ -838,7 +851,7 @@ Constellation.chat = (function () {
     const msgs = Array.from(messagesEl.querySelectorAll('.msg'));
     const msgIndex = msgs.indexOf(el);
     if (msgIndex === -1) return;
-    const raw = el.__raw != null ? el.__raw : (el.querySelector('.body') ? el.querySelector('.body').textContent : '');
+    const raw = el.__raw ? el.__raw : (el.querySelector('.body') ? el.querySelector('.body').textContent : '');
     const head = String(raw).replace(/\s+/g, ' ').trim().slice(0, 80);   // stored so a jump can re-find the message even if its index shifts
     const role = el.classList.contains('user') ? 'user' : 'assistant';
     if (!(window.Constellation && window.Constellation.sessions && window.Constellation.sessions.toggleBookmark)) return;
@@ -864,7 +877,7 @@ Constellation.chat = (function () {
     if (!el && head) {
       const h = String(head).toLowerCase().slice(0, 60);
       el = msgs.find((m) => {
-        const raw = m.__raw != null ? m.__raw : (m.querySelector('.body') ? m.querySelector('.body').textContent : '');
+        const raw = m.__raw ? m.__raw : (m.querySelector('.body') ? m.querySelector('.body').textContent : '');
         return h && String(raw).toLowerCase().includes(h);
       }) || null;
     }
@@ -1011,6 +1024,7 @@ Constellation.chat = (function () {
   function renderActiveVariant(el) {
     const m = conversation[convIndexForEl(el)];
     if (!m) return;
+    el.__raw = m.content || '';   // keep copy/edit on the active variant's raw source
     const body = el.querySelector('.body');
     if (body) { body.classList.remove('caret'); body.style.color = ''; body.innerHTML = Constellation.md.render(m.content || ''); enhanceCodeBlocks(body); }
     const think = el.querySelector('.think-block');

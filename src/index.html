@@ -146,18 +146,24 @@
 
       <div class="settings-section">
         <h2>Connection <em class="hint-inline">global</em></h2>
-        <div class="hint">Your GLM API key and endpoint. (The model is per-chat — see Generation.)</div>
+        <div class="hint">Works with GLM out of the box, or any OpenAI-compatible provider — OpenRouter, Ollama, LM Studio and friends via <em>Custom</em>. (The model is per-chat — see Generation.)</div>
         <label class="field">
           <span>API key</span>
-          <input type="password" id="apiKeyInput" placeholder="paste your GLM API key" autocomplete="off" />
+          <input type="password" id="apiKeyInput" placeholder="paste your API key" autocomplete="off" />
         </label>
         <label class="field">
           <span>Endpoint</span>
           <select id="endpointInput">
-            <option value="https://api.z.ai/api/coding/paas/v4">Coding plan (api.z.ai) — for GLM Coding Plan keys</option>
-            <option value="https://api.z.ai/api/paas/v4">General (api.z.ai)</option>
-            <option value="https://open.bigmodel.cn/api/paas/v4/">General (bigmodel.cn)</option>
+            <option value="https://api.z.ai/api/coding/paas/v4">GLM — Coding plan (api.z.ai)</option>
+            <option value="https://api.z.ai/api/paas/v4">GLM — General (api.z.ai)</option>
+            <option value="https://open.bigmodel.cn/api/paas/v4/">GLM — General (bigmodel.cn)</option>
+            <option value="https://openrouter.ai/api/v1">OpenRouter (openrouter.ai)</option>
+            <option value="custom">Custom (any OpenAI-compatible)…</option>
           </select>
+        </label>
+        <label class="field" id="customEndpointField" hidden>
+          <span>Base URL</span>
+          <input type="text" id="customEndpointInput" placeholder="https://your-provider.com/v1" />
         </label>
         <div class="settings-actions">
           <span class="saved-tag" id="connSaved">saved ✓</span>
@@ -171,6 +177,10 @@
         <label class="field">
           <span>Model</span>
           <select id="modelInput"></select>
+        </label>
+        <label class="field" id="customModelField" hidden>
+          <span>Custom model ID <em class="hint-inline">for OpenRouter &amp; other providers</em></span>
+          <input type="text" id="customModelInput" placeholder="e.g. anthropic/claude-sonnet-4.5" />
         </label>
         <label class="field">
           <span>Creativity <em id="tempVal">0.80</em></span>
@@ -364,6 +374,7 @@
   <script src="js/md.js"></script>
   <script src="js/engines.js"></script>
   <script src="js/colorfx.js"></script>
+  <script src="js/constellations.js"></script>
   <script src="js/chat.js"></script>
   <script src="js/settings.js"></script>
   <script src="js/sessions.js"></script>

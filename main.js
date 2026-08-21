@@ -741,6 +741,7 @@ ipcMain.handle('chat:stream', async (event, payload) => {
     if (!s.apiKey) throw new Error('No API key set. Add your GLM key in Settings (or config/settings.txt).');
     const client = new OpenAI({ apiKey: s.apiKey, baseURL: s.baseUrl, maxRetries: 0 });
     const supportsEffort = /^glm-5\.[2-9]/i.test(String(opts.model || s.model));   // reasoning_effort is GLM-5.2+
+    const isGlmEndpoint = /z\.ai|bigmodel/i.test(String(s.baseUrl || ''));   // GLM-specific params (thinking) only go to GLM
 
     // Retry the initial request on transient failures (rate limits, network blips),
     // but give up immediately on billing errors (e.g. out-of-credits 429).
@@ -755,7 +756,7 @@ ipcMain.handle('chat:stream', async (event, payload) => {
           temperature: opts.temperature ?? s.temperature,
           top_p: opts.topP ?? s.topP,
           ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
-          ...(opts.thinking ? {
+          ...(opts.thinking && isGlmEndpoint ? {
               thinking: { type: 'enabled', clear_thinking: false },   // clear_thinking:false = Preserved Thinking
               ...(supportsEffort && opts.reasoningEffort && opts.reasoningEffort !== 'max'
                 ? { reasoning_effort: opts.reasoningEffort } : {}),
