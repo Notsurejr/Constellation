@@ -761,6 +761,11 @@ ipcMain.handle('chat:stream', async (event, payload) => {
               ...(supportsEffort && opts.reasoningEffort && opts.reasoningEffort !== 'max'
                 ? { reasoning_effort: opts.reasoningEffort } : {}),
             } : {}),
+          // Non-GLM providers (OpenRouter & friends): pass the standard OpenAI-style effort knob,
+          // mapped from our options. 'none' means don't send it.
+          ...(opts.thinking && !isGlmEndpoint && opts.reasoningEffort && opts.reasoningEffort !== 'none'
+            ? { reasoning_effort: ({ max: 'high', xhigh: 'high', high: 'high', medium: 'medium', low: 'low', minimal: 'minimal' })[opts.reasoningEffort] || 'high' }
+            : {}),
           stream: true,
         }, { signal: ac.signal });
         break;

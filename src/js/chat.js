@@ -718,10 +718,28 @@ Constellation.chat = (function () {
     const reqMsgs = trimForApi(toApiMessages(loreCtx, reqSrc));
     usage.tokens += estTokens(reqMsgs);   // count this request's tokens (context actually sent)
     usage.requests++;
+    // Watchdog: a request that silently hangs (no tokens, no error) would leave busy=true forever —
+    // dots looping and every action locked. Any activity resets it; 90s of silence cancels.
+    let watchdog = null;
+    const kickWatchdog = () => {
+      clearTimeout(watchdog);
+      watchdog = setTimeout(() => {
+        cancelStream();
+        streaming = false;
+        busy = false;
+        restoreSendBtn();
+        setStatus('error', 'err');
+        hideThinking(el);
+        el.remove();
+        if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Timed out waiting for the model — request cancelled');
+      }, 90000);
+    };
+    kickWatchdog();
     currentRequest = window.api.chatStream(reqMsgs, opts, {
       onRetry: (attempt) => setStatus('retrying… (attempt ' + attempt + ')', 'ok'),
       onThink: (delta) => {
         hideThinking(el);
+        kickWatchdog();
         thinkBuf += delta;
         if (thinkDetails) {
           thinkDetails.hidden = false;
@@ -731,12 +749,14 @@ Constellation.chat = (function () {
       },
       onChunk: (delta) => {
         hideThinking(el);
+        kickWatchdog();
         if (!body.classList.contains('caret')) body.classList.add('caret');
         bodyBuf += delta;
         if (statusEl.textContent !== 'writing…') setStatus('writing…', 'ok');
       },
       onDone: (full, finishReason) => {
         hideThinking(el);
+        clearTimeout(watchdog);
         finishAnchor = (!atBottom()) ? captureScrollAnchor() : null;   // pin the reader's line BEFORE any finish mutations
         streaming = false;
         if (full) bodyBuf = full;
@@ -776,6 +796,7 @@ Constellation.chat = (function () {
       },
       onError: (message) => {
         hideThinking(el);
+        clearTimeout(watchdog);
         streaming = false;
         if (rafId) cancelAnimationFrame(rafId);
         rafId = null;
@@ -784,10 +805,8 @@ Constellation.chat = (function () {
         if (variantTarget) {
           renderActiveVariant(el);   // regen failed — restore the existing active take
         } else {
-          body.classList.remove('caret');
-          revealedN = bodyBuf.length;
-          body.textContent = '⚠ ' + friendly;
-          body.style.color = 'var(--danger)';
+          el.remove();   // remove the placeholder entirely: an error bubble with no conversation
+                         // entry desynced every index-based operation after it (edit/fork/bookmarks)
         }
         busy = false;
         restoreSendBtn();
