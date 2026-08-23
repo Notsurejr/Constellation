@@ -24,8 +24,8 @@ const MODELS = [
   { id: 'glm-4.5-air', label: 'glm-4.5-air — Lighter / cheaper' },
   { id: 'glm-4.7-flash', label: 'glm-4.7-flash — Free' },
   { id: 'glm-4.5-flash', label: 'glm-4.5-flash — Free' },
-  { id: 'glm-4.5v', label: 'glm-4.5v — Vision (image input)' },
-  { id: 'glm-4v-flash', label: 'glm-4v-flash — Vision (free)' },
+  { id: 'glm-5v-turbo', label: 'glm-5v-turbo — Vision (fast)' },
+  { id: 'glm-4.6v', label: 'glm-4.6v — Vision' },
 ];
 let _modelsPopulated = false;
 function populateModels(current) {

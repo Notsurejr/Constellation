@@ -617,6 +617,9 @@ Constellation.chat = (function () {
     if (/401|unauthorized|invalid.{0,6}key/i.test(m)) {
       return 'GLM rejected the API key (401). Check the key in Settings.';
     }
+    if (/unknown model|model.{0,20}(does not exist|not found)|modelCode/i.test(m)) {
+      return 'That model is not available on this endpoint (or was retired). Vision models need the General endpoint — check Settings → Connection, then pick a current model.';
+    }
     return m;
   }
 
