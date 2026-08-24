@@ -223,9 +223,12 @@ Constellation.sessions = (function () {
       try { system = (await window.api.loadModes()).roleplay || ''; } catch (e) {}
       try { project = (await window.api.loadProject()) || ''; } catch (e) {}
     }
-    // Restore this chat's generation settings; older chats fall back to global defaults.
-    let gen = s.gen;
-    if (!gen) { try { gen = cfgToGen(await window.api.loadConfig()); } catch (e) {} }
+    // Restore generation settings: start from GLOBAL Settings, then carry over only this chat's
+    // model. Older snapshots froze thinking/effort/etc per-chat — whitelisting heals those chats
+    // (e.g. ones stuck on effort "high") so what Settings says today is what every chat does.
+    let gen = null;
+    try { gen = cfgToGen(await window.api.loadConfig()); } catch (e) {}
+    if (gen && s.gen && s.gen.model) gen.model = s.gen.model;
     currentLore = Array.isArray(s.lore) ? s.lore : [];
     Constellation.chat.loadSession(s.messages || [], system, project, gen, s.usage, s.systemFiles, s.projectFiles);
     applyLore();   // apply this chat's enabled lorebooks to retrieval

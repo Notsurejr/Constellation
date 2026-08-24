@@ -1145,13 +1145,11 @@ Constellation.chat = (function () {
   // The active chat's generation settings — Settings + Craft read these so they reflect THIS chat.
   function getOptions() { return Object.assign({}, opts); }
 
-  // The per-chat gen bundle that gets persisted with the session.
+  // The per-chat gen bundle that gets persisted with the session. ONLY the model is per-chat —
+  // freezing thinking/effort/etc here meant Settings changes silently never reached existing
+  // chats (chats stuck on a stale effort was the "thinking got shorter" bug).
   function genSnapshot() {
-    return {
-      model: opts.model, temperature: opts.temperature, topP: opts.topP,
-      maxTokens: opts.maxTokens, thinking: opts.thinking, reasoningEffort: opts.reasoningEffort,
-      streamCps: opts.streamCps, contextWindow: opts.contextWindow,
-    };
+    return { model: opts.model };
   }
 
   // Persist the current chat (messages + instructions + settings) now — used when you edit
