@@ -14,6 +14,7 @@ Constellation.toast = function (msg) {
 // The single source of truth for model options — populates both the top-bar switcher and Settings.
 const MODELS = [
   { id: 'glm-5.3', label: 'glm-5.3 — Flagship' },
+  { id: 'glm-5.3-flash', label: 'glm-5.3-flash — Fast · Vision' },
   { id: 'glm-5.2', label: 'glm-5.2' },
   { id: 'glm-5.1', label: 'glm-5.1' },
   { id: 'glm-5-turbo', label: 'glm-5-turbo — Fast' },
