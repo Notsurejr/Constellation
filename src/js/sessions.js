@@ -10,6 +10,7 @@ Constellation.sessions = (function () {
   let searchQuery = '';
   let searchTimer = null;
   let folders = {};   // folderId -> { id, name, collapsed }
+  let showHidden = false;   // hidden chats stay tucked away until the footer toggle reveals them
 
   // Build a gen bundle (per-chat generation settings) from a global config snapshot — used to
   // seed new chats and as a fallback for old sessions that have no stored settings.
@@ -26,9 +27,23 @@ Constellation.sessions = (function () {
     };
   }
 
-  function open() { $('sidebar').classList.add('open'); }
+  function open() {
+    $('sidebar').classList.add('open');
+    // Land the list on the chat you're actually in — not the newest one at the top.
+    // setTimeout, not rAF: rAF never fires while the window is backgrounded/occluded.
+    setTimeout(() => {
+      const active = $('sessionList') && $('sessionList').querySelector('.session-item.active');
+      if (!active) return;
+      const fc = active.closest('.folder-children');   // if its folder is collapsed, open it for this look
+      if (fc && fc.style.display === 'none') fc.style.display = '';
+      if (active.scrollIntoView) active.scrollIntoView({ block: 'center' });
+    }, 80);
+  }
   function close() { $('sidebar').classList.remove('open'); }
-  function toggle() { $('sidebar').classList.toggle('open'); }
+  function toggle() {
+    if ($('sidebar').classList.contains('open')) close();
+    else open();   // through open() so the list lands on the active chat
+  }
 
   function deriveTitle(messages) {
     const u = (messages || []).find((m) => m.role === 'user');
@@ -45,7 +60,7 @@ Constellation.sessions = (function () {
   // Build a single session-item row (reused for pinned, foldered, and top-level chats).
   function makeItem(s, indented) {
     const item = document.createElement('div');
-    item.className = 'session-item' + (s.id === currentId ? ' active' : '') + (s.pinned ? ' pinned' : '') + (indented ? ' indented' : '');
+    item.className = 'session-item' + (s.id === currentId ? ' active' : '') + (s.pinned ? ' pinned' : '') + (indented ? ' indented' : '') + (s.hidden ? ' hidden-chat' : '');
     item.dataset.id = s.id;
     const pin = document.createElement('button');
     pin.className = 'session-pin'; pin.textContent = s.pinned ? '★' : '☆'; pin.title = s.pinned ? 'Unpin' : 'Pin to top';
@@ -55,6 +70,8 @@ Constellation.sessions = (function () {
     move.className = 'session-move'; move.textContent = '📁'; move.title = 'Move to folder';
     const rename = document.createElement('button');
     rename.className = 'session-rename'; rename.textContent = '✎'; rename.title = 'Rename';
+    const hide = document.createElement('button');
+    hide.className = 'session-hide'; hide.textContent = '⊘'; hide.title = s.hidden ? 'Unhide chat' : 'Hide chat (tucked away — show via the sidebar footer)';
     const del = document.createElement('button');
     del.className = 'session-del'; del.textContent = '×'; del.title = 'Delete';
     const main = document.createElement('div');
@@ -67,7 +84,7 @@ Constellation.sessions = (function () {
       if (s.usage && s.usage.tokens > 0) { const u = document.createElement('span'); u.className = 'session-usage'; u.textContent = fmtTokens(s.usage.tokens); meta.appendChild(u); }
       main.appendChild(meta);
     }
-    item.appendChild(pin); item.appendChild(main); item.appendChild(move); item.appendChild(rename); item.appendChild(del);
+    item.appendChild(pin); item.appendChild(main); item.appendChild(move); item.appendChild(rename); item.appendChild(hide); item.appendChild(del);
     return item;
   }
 
@@ -162,6 +179,9 @@ Constellation.sessions = (function () {
     try { folders = await window.api.loadFolders(); } catch (e) { folders = {}; }
     let list = [];
     try { list = await window.api.listSessions(); } catch (e) {}
+    const hiddenCount = list.filter((s) => s.hidden).length;
+    const visible = list.filter((s) => showHidden || !s.hidden);   // hidden chats stay out of the way until asked for
+    list = visible;
     $('sidebar').classList.toggle('has-items', list.length > 0);
     // Partition: pinned (any folder) → foldered (non-pinned, by folder) → top-level (non-pinned, no folder).
     const pinned = list.filter((s) => s.pinned);
@@ -190,7 +210,22 @@ Constellation.sessions = (function () {
     }
     for (const s of topLevel) el.appendChild(makeItem(s, false));
     const foot = $('sidebarFoot');
-    if (foot) foot.textContent = list.length ? (fmtTokens(grandTokens) + ' · ' + list.length + ' chat' + (list.length === 1 ? '' : 's')) : '';
+    if (foot) {
+      foot.replaceChildren();
+      if (list.length) {
+        const stats = document.createElement('span');
+        stats.textContent = fmtTokens(grandTokens) + ' · ' + list.length + ' chat' + (list.length === 1 ? '' : 's');
+        foot.appendChild(stats);
+      }
+      if (hiddenCount > 0) {
+        const toggle = document.createElement('button');
+        toggle.className = 'foot-toggle';
+        toggle.textContent = (showHidden ? '▲ hide ' : '▼ ') + hiddenCount + ' hidden';
+        toggle.title = showHidden ? 'Tuck the hidden chats away again' : 'Show hidden chats';
+        toggle.addEventListener('click', () => { showHidden = !showHidden; refresh(); });
+        foot.appendChild(toggle);
+      }
+    }
   }
 
   async function newChat() {
@@ -385,6 +420,13 @@ Constellation.sessions = (function () {
         e.stopPropagation();
         const willPin = !item.classList.contains('pinned');
         window.api.setPinned(id, willPin).then(() => { refresh(); if (window.Constellation && window.Constellation.toast) window.Constellation.toast(willPin ? 'Pinned' : 'Unpinned'); });
+      } else if (e.target.closest('.session-hide')) {
+        e.stopPropagation();
+        const willHide = !item.classList.contains('hidden-chat');
+        window.api.setSessionHidden(id, willHide).then(() => {
+          refresh();
+          if (window.Constellation && window.Constellation.toast) window.Constellation.toast(willHide ? 'Chat hidden — reveal it from the sidebar footer' : 'Chat restored');
+        });
       } else if (e.target.closest('.session-move')) {
         e.stopPropagation(); showFolderMenu(id, e.target.closest('.session-move'));
       } else { load(id); }

@@ -170,6 +170,7 @@ function getSettings() {
     flareSize: clamp(parseInt(s.flare_size || '35', 10) || 35, 20, 100),
     flareBlend: ['screen','soft-light','overlay','normal'].includes(s.flare_blend) ? s.flare_blend : 'screen',
     fxEvents: s.fx_events === undefined ? true : /^(on|true|1)$/i.test(s.fx_events || ''),
+    colorWords: s.color_words === undefined ? true : /^(on|true|1)$/i.test(s.color_words || ''),
     fxSize: clamp(parseFloat(s.fx_size || '1') || 1, 0.4, 2.5),
   };
 }
@@ -239,6 +240,7 @@ ipcMain.handle('config:save', (_e, patch) => {
   if (patch.flare_size !== undefined) setLine('flare_size', patch.flare_size);
   if (patch.flare_blend !== undefined) setLine('flare_blend', patch.flare_blend);
   if (patch.fx_events !== undefined) setLine('fx_events', patch.fx_events);
+  if (patch.color_words !== undefined) setLine('color_words', patch.color_words);
   if (patch.fx_size !== undefined) setLine('fx_size', patch.fx_size);
   fs.writeFileSync(SETTINGS_FILE, lines.join('\n'), 'utf8');
   return getSettings();
@@ -297,7 +299,7 @@ ipcMain.handle('sessions:list', () => {
       .map((f) => {
         try {
           const d = JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, f), 'utf8'));
-          return { id: d.id || f.replace(/\.json$/, ''), title: d.title || 'Untitled', updatedAt: d.updatedAt || 0, pinned: !!d.pinned, usage: d.usage || { tokens: 0, requests: 0 }, parentId: d.parentId, parentTitle: d.parentTitle, folder: d.folder || null };
+          return { id: d.id || f.replace(/\.json$/, ''), title: d.title || 'Untitled', updatedAt: d.updatedAt || 0, pinned: !!d.pinned, hidden: !!d.hidden, usage: d.usage || { tokens: 0, requests: 0 }, parentId: d.parentId, parentTitle: d.parentTitle, folder: d.folder || null };
         } catch (e) { return null; }
       })
       .filter(Boolean)
@@ -321,10 +323,10 @@ ipcMain.handle('sessions:save', (_e, { id, title, messages, system, project, gen
   fs.mkdirSync(SESSIONS_DIR, { recursive: true });
   id = safeId(id) || 's_' + Date.now() + '_' + Math.floor(Math.random() * 1e9);   // invalid/absent id → fresh one, never trusted
   const file = path.join(SESSIONS_DIR, id + '.json');
-  let pinned = false, pId, pTitle, folder = null, pLore = null;
-  try { const ex = JSON.parse(fs.readFileSync(file, 'utf8')); pinned = !!ex.pinned; pId = ex.parentId; pTitle = ex.parentTitle; folder = ex.folder || null; pLore = Array.isArray(ex.lore) ? ex.lore : null; } catch (e) {}
+  let pinned = false, pId, pTitle, folder = null, pLore = null, wasHidden = false;
+  try { const ex = JSON.parse(fs.readFileSync(file, 'utf8')); pinned = !!ex.pinned; pId = ex.parentId; pTitle = ex.parentTitle; folder = ex.folder || null; pLore = Array.isArray(ex.lore) ? ex.lore : null; wasHidden = !!ex.hidden; } catch (e) {}
   const data = {
-    id, title: title || 'Untitled', messages: messages || [], system, project, systemFiles: systemFiles || [], projectFiles: projectFiles || [], gen, usage, pinned,
+    id, title: title || 'Untitled', messages: messages || [], system, project, systemFiles: systemFiles || [], projectFiles: projectFiles || [], gen, usage, pinned, hidden: wasHidden,
     parentId: parentId !== undefined ? parentId : pId, parentTitle: parentTitle !== undefined ? parentTitle : pTitle,
     folder, lore: Array.isArray(lore) ? lore : (pLore || []),
     updatedAt: Date.now(),
@@ -350,6 +352,17 @@ ipcMain.handle('sessions:rename', (_e, { id, title }) => {
     const file = path.join(SESSIONS_DIR, id + '.json');
     const d = JSON.parse(fs.readFileSync(file, 'utf8'));
     d.title = (String(title || '').trim().slice(0, 80)) || 'Untitled';
+    fs.writeFileSync(file, JSON.stringify(d, null, 2), 'utf8');
+    return { ok: true };
+  } catch (e) { return { ok: false }; }
+});
+
+ipcMain.handle('sessions:setHidden', (_e, { id, hidden }) => {
+  if (!safeId(id)) return { ok: false };
+  try {
+    const file = path.join(SESSIONS_DIR, id + '.json');
+    const d = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (hidden) d.hidden = true; else delete d.hidden;
     fs.writeFileSync(file, JSON.stringify(d, null, 2), 'utf8');
     return { ok: true };
   } catch (e) { return { ok: false }; }

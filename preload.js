@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('api', {
   deleteSession: (id) => ipcRenderer.invoke('sessions:delete', id),
   renameSession: (id, title) => ipcRenderer.invoke('sessions:rename', { id, title }),
   setPinned: (id, pinned) => ipcRenderer.invoke('sessions:setPinned', { id, pinned }),
+  setSessionHidden: (id, hidden) => ipcRenderer.invoke('sessions:setHidden', { id, hidden }),
   setSessionFolder: (id, folder) => ipcRenderer.invoke('sessions:setFolder', { id, folder }),
   setSessionLore: (id, lore) => ipcRenderer.invoke('sessions:setLore', { id, lore }),
   searchSessions: (q) => ipcRenderer.invoke('sessions:search', q),

@@ -925,6 +925,36 @@ html, body {
   transition: opacity .15s, color .15s;
 }
 .session-item:hover .session-del { opacity: 1; }
+
+/* Hide (tuck a chat away) — visible on hover like the other row actions */
+.session-hide {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 4px;
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity .15s, color .15s;
+}
+.session-item:hover .session-hide { opacity: 1; }
+.session-hide:hover { color: var(--accent); }
+.session-item.hidden-chat { opacity: 0.45; }
+.session-item.hidden-chat .session-hide { opacity: 1; color: var(--accent); }   /* stays findable so it can be restored */
+.foot-toggle {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  padding: 0 0 0 8px;
+}
+.foot-toggle:hover { text-decoration: underline; }
+
 .session-rename {
   background: none; border: none; color: var(--text-faint); cursor: pointer;
   font-size: 13px; line-height: 1; padding: 0 4px; border-radius: 6px;

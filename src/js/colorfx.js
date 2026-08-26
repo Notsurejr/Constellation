@@ -9,7 +9,7 @@ Constellation.colorfx = (function () {
   for (const pair of RAW.split(',')) { const [n, h] = pair.split(':'); if (n && h) MAP[n.trim()] = '#' + h.trim(); }
   const NAMES = Object.keys(MAP).sort((a, b) => b.length - a.length);
 
-  let params = { intensity: 0.5, range: 140, size: 35, blend: 'screen', events: true, fxSize: 1 };
+  let params = { intensity: 0.5, range: 140, size: 35, blend: 'screen', events: true, fxSize: 1, colorWords: true };
   function setParams(p) {
     if (!p) return;
     if (p.intensity != null) params.intensity = p.intensity;
@@ -18,6 +18,7 @@ Constellation.colorfx = (function () {
     if (p.blend != null) params.blend = p.blend;
     if (p.events != null) params.events = !!p.events;
     if (p.fxSize != null) params.fxSize = p.fxSize;
+    if (p.colorWords != null) params.colorWords = !!p.colorWords;
     const f = ensureFlare();
     f.style.setProperty('--flare-size', params.size + '%');
     f.style.mixBlendMode = params.blend;
@@ -85,7 +86,7 @@ Constellation.colorfx = (function () {
         const span = document.createElement('span');
         span.className = 'colorword';
         span.dataset.color = color;
-        span.style.color = readableTint(color);   // the word wears its color — dark hues lifted to stay legible
+        if (params.colorWords) span.style.color = readableTint(color);   // the word wears its color — dark hues lifted to stay legible
         span.textContent = word;
         frag.appendChild(span);
         last = m.index + word.length;
@@ -249,5 +250,14 @@ Constellation.colorfx = (function () {
     }
   }
 
-  return { tagColors: tagColors, scan: scan, setParams: setParams };
+  // Re-tint (or clear) the color words already on screen — lets Settings toggle colored text
+  // without re-rendering the whole conversation.
+  function retint(messagesEl) {
+    if (!messagesEl) return;
+    for (const w of messagesEl.querySelectorAll('.colorword')) {
+      w.style.color = params.colorWords ? (readableTint(w.dataset.color) || '') : '';
+    }
+  }
+
+  return { tagColors: tagColors, scan: scan, setParams: setParams, retint: retint };
 })();

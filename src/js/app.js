@@ -80,7 +80,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       window.Constellation.starfield.setTwinkle(cfg.twinkleSpeed != null ? cfg.twinkleSpeed : 1);
     }
     if (window.Constellation && window.Constellation.colorfx) {
-      window.Constellation.colorfx.setParams({ intensity: cfg.flareIntensity != null ? cfg.flareIntensity : 0.5, range: cfg.flareRange || 140, size: cfg.flareSize || 35, blend: cfg.flareBlend || 'screen', events: cfg.fxEvents !== false, fxSize: cfg.fxSize != null ? cfg.fxSize : 1 });
+      window.Constellation.colorfx.setParams({ intensity: cfg.flareIntensity != null ? cfg.flareIntensity : 0.5, range: cfg.flareRange || 140, size: cfg.flareSize || 35, blend: cfg.flareBlend || 'screen', events: cfg.fxEvents !== false, fxSize: cfg.fxSize != null ? cfg.fxSize : 1, colorWords: cfg.colorWords !== false });
     }
   } catch (e) {}
 
