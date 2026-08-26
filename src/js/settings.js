@@ -68,8 +68,15 @@ Constellation.settings = (function () {
       if ($('flareBlendInput')) $('flareBlendInput').value = cfg.flareBlend || 'screen';
       if ($('fxEventsInput')) $('fxEventsInput').checked = cfg.fxEvents !== false;
       if ($('fxSizeInput')) { const fx = cfg.fxSize != null ? cfg.fxSize : 1; $('fxSizeInput').value = Math.round(fx * 100); $('fxSizeVal').textContent = fx.toFixed(1) + '×'; }
+      syncFxSize();   // event size only means something while cosmic events are on
     } catch (e) {}
     await refreshPresets();
+  }
+
+  // Event size is subordinate to the events checkbox — grey it out while events are off.
+  function syncFxSize() {
+    const cb = $('fxEventsInput'), sz = $('fxSizeInput');
+    if (cb && sz) { sz.disabled = !cb.checked; if (sz.parentElement) sz.parentElement.classList.toggle('dim', !cb.checked); }
   }
 
   function close() { $('settingsOverlay').classList.remove('open'); }
@@ -414,7 +421,7 @@ Constellation.settings = (function () {
     if ($('flareRangeInput')) $('flareRangeInput').addEventListener('input', () => { $('flareRangeVal').textContent = $('flareRangeInput').value + 'px'; liveFlare(); });
     if ($('flareSizeInput')) $('flareSizeInput').addEventListener('input', () => { $('flareSizeVal').textContent = $('flareSizeInput').value + '%'; liveFlare(); });
     if ($('flareBlendInput')) $('flareBlendInput').addEventListener('change', liveFlare);
-    if ($('fxEventsInput')) $('fxEventsInput').addEventListener('change', liveFlare);
+    if ($('fxEventsInput')) $('fxEventsInput').addEventListener('change', () => { syncFxSize(); liveFlare(); });
     if ($('fxSizeInput')) $('fxSizeInput').addEventListener('input', () => { $('fxSizeVal').textContent = (Number($('fxSizeInput').value) / 100).toFixed(1) + '×'; liveFlare(); });
     const scf = $('saveColorFx'); if (scf) scf.addEventListener('click', saveColorFx);
     $('resetAccent').addEventListener('click', resetAccent);

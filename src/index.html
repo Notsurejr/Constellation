@@ -107,67 +107,70 @@
       <div class="hint">Shape how the model behaves. Changes apply to your next message.</div>
 
       <div class="settings-section">
-        <h2>Presets</h2>
-        <div class="hint">Saved sets of system + project instructions. Click one to load it; × to delete.</div>
-        <div class="preset-list" id="presetList"></div>
+        <h2>Appearance</h2>
+        <div class="hint">Tune the reading size and how wide the chat column is. The app window also remembers its size now.</div>
         <label class="field">
-          <span>Save current editors as</span>
-          <input type="text" id="presetName" placeholder="name this preset" />
-        </label>
-        <div class="settings-actions">
-          <span class="saved-tag" id="presetSaved">saved ✓</span>
-          <button class="btn" id="savePreset">Save preset</button>
-        </div>
-      </div>
-
-      <div class="settings-section">
-        <h2>System instructions <em class="hint-inline">this chat</em></h2>
-        <div class="hint">The core prompt that steers this chat. New chats start from your default file (config/modes/roleplay.txt).</div>
-        <textarea id="promptEditor" placeholder="Write the system instructions…"></textarea>
-        <div class="attachments" id="systemFilesTray" hidden></div>
-        <button class="btn" id="systemFileBtn" type="button" title="Attach .md/.txt — contents are added to this chat's system prompt">＋ Attach file</button>
-        <div class="settings-actions">
-          <span class="saved-tag" id="promptSaved">saved ✓</span>
-          <button class="btn" id="savePrompt">Save</button>
-        </div>
-      </div>
-
-      <div class="settings-section">
-        <h2>Project instructions <em class="hint-inline">this chat</em></h2>
-        <div class="hint">Extra context or rules sent with every message in this chat (optional).</div>
-        <textarea id="projectEditor" placeholder="e.g. This is a noir detective story set in 1940s LA…"></textarea>
-        <div class="attachments" id="projectFilesTray" hidden></div>
-        <button class="btn" id="projectFileBtn" type="button" title="Attach .md/.txt — contents are added to this chat's project instructions">＋ Attach file</button>
-        <div class="settings-actions">
-          <span class="saved-tag" id="projectSaved">saved ✓</span>
-          <button class="btn" id="saveProject">Save</button>
-        </div>
-      </div>
-
-      <div class="settings-section">
-        <h2>Connection <em class="hint-inline">global</em></h2>
-        <div class="hint">Works with GLM out of the box, or any OpenAI-compatible provider — OpenRouter, Ollama, LM Studio and friends via <em>Custom</em>. (The model is per-chat — see Generation.)</div>
-        <label class="field">
-          <span>API key</span>
-          <input type="password" id="apiKeyInput" placeholder="paste your API key" autocomplete="off" />
+          <span>Text size <em id="fontVal">1.00×</em></span>
+          <input type="range" id="fontInput" min="0.8" max="1.6" step="0.05" value="1" />
         </label>
         <label class="field">
-          <span>Endpoint</span>
-          <select id="endpointInput">
-            <option value="https://api.z.ai/api/coding/paas/v4">GLM — Coding plan (api.z.ai)</option>
-            <option value="https://api.z.ai/api/paas/v4">GLM — General (api.z.ai)</option>
-            <option value="https://open.bigmodel.cn/api/paas/v4/">GLM — General (bigmodel.cn)</option>
-            <option value="https://openrouter.ai/api/v1">OpenRouter (openrouter.ai)</option>
-            <option value="custom">Custom (any OpenAI-compatible)…</option>
+          <span>Chat width <em id="widthVal">880px</em></span>
+          <input type="range" id="widthInput" min="600" max="1500" step="20" value="880" />
+        </label>
+        <label class="field">
+          <span>Accent color <em class="hint-inline">recolors the stars' light</em></span>
+          <input type="color" id="accentInput" value="#9fb8ff" />
+        </label>
+        <label class="field">
+          <span>Star density <em id="starDensityVal">1.00×</em></span>
+          <input type="range" id="starDensityInput" min="20" max="250" step="5" value="100" />
+        </label>
+        <label class="field">
+          <span>Twinkle speed <em id="twinkleVal">1.00×</em></span>
+          <input type="range" id="twinkleInput" min="0" max="250" step="5" value="100" />
+        </label>
+        <div class="settings-actions">
+          <span class="saved-tag" id="appearSaved">saved ✓</span>
+          <button class="btn ghost" id="resetAccent" type="button">Reset accent</button>
+          <button class="btn" id="saveAppearance" type="button">Save appearance</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2>Color atmosphere</h2>
+        <div class="hint">The background reacts to color words as you read — a soft glow, plus optional cosmic events (stars, comets, planets, supernovas) in each word's color. Color words in the text itself are tinted to match.</div>
+        <label class="field">
+          <span>Glow intensity <em id="flareIntensityVal">50%</em></span>
+          <input type="range" id="flareIntensityInput" min="0" max="100" step="5" value="50" />
+        </label>
+        <label class="field">
+          <span>Glow reach <em id="flareRangeVal">140px</em></span>
+          <input type="range" id="flareRangeInput" min="50" max="300" step="10" value="140" />
+        </label>
+        <label class="field">
+          <span>Glow spread <em id="flareSizeVal">35%</em></span>
+          <input type="range" id="flareSizeInput" min="20" max="100" step="5" value="35" />
+        </label>
+        <label class="field">
+          <span>Glow blend</span>
+          <select id="flareBlendInput">
+            <option value="screen">Screen (default)</option>
+            <option value="soft-light">Soft light</option>
+            <option value="overlay">Overlay</option>
+            <option value="normal">Normal</option>
           </select>
         </label>
-        <label class="field" id="customEndpointField" hidden>
-          <span>Base URL</span>
-          <input type="text" id="customEndpointInput" placeholder="https://your-provider.com/v1" />
+        <label class="field checkbox">
+          <input type="checkbox" id="fxEventsInput" checked />
+          <span>Cosmic events — stars, comets, planets &amp; supernovas in the word's color</span>
+        </label>
+        <label class="field subfield">
+          <span>Event size <em id="fxSizeVal">1.0×</em></span>
+          <input type="range" id="fxSizeInput" min="50" max="250" step="10" value="100" />
         </label>
         <div class="settings-actions">
-          <span class="saved-tag" id="connSaved">saved ✓</span>
-          <button class="btn" id="saveConnection">Save</button>
+          <span class="saved-tag" id="colorFxSaved">saved ✓</span>
+          <button class="btn" id="saveColorFx" type="button">Save color settings</button>
         </div>
       </div>
 
@@ -216,7 +219,58 @@
         </label>
         <div class="settings-actions">
           <span class="saved-tag" id="genSaved">saved ✓</span>
-          <button class="btn" id="saveGeneration">Save</button>
+          <button class="btn" id="saveGeneration">Save generation</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2>Connection <em class="hint-inline">global</em></h2>
+        <div class="hint">Works with GLM out of the box, or any OpenAI-compatible provider — OpenRouter, Ollama, LM Studio and friends via <em>Custom</em>. (The model is per-chat — see Generation.)</div>
+        <label class="field">
+          <span>API key</span>
+          <input type="password" id="apiKeyInput" placeholder="paste your API key" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span>Endpoint</span>
+          <select id="endpointInput">
+            <option value="https://api.z.ai/api/coding/paas/v4">GLM — Coding plan (api.z.ai)</option>
+            <option value="https://api.z.ai/api/paas/v4">GLM — General (api.z.ai)</option>
+            <option value="https://open.bigmodel.cn/api/paas/v4/">GLM — General (bigmodel.cn)</option>
+            <option value="https://openrouter.ai/api/v1">OpenRouter (openrouter.ai)</option>
+            <option value="custom">Custom (any OpenAI-compatible)…</option>
+          </select>
+        </label>
+        <label class="field" id="customEndpointField" hidden>
+          <span>Base URL</span>
+          <input type="text" id="customEndpointInput" placeholder="https://your-provider.com/v1" />
+        </label>
+        <div class="settings-actions">
+          <span class="saved-tag" id="connSaved">saved ✓</span>
+          <button class="btn" id="saveConnection">Save connection</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2>System instructions <em class="hint-inline">this chat</em></h2>
+        <div class="hint">The core prompt that steers this chat. New chats start from your default file (config/modes/roleplay.txt).</div>
+        <textarea id="promptEditor" placeholder="Write the system instructions…"></textarea>
+        <div class="attachments" id="systemFilesTray" hidden></div>
+        <button class="btn" id="systemFileBtn" type="button" title="Attach .md/.txt — contents are added to this chat's system prompt">＋ Attach file</button>
+        <div class="settings-actions">
+          <span class="saved-tag" id="promptSaved">saved ✓</span>
+          <button class="btn" id="savePrompt">Save system instructions</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2>Project instructions <em class="hint-inline">this chat</em></h2>
+        <div class="hint">Extra context or rules sent with every message in this chat (optional).</div>
+        <textarea id="projectEditor" placeholder="e.g. This is a noir detective story set in 1940s LA…"></textarea>
+        <div class="attachments" id="projectFilesTray" hidden></div>
+        <button class="btn" id="projectFileBtn" type="button" title="Attach .md/.txt — contents are added to this chat's project instructions">＋ Attach file</button>
+        <div class="settings-actions">
+          <span class="saved-tag" id="projectSaved">saved ✓</span>
+          <button class="btn" id="saveProject">Save project instructions</button>
         </div>
       </div>
 
@@ -226,87 +280,41 @@
         <textarea id="phraseBansEditor" rows="6" placeholder="delve into = explore&#10;a tapestry of =&#10;it's not just X, it's Y =&#10;navigate the complexities = work through"></textarea>
         <div class="settings-actions">
           <span class="saved-tag" id="phraseBansSaved">saved ✓</span>
-          <button class="btn" id="savePhraseBans">Save</button>
+          <button class="btn" id="savePhraseBans">Save phrase bans</button>
         </div>
       </div>
+
       <div class="settings-section">
-        <h2>Appearance</h2>
-        <div class="hint">Tune the reading size and how wide the chat column is. The app window also remembers its size now.</div>
+        <h2>Presets</h2>
+        <div class="hint">Saved sets of system + project instructions. Click one to load it; × to delete.</div>
+        <div class="preset-list" id="presetList"></div>
         <label class="field">
-          <span>Text size <em id="fontVal">1.00×</em></span>
-          <input type="range" id="fontInput" min="0.8" max="1.6" step="0.05" value="1" />
-        </label>
-        <label class="field">
-          <span>Chat width <em id="widthVal">880px</em></span>
-          <input type="range" id="widthInput" min="600" max="1500" step="20" value="880" />
-        </label>
-        <label class="field">
-          <span>Accent color <em class="hint-inline">recolors the stars' light</em></span>
-          <input type="color" id="accentInput" value="#9fb8ff" />
-        </label>
-        <label class="field">
-          <span>Star density <em id="starDensityVal">1.00×</em></span>
-          <input type="range" id="starDensityInput" min="20" max="250" step="5" value="100" />
-        </label>
-        <label class="field">
-          <span>Twinkle speed <em id="twinkleVal">1.00×</em></span>
-          <input type="range" id="twinkleInput" min="0" max="250" step="5" value="100" />
+          <span>Save current instructions as</span>
+          <input type="text" id="presetName" placeholder="name this preset" />
         </label>
         <div class="settings-actions">
-          <span class="saved-tag" id="appearSaved">saved ✓</span>
-          <button class="btn ghost" id="resetAccent" type="button">Reset accent</button>
-          <button class="btn" id="saveAppearance" type="button">Save</button>
-        </div>
-      </div>
-      <div class="settings-section">
-        <h2>Color atmosphere</h2>
-        <div class="hint">The background reacts to color words as you read — a soft glow, plus optional cosmic events (stars, comets, planets, supernovas) in each word's color.</div>
-        <label class="field">
-          <span>Glow intensity <em id="flareIntensityVal">50%</em></span>
-          <input type="range" id="flareIntensityInput" min="0" max="100" step="5" value="50" />
-        </label>
-        <label class="field">
-          <span>Glow reach <em id="flareRangeVal">140px</em></span>
-          <input type="range" id="flareRangeInput" min="50" max="300" step="10" value="140" />
-        </label>
-        <label class="field">
-          <span>Glow spread <em id="flareSizeVal">35%</em></span>
-          <input type="range" id="flareSizeInput" min="20" max="100" step="5" value="35" />
-        </label>
-        <label class="field">
-          <span>Glow blend</span>
-          <select id="flareBlendInput">
-            <option value="screen">Screen (default)</option>
-            <option value="soft-light">Soft light</option>
-            <option value="overlay">Overlay</option>
-            <option value="normal">Normal</option>
-          </select>
-        </label>
-        <label class="field checkbox">
-          <input type="checkbox" id="fxEventsInput" checked />
-          <span>Cosmic events — stars, comets, planets &amp; supernovas in the word's color</span>
-        </label>
-        <label class="field">
-          <span>Event size <em id="fxSizeVal">1.0×</em></span>
-          <input type="range" id="fxSizeInput" min="50" max="250" step="10" value="100" />
-        </label>
-        <div class="settings-actions">
-          <span class="saved-tag" id="colorFxSaved">saved ✓</span>
-          <button class="btn" id="saveColorFx" type="button">Save</button>
+          <span class="saved-tag" id="presetSaved">saved ✓</span>
+          <button class="btn" id="savePreset">Save preset</button>
         </div>
       </div>
 
       <div class="settings-section">
         <h2>Data</h2>
         <div class="hint">Back up everything — chats, settings, prompts, and the craft journal — to one file, or restore from one. (Restore overwrites current data.)</div>
-        <label class="field checkbox">
-          <input type="checkbox" id="cliServerInput" />
-          <span>Local CLI server — let the assistant drive this app over localhost for testing (off by default; restart to apply)</span>
-        </label>
         <div class="settings-actions" style="justify-content:flex-start">
           <button class="btn" id="backupBtn" type="button">Backup</button>
           <button class="btn ghost" id="restoreBtn" type="button">Restore…</button>
         </div>
+      </div>
+
+      <div class="settings-section">
+        <h2>Advanced</h2>
+        <div class="hint">Power-user tools. Handle with care.</div>
+        <label class="field checkbox">
+          <input type="checkbox" id="cliServerInput" />
+          <span>Local CLI server — let the assistant drive this app over localhost for testing (off by default; restart to apply)</span>
+        </label>
+        <div class="warn-note">⚠ Enabling the CLI server opens a localhost control endpoint on this machine. Turn it on only while actively testing, and switch it off afterwards.</div>
       </div>
 
       <div class="settings-actions">

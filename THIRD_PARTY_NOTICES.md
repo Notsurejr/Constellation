@@ -25,6 +25,14 @@ in this repository or in the installer.
 | onnxruntime-node / -web / -common | MIT | ML inference runtime (optional feature) |
 | sharp | Apache-2.0 (bundles libvips, LGPL-3.0, dynamically linked) | image preprocessing for transformers.js |
 
+## Bundled fonts
+
+**Literata** (regular, italic, and semibold faces; latin subset, `src/fonts/`)
+© Google LLC — used under the **SIL Open Font License 1.1**
+(<https://fonts.google.com/specimen/Literata>, <https://openfontlicense.org>).
+The license permits bundling and redistribution; Literata itself may not be
+sold by itself.
+
 ## Full production dependency inventory
 
 Generated from the shipped dependency tree; each package remains under its own license.

@@ -4,6 +4,29 @@
    Each --something is a value (color/font). Change them freely.
    ============================================================ */
 
+/* Google Literata (SIL OFL 1.1) — bundled so the app's typeface doesn't depend
+   on whatever fonts a machine happens to have installed. */
+@font-face {
+  font-family: 'Literata';
+  font-style: normal; font-weight: 400; font-display: swap;
+  src: url('../fonts/literata-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal; font-weight: 600; font-display: swap;
+  src: url('../fonts/literata-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: italic; font-weight: 400; font-display: swap;
+  src: url('../fonts/literata-400i.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: italic; font-weight: 600; font-display: swap;
+  src: url('../fonts/literata-600i.woff2') format('woff2');
+}
+
 :root {
   --bg: #000000;                       /* deep-space black */
   --star-rgb: 255, 255, 255;           /* main star color */

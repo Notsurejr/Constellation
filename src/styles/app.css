@@ -604,19 +604,25 @@ html, body {
 .session-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .session-meta { display: flex; gap: 8px; align-items: baseline; margin-top: 1px; }
 .session-lineage { color: var(--text-faint); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.session-usage { color: var(--text-faint); font-size: 11px; margin-left: auto; white-space: nowrap; }
-.sidebar-foot { padding: 8px 10px; color: var(--text-faint); font-size: 11px; letter-spacing: 0.3px; }
+.session-usage { color: rgba(190,200,225,0.62); font-size: 11px; margin-left: auto; white-space: nowrap; }
+.sidebar-foot { padding: 8px 10px; color: rgba(190,200,225,0.62); font-size: 11px; letter-spacing: 0.3px; }
 
 /* Dark dropdown lists (Endpoint, Effort, Model) + custom preset list (no native popup limit). */
 .field select option { background: #0b0e16; color: var(--text); }
 .preset-list { max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
-.preset-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--panel-border); background: rgba(0,0,0,0.25); color: var(--text-dim); font-size: 13px; cursor: pointer; transition: background .15s, color .15s; }
+.preset-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 9px; border: 1px solid transparent; background: transparent; color: var(--text-dim); font-size: 13px; cursor: pointer; transition: background .15s, color .15s, border-color .15s; }
 .preset-item:hover { background: rgba(159,184,255,0.08); color: var(--text); }
-.preset-item.active { background: rgba(159,184,255,0.14); color: var(--text); }
+.preset-item.active { background: rgba(159,184,255,0.14); color: var(--text); border-left: 2px solid var(--accent); }
 .preset-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .preset-del { background: none; border: none; color: var(--text-faint); cursor: pointer; font-size: 16px; line-height: 1; padding: 0 4px; border-radius: 6px; }
 .preset-del:hover { color: var(--danger); }
 .preset-empty { color: var(--text-faint); font-size: 13px; padding: 10px 4px; }
+
+/* Settings: subordinate controls + caution notes */
+.field.subfield { margin-left: 18px; }
+.field.dim, .field.dim input { opacity: 0.45; }
+.field input[disabled] { cursor: not-allowed; }
+.warn-note { color: var(--danger); font-size: 12px; line-height: 1.5; margin-top: 8px; opacity: 0.85; }
 
 /* ---------- Bookmarks ---------- */
 .msg-action.on { color: var(--accent); border-color: var(--accent-dim); background: rgba(159,184,255,0.14); }   /* ★ bookmarked state */
@@ -933,20 +939,18 @@ html, body {
   border-radius: 6px; padding: 3px 7px; outline: none;
 }
 
-/* Jump-to-latest button (appears when you've scrolled up to read while it's still writing) */
+/* Jump-to-latest button — sits in the right margin (never over the reading column) */
 .jump-btn {
-  position: absolute; left: 50%; bottom: 96px;
-  transform: translateX(-50%);
+  position: absolute; right: max(18px, calc((100vw - var(--chat-col, 880px)) / 4 - 20px)); bottom: 96px;
   width: 40px; height: 40px; border-radius: 50%;
   border: 1px solid var(--panel-border);
   background: var(--panel-bg); color: var(--accent);
   font-size: 18px; cursor: pointer; z-index: 20;
-  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
   box-shadow: 0 6px 20px rgba(0,0,0,0.5), var(--glow);
   transition: opacity .2s, transform .2s;
   animation: rise .2s ease both;
 }
-.jump-btn:hover { transform: translateX(-50%) translateY(-2px); }
+.jump-btn:hover { transform: translateY(-2px); }
 .jump-btn[hidden] { display: none; }
 
 /* ---------- Polish: message meta, context meter, micro-interactions ---------- */

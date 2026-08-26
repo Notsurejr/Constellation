@@ -30,6 +30,37 @@ Constellation.colorfx = (function () {
     return { r: parseInt(hex.slice(0, 2), 16), g: parseInt(hex.slice(2, 4), 16), b: parseInt(hex.slice(4, 6), 16) };
   }
 
+  // Dark hues (onyx, obsidian, black…) are near-invisible as tinted text or as a glow on the
+  // true-black sky. Keep the hue, lift the lightness to a readable floor, and return a css color.
+  function readableTint(hex) {
+    const c = hexToRgb(hex);
+    if (!c) return null;
+    const rn = c.r / 255, gn = c.g / 255, bn = c.b / 255;
+    const mx = Math.max(rn, gn, bn), mn = Math.min(rn, gn, bn);
+    let l = (mx + mn) / 2;
+    if (l >= 0.45) return 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')';
+    const d = mx - mn;
+    const denom = 1 - Math.abs(2 * l - 1);
+    const s = d === 0 || denom === 0 ? 0 : d / denom;
+    let h = 0;
+    if (d !== 0) {
+      if (mx === rn) h = ((gn - bn) / d) % 6;
+      else if (mx === gn) h = (bn - rn) / d + 2;
+      else h = (rn - gn) / d + 4;
+      h *= 60; if (h < 0) h += 360;
+    }
+    l = 0.45;
+    const q = l * (1 + s), p = 2 * l - q;
+    const hue = function (t) {
+      if (t < 0) t += 1; if (t > 1) t -= 1;
+      if (t < 1 / 6) return p + (q - p) * 6 * t;
+      if (t < 1 / 2) return q;
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+      return p;
+    };
+    return 'rgb(' + Math.round(hue(h / 360 + 1 / 3) * 255) + ',' + Math.round(hue(h / 360) * 255) + ',' + Math.round(hue(h / 360 - 1 / 3) * 255) + ')';
+  }
+
   function tagColors(body) {
     if (!body) return;
     const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT, null);
@@ -54,6 +85,7 @@ Constellation.colorfx = (function () {
         const span = document.createElement('span');
         span.className = 'colorword';
         span.dataset.color = color;
+        span.style.color = readableTint(color);   // the word wears its color — dark hues lifted to stay legible
         span.textContent = word;
         frag.appendChild(span);
         last = m.index + word.length;
@@ -96,7 +128,7 @@ Constellation.colorfx = (function () {
     if (type === 'fx-nebula' && document.querySelector('.fx-nebula')) type = 'fx-ring';   // one nebula at a time — two overlapping 55vmin washes overloads compositing
     const el = document.createElement('div');
     el.className = type;
-    el.style.setProperty('--fx-color', color);
+    el.style.setProperty('--fx-color', readableTint(color) || color);
     const dx = Math.round(Math.random() * 240 - 120);
     const dy = Math.round(Math.random() * 180 - 90);
     el.style.setProperty('--fx-dx', dx + 'px');
@@ -116,10 +148,20 @@ Constellation.colorfx = (function () {
       el.style.top = (15 + Math.random() * 70) + '%';
       el.style.setProperty('--fx-scale', ((0.85 + Math.random() * 0.4) * params.fxSize).toFixed(2));
     } else {
-      // Spread: left events roam 0–45%, right events 55–100% — the middle stays clear of the chat.
-      // Vertically 10–90% so they don't cluster at mid-screen.
-      const leftSide = Math.random() < 0.5;
-      el.style.left = (leftSide ? Math.random() * 45 : 55 + Math.random() * 45) + '%';
+      // Spawn in the side MARGINS, measured from the chat column's actual edges — hardcoded
+      // viewport percentages overlapped the text whenever the column was wide (chat width 1420
+      // on a 2560 screen spans ~22–78%, so "0–45%" landed well inside the reading area).
+      const panel = document.getElementById('messages');
+      const r = panel ? panel.getBoundingClientRect() : null;
+      const W = window.innerWidth;
+      const leftRoom = (r ? r.left - 28 : W * 0.45) - 16;
+      const rightRoom = (W - 16) - (r ? r.right + 28 : W * 0.55);
+      let x;
+      if (leftRoom >= 60 && rightRoom >= 60) x = Math.random() < 0.5 ? 16 + Math.random() * leftRoom : W - 16 - rightRoom + Math.random() * rightRoom;
+      else if (leftRoom >= 60) x = 16 + Math.random() * leftRoom;
+      else if (rightRoom >= 60) x = W - 16 - rightRoom + Math.random() * rightRoom;
+      else return;   // no margin room (narrow window / full-width column) — skip rather than touch text
+      el.style.left = Math.round(x) + 'px';
       el.style.top = (10 + Math.random() * 80) + '%';
     }
     const canvas = document.getElementById('starfield');
