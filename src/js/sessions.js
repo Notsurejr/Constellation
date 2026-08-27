@@ -483,5 +483,5 @@ Constellation.sessions = (function () {
   }
   function getLore() { return currentLore; }
 
-  return { init, saveCurrent, forkFrom, saveDraft, toggleBookmark, bookmarksForCurrent, setLore, getLore, open, close };
+  return { init, saveCurrent, forkFrom, saveDraft, load, toggleBookmark, bookmarksForCurrent, setLore, getLore, open, close };
 })();

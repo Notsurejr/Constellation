@@ -55,9 +55,11 @@ Constellation.bookmarks = (function () {
     close();
     if (window.Constellation && window.Constellation.sessions) {
       await Constellation.sessions.load(b.chatId);
-      requestAnimationFrame(() => {
+      // setTimeout rather than rAF: rAF never fires while the window is occluded, and the
+      // chat's bulk render needs a beat before the target row can be scrolled to.
+      setTimeout(() => {
         if (Constellation.chat && Constellation.chat.scrollToMessage) Constellation.chat.scrollToMessage(b.msgIndex, b.head);
-      });
+      }, 140);
     }
   }
 
