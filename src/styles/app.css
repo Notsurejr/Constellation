@@ -766,6 +766,24 @@ html, body {
 .chronicle-fact-del:hover { color: var(--danger); }
 .chronicle-empty { color: var(--text-faint); font-size: 12.5px; line-height: 1.6; padding: 8px 2px; }
 .chronicle-capture:disabled { opacity: 0.55; cursor: wait; }
+.chronicle-btnrow { display: flex; gap: 8px; }
+.chronicle-btnrow .btn { flex: 1; }
+.chronicle-rebuild.warn { color: var(--danger); border-color: var(--danger); }
+.chronicle-capture.working { animation: chroniclePulse 1.2s ease-in-out infinite; }
+@keyframes chroniclePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+.chronicle-progress { display: none; align-items: center; gap: 8px; }
+.chronicle-progress.on { display: flex; }
+.chronicle-progress-fill {
+  height: 4px; width: 0%; min-width: 6px; border-radius: 3px;
+  background: var(--accent); box-shadow: var(--glow);
+  transition: width .5s ease; flex: 1;
+}
+.chronicle-progress-label { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+.chronicle-progress-cancel {
+  background: none; border: 1px solid var(--panel-border); border-radius: 6px;
+  color: var(--text-dim); font: inherit; font-size: 10px; padding: 2px 7px; cursor: pointer;
+}
+.chronicle-progress-cancel:hover { color: var(--danger); border-color: var(--danger); }
 .lore-drawer { position: fixed; top: 66px; right: 18px; width: min(360px, 90vw); max-height: 62vh; overflow-y: auto;
   z-index: 60; background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 12px;
   padding: 14px 16px; box-shadow: 0 8px 40px rgba(0,0,0,0.6); }

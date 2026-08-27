@@ -541,49 +541,94 @@ function truncateEmbedding(v) {   // Matryoshka: keep the first EMBED_DIM dims, 
 }
 
 // ---------- Chronicle: a reader's reference of durable story facts, per chat ----------
-const CHRONICLE_FILE = path.join(DATA_DIR, 'chronicle.json');   // { chatId: [ "fact", ... ] }
+const CHRONICLE_FILE = path.join(DATA_DIR, 'chronicle.json');   // { chatId: { facts: [...], seen: N } }
 function readChronicle() {
-  try { return JSON.parse(fs.readFileSync(CHRONICLE_FILE, 'utf8')) || {}; } catch (e) { return {}; }
+  let all = {};
+  try { all = JSON.parse(fs.readFileSync(CHRONICLE_FILE, 'utf8')) || {}; } catch (e) { return {}; }
+  // migrate the original array shape: those chronicles were built from whole chats, so treat
+  // them as having read everything — Capture will only pick up messages written after them.
+  for (const k of Object.keys(all)) {
+    if (Array.isArray(all[k])) all[k] = { facts: all[k], seen: 999999 };
+    else if (all[k] && !Array.isArray(all[k].facts)) all[k] = { facts: [], seen: 0 };
+  }
+  return all;
 }
 ipcMain.handle('chronicle:load', (_e, id) => {
-  if (!safeId(id)) return [];
-  const all = readChronicle();
-  return Array.isArray(all[id]) ? all[id] : [];
+  if (!safeId(id)) return { facts: [], seen: 0 };
+  const rec = readChronicle()[id] || { facts: [], seen: 0 };
+  return { facts: Array.isArray(rec.facts) ? rec.facts : [], seen: rec.seen || 0 };
 });
-ipcMain.handle('chronicle:save', (_e, { id, facts }) => {
+ipcMain.handle('chronicle:save', (_e, { id, facts, seen }) => {
   if (!safeId(id)) return { ok: false };
   const all = readChronicle();
-  all[id] = (Array.isArray(facts) ? facts : []).filter((f) => typeof f === 'string').slice(0, 400).map((f) => f.slice(0, 400));
-  if (!all[id].length) delete all[id];
+  const clean = (Array.isArray(facts) ? facts : []).filter((f) => typeof f === 'string').slice(0, 500).map((f) => f.slice(0, 400));
+  if (!clean.length) delete all[id];
+  else all[id] = { facts: clean, seen: Math.max(0, parseInt(seen, 10) || 0) };
   fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.writeFileSync(CHRONICLE_FILE, JSON.stringify(all, null, 2), 'utf8');
   return { ok: true };
 });
-// Distill durable facts from a conversation with flash. Extraction, not summary — the model
-// records WHAT happened as terse facts; intimate scenes become plain plot beats. If the model
-// refuses or nothing durable happened, we return an empty list and the panel simply stays as-is.
-ipcMain.handle('chronicle:extract', async (_e, { messages }) => {
-  const s = getSettings();
-  if (!s.apiKey) throw new Error('No API key set.');
-  const convo = (Array.isArray(messages) ? messages : [])
-    .filter((m) => m && m.role !== 'system' && (m.content || '').trim())
-    .slice(-200)
-    .map((m) => (m.role === 'user' ? 'USER: ' : 'STORY: ') + String(m.content).replace(/\s+/g, ' ').slice(0, 2200))
-    .join('\n\n');
-  const client = new OpenAI({ apiKey: s.apiKey, baseURL: s.baseUrl, maxRetries: 1 });
+
+// Distill one chunk of conversation into durable facts. Extraction, not summary — terse facts
+// only. Chunks stay small so flash's heavy reasoning can never eat the whole output budget
+// (whole-chat extraction came back empty on long stories for exactly that reason).
+async function chronicleExtractChunk(client, convo) {
   const r = await client.chat.completions.create({
     model: 'glm-5.3-flash',
     messages: [
       { role: 'system', content: 'You maintain a story chronicle for a writer — a quick reference so they never misremember their own story. Extract ONLY durable story facts as terse one-line bullets: character traits and relationships, secrets revealed, promises and debts, injuries or status changes, locations and travel, goals, major events, unresolved tensions. Do NOT retell or summarize scenes — this is a factual index, not a retelling. Pronouns become names. No preamble, no commentary: bullets only, each starting with "- ". If nothing durable happened, reply with exactly: NONE.' },
       { role: 'user', content: convo || '(empty story)' },
     ],
-    max_tokens: 12288,   // flash thinks heavily — a small budget comes back empty after reasoning eats it
+    max_tokens: 8192,
     temperature: 0.3,
     thinking: { type: 'enabled' },
   });
   const text = ((r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content) || '').trim();
   if (!text || /^none$/i.test(text)) return [];
-  return text.split('\n').map((l) => l.replace(/^\s*[-•*]\s*/, '').replace(/^\s*#{1,4}\s*/, '').replace(/\*\*/g, '').trim()).filter((l) => l && !/^none$/i.test(l)).slice(0, 60);
+  return text.split('\n').map((l) => l.replace(/^\s*[-•*]\s*/, '').replace(/^\s*#{1,4}\s*/, '').replace(/\*\*/g, '').trim()).filter((l) => l && !/^none$/i.test(l)).slice(0, 40);
+}
+
+// Chunked capture: the conversation is split into ~11k-char passes processed SEQUENTIALLY —
+// chronological order preserved, rate limits respected, and each completed pass is a progress
+// beat the panel shows live. Cancellable between passes.
+let chronicleJob = null;
+ipcMain.handle('chronicle:cancel', () => { if (chronicleJob) chronicleJob.cancelled = true; return { ok: true }; });
+ipcMain.handle('chronicle:capture', async (event, { messages }) => {
+  const s = getSettings();
+  if (!s.apiKey) throw new Error('No API key set.');
+  const msgs = (Array.isArray(messages) ? messages : []).filter((m) => m && m.role !== 'system' && (m.content || '').trim());
+  if (!msgs.length) return { facts: [], coveredMsgs: 0, complete: true, passes: 0 };
+  // normalize + split into char-budgeted chunks (whole messages only)
+  const norm = msgs.map((m) => (m.role === 'user' ? 'USER: ' : 'STORY: ') + String(m.content).replace(/\s+/g, ' ').slice(0, 2200));
+  const chunks = [];
+  let cur = [], curLen = 0, curMsgs = 0;
+  for (let i = 0; i < norm.length; i++) {
+    if (curLen > 0 && curLen + norm[i].length > 11000) { chunks.push({ text: cur.join('\n\n'), msgs: curMsgs }); cur = []; curLen = 0; curMsgs = 0; }
+    cur.push(norm[i]); curLen += norm[i].length; curMsgs++;
+  }
+  if (cur.length) chunks.push({ text: cur.join('\n\n'), msgs: curMsgs });
+
+  const client = new OpenAI({ apiKey: s.apiKey, baseURL: s.baseUrl, maxRetries: 1 });
+  chronicleJob = { cancelled: false };
+  const all = [];
+  let covered = 0, done = 0;
+  event.sender.send('chronicle:progress', { done: 0, total: chunks.length });   // size of the job, up front
+  for (const chunk of chunks) {
+    if (chronicleJob.cancelled) break;
+    try {
+      const facts = await chronicleExtractChunk(client, chunk.text);
+      all.push(...facts);
+    } catch (e) {
+      if (all.length || done > 0) break;   // partway through: keep what we have, stop here
+      throw e;                              // nothing gathered yet: surface the error
+    }
+    covered += chunk.msgs;
+    done++;
+    event.sender.send('chronicle:progress', { done, total: chunks.length });
+  }
+  const complete = !chronicleJob.cancelled && done === chunks.length;
+  chronicleJob = null;
+  return { facts: all, coveredMsgs: covered, complete: complete, passes: chunks.length };
 });
 
 ipcMain.handle('lore:embed', async (_e, { texts, query }) => {

@@ -24,8 +24,10 @@ contextBridge.exposeInMainWorld('api', {
   searchSessions: (q) => ipcRenderer.invoke('sessions:search', q),
 
   loadChronicle: (id) => ipcRenderer.invoke('chronicle:load', id),
-  saveChronicle: (id, facts) => ipcRenderer.invoke('chronicle:save', { id, facts }),
-  extractChronicle: (messages) => ipcRenderer.invoke('chronicle:extract', { messages }),
+  saveChronicle: (id, facts, seen) => ipcRenderer.invoke('chronicle:save', { id, facts, seen }),
+  captureChronicle: (messages) => ipcRenderer.invoke('chronicle:capture', { messages }),
+  cancelChronicle: () => ipcRenderer.invoke('chronicle:cancel'),
+  onChronicleProgress: (cb) => ipcRenderer.on('chronicle:progress', (_e, p) => cb(p)),
 
   loadFolders: () => ipcRenderer.invoke('folders:load'),
   saveFolder: (data) => ipcRenderer.invoke('folders:save', data),
