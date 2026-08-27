@@ -539,6 +539,53 @@ function truncateEmbedding(v) {   // Matryoshka: keep the first EMBED_DIM dims, 
   let n = 0; for (const x of a) n += x * x; n = Math.sqrt(n) || 1;
   return a.map((x) => x / n);
 }
+
+// ---------- Chronicle: a reader's reference of durable story facts, per chat ----------
+const CHRONICLE_FILE = path.join(DATA_DIR, 'chronicle.json');   // { chatId: [ "fact", ... ] }
+function readChronicle() {
+  try { return JSON.parse(fs.readFileSync(CHRONICLE_FILE, 'utf8')) || {}; } catch (e) { return {}; }
+}
+ipcMain.handle('chronicle:load', (_e, id) => {
+  if (!safeId(id)) return [];
+  const all = readChronicle();
+  return Array.isArray(all[id]) ? all[id] : [];
+});
+ipcMain.handle('chronicle:save', (_e, { id, facts }) => {
+  if (!safeId(id)) return { ok: false };
+  const all = readChronicle();
+  all[id] = (Array.isArray(facts) ? facts : []).filter((f) => typeof f === 'string').slice(0, 400).map((f) => f.slice(0, 400));
+  if (!all[id].length) delete all[id];
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(CHRONICLE_FILE, JSON.stringify(all, null, 2), 'utf8');
+  return { ok: true };
+});
+// Distill durable facts from a conversation with flash. Extraction, not summary — the model
+// records WHAT happened as terse facts; intimate scenes become plain plot beats. If the model
+// refuses or nothing durable happened, we return an empty list and the panel simply stays as-is.
+ipcMain.handle('chronicle:extract', async (_e, { messages }) => {
+  const s = getSettings();
+  if (!s.apiKey) throw new Error('No API key set.');
+  const convo = (Array.isArray(messages) ? messages : [])
+    .filter((m) => m && m.role !== 'system' && (m.content || '').trim())
+    .slice(-200)
+    .map((m) => (m.role === 'user' ? 'USER: ' : 'STORY: ') + String(m.content).replace(/\s+/g, ' ').slice(0, 2200))
+    .join('\n\n');
+  const client = new OpenAI({ apiKey: s.apiKey, baseURL: s.baseUrl, maxRetries: 1 });
+  const r = await client.chat.completions.create({
+    model: 'glm-5.3-flash',
+    messages: [
+      { role: 'system', content: 'You maintain a story chronicle for a writer — a quick reference so they never misremember their own story. Extract ONLY durable story facts as terse one-line bullets: character traits and relationships, secrets revealed, promises and debts, injuries or status changes, locations and travel, goals, major events, unresolved tensions. Do NOT retell or summarize scenes. Record intimate or adult events as plain plot facts ("X and Y spent the night together") with no detail — this is a factual index, not a retelling. Pronouns become names. No preamble, no commentary: bullets only, each starting with "- ". If nothing durable happened, reply with exactly: NONE.' },
+      { role: 'user', content: convo || '(empty story)' },
+    ],
+    max_tokens: 12288,   // flash thinks heavily — a small budget comes back empty after reasoning eats it
+    temperature: 0.3,
+    thinking: { type: 'enabled' },
+  });
+  const text = ((r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content) || '').trim();
+  if (!text || /^none$/i.test(text)) return [];
+  return text.split('\n').map((l) => l.replace(/^\s*[-•*]\s*/, '').replace(/^\s*#{1,4}\s*/, '').replace(/\*\*/g, '').trim()).filter((l) => l && !/^none$/i.test(l)).slice(0, 60);
+});
+
 ipcMain.handle('lore:embed', async (_e, { texts, query }) => {
   if (!(texts && texts.length)) return [];
   try {

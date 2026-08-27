@@ -23,6 +23,10 @@ contextBridge.exposeInMainWorld('api', {
   setSessionLore: (id, lore) => ipcRenderer.invoke('sessions:setLore', { id, lore }),
   searchSessions: (q) => ipcRenderer.invoke('sessions:search', q),
 
+  loadChronicle: (id) => ipcRenderer.invoke('chronicle:load', id),
+  saveChronicle: (id, facts) => ipcRenderer.invoke('chronicle:save', { id, facts }),
+  extractChronicle: (messages) => ipcRenderer.invoke('chronicle:extract', { messages }),
+
   loadFolders: () => ipcRenderer.invoke('folders:load'),
   saveFolder: (data) => ipcRenderer.invoke('folders:save', data),
   deleteFolder: (id) => ipcRenderer.invoke('folders:delete', { id }),

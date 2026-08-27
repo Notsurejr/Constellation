@@ -1165,6 +1165,11 @@ Constellation.chat = (function () {
     }
   }
 
+  // The recent conversation as plain {role, content} pairs — the Chronicle distills these.
+  function recentMessages(n) {
+    return conversation.filter(function (m) { return m.role !== 'system'; }).slice(-(n || 200)).map(function (m) { return { role: m.role, content: m.content || '' }; });
+  }
+
   // All of the user's typed messages in the current chat (used by Craft review).
   function getUserWriting() {
     return conversation.filter((m) => m.role === 'user').map((m) => m.content).join('\n\n');
@@ -1190,5 +1195,5 @@ Constellation.chat = (function () {
     }
   }
 
-  return { init, setPrompts, getPrompts, getOptions, persist, setOptions, setActiveLore, setPhraseBans, setDraft, scrollToMatch, scrollToMessage, refreshBookmarkGlyphs, reset, loadSession, getUserWriting, getState, testRetrieve, testBans, dryRun };
+  return { init, setPrompts, getPrompts, getOptions, persist, setOptions, setActiveLore, setPhraseBans, setDraft, scrollToMatch, scrollToMessage, refreshBookmarkGlyphs, reset, loadSession, getUserWriting, recentMessages, getState, testRetrieve, testBans, dryRun };
 })();

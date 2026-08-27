@@ -680,17 +680,17 @@ html, body {
   position: fixed;
   right: max(14px, calc((100vw - var(--chat-col, 880px)) / 4 - 64px));
   top: 16%;
-  width: 104px; height: 78px;
+  width: 112px; height: 84px;
   z-index: 2; cursor: pointer;
-  opacity: 0.28; transition: opacity 1s ease;
+  opacity: 0.55; transition: opacity 1s ease;
   will-change: opacity;
 }
-.story-constellation:hover { opacity: 0.95; }
-.story-lines { fill: none; stroke: var(--accent-dim); stroke-width: 0.7; stroke-opacity: 0.5; }
+.story-constellation:hover { opacity: 1; }
+.story-lines { fill: none; stroke: var(--accent-dim); stroke-width: 0.7; stroke-opacity: 0.6; }
 .story-dot { fill: #e6ecff; }
 .story-star.seed .story-dot { fill: var(--accent); }
 .story-halo { fill: var(--accent); opacity: 0; transition: opacity .6s; }
-.story-star.bookmarked .story-halo, .story-constellation:hover .story-halo { opacity: 0.28; }
+.story-star.bookmarked .story-halo, .story-constellation:hover .story-halo { opacity: 0.4; }
 .story-star.bookmarked { cursor: pointer; }
 .story-star.bookmarked .story-dot { fill: var(--accent); }
 .story-star.bookmarked:hover .story-halo { opacity: 0.75; }
@@ -712,6 +712,60 @@ html, body {
   text-align: center; letter-spacing: 0.2px;
 }
 .story-cell:hover .story-map-name { color: var(--text); }
+
+/* ---------- Chronicle — the reader's reference panel (right edge) ---------- */
+.chronicle-tab {
+  position: fixed; right: 0; top: 46%;
+  transform: translateY(-50%);
+  writing-mode: vertical-rl; text-orientation: mixed;
+  background: rgba(8, 10, 18, 0.72);
+  border: 1px solid var(--panel-border); border-right: none;
+  border-radius: 9px 0 0 9px;
+  color: var(--text-dim);
+  font: inherit; font-size: 10px; letter-spacing: 2.5px;
+  padding: 14px 5px; cursor: pointer; z-index: 44;
+  transition: color .2s, background .2s;
+}
+.chronicle-tab:hover { color: var(--accent); background: rgba(14, 18, 30, 0.9); }
+.chronicle-panel {
+  position: fixed; top: 62px; right: 0; bottom: 0;   /* starts below the topbar so the bookmarks/craft/etc. buttons stay visible */
+  width: 348px; z-index: 46;
+  background: rgba(6, 8, 14, 0.94);
+  border-left: 1px solid var(--panel-border);
+  display: flex; flex-direction: column;
+  padding: 18px 16px 16px;
+  transform: translateX(102%);
+  transition: transform .25s ease;
+  box-shadow: -20px 0 40px rgba(0,0,0,0.5);
+}
+.chronicle-panel.open { transform: translateX(0); }
+.chronicle-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.chronicle-title { font-size: 17px; color: var(--accent); }
+.chronicle-close { background: none; border: none; color: var(--text-faint); font-size: 20px; cursor: pointer; border-radius: 6px; }
+.chronicle-close:hover { color: var(--text); }
+.chronicle-hint { font-size: 11.5px; color: var(--text-dim); line-height: 1.5; margin-bottom: 12px; }
+.chronicle-actions { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.chronicle-note {
+  background: rgba(0,0,0,0.35); border: 1px solid var(--panel-border); border-radius: 8px;
+  color: var(--text); font: inherit; font-size: 13px; padding: 8px 10px; outline: none;
+}
+.chronicle-note:focus { border-color: var(--accent-dim); }
+.chronicle-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.chronicle-fact {
+  display: flex; align-items: flex-start; gap: 6px;
+  background: rgba(255,255,255,0.03); border: 1px solid var(--panel-border); border-radius: 9px;
+  padding: 8px 10px;
+}
+.chronicle-fact-text { flex: 1; font-size: 13px; line-height: 1.5; color: var(--text); cursor: text; }
+.chronicle-fact-text textarea {
+  width: 100%; background: rgba(0,0,0,0.4); color: var(--text);
+  border: 1px solid var(--accent-dim); border-radius: 6px; font: inherit; font-size: 13px;
+  padding: 6px 8px; outline: none; resize: vertical;
+}
+.chronicle-fact-del { background: none; border: none; color: var(--text-faint); cursor: pointer; font-size: 15px; line-height: 1.4; border-radius: 6px; }
+.chronicle-fact-del:hover { color: var(--danger); }
+.chronicle-empty { color: var(--text-faint); font-size: 12.5px; line-height: 1.6; padding: 8px 2px; }
+.chronicle-capture:disabled { opacity: 0.55; cursor: wait; }
 .lore-drawer { position: fixed; top: 66px; right: 18px; width: min(360px, 90vw); max-height: 62vh; overflow-y: auto;
   z-index: 60; background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 12px;
   padding: 14px 16px; box-shadow: 0 8px 40px rgba(0,0,0,0.6); }

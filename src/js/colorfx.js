@@ -154,19 +154,20 @@ Constellation.colorfx = (function () {
       el.style.top = (15 + Math.random() * 70) + '%';
       el.style.setProperty('--fx-scale', ((0.85 + Math.random() * 0.4) * params.fxSize).toFixed(2));
     } else {
-      // Spawn in the side MARGINS, measured from the chat column's actual edges — hardcoded
-      // viewport percentages overlapped the text whenever the column was wide (chat width 1420
-      // on a 2560 screen spans ~22–78%, so "0–45%" landed well inside the reading area).
-      const panel = document.getElementById('messages');
-      const r = panel ? panel.getBoundingClientRect() : null;
+      // Spawn in the side MARGINS. The column width comes from the --chat-col variable —
+      // #messages itself spans the whole viewport, so measuring it leaves "no room" and
+      // killed every event. If the window is too narrow for real margins, skip (no event
+      // beats an event over the text).
       const W = window.innerWidth;
-      const leftRoom = (r ? r.left - 28 : W * 0.45) - 16;
-      const rightRoom = (W - 16) - (r ? r.right + 28 : W * 0.55);
+      let col = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--chat-col')) || 880;
+      col = Math.min(col, W);
+      const colL = (W - col) / 2, colR = colL + col;
+      const leftRoom = colL - 44, rightRoom = (W - colR) - 44;   // 16px edge inset + 28px kept clear of the text
       let x;
-      if (leftRoom >= 60 && rightRoom >= 60) x = Math.random() < 0.5 ? 16 + Math.random() * leftRoom : W - 16 - rightRoom + Math.random() * rightRoom;
+      if (leftRoom >= 60 && rightRoom >= 60) x = Math.random() < 0.5 ? 16 + Math.random() * leftRoom : colR + 28 + Math.random() * rightRoom;
       else if (leftRoom >= 60) x = 16 + Math.random() * leftRoom;
-      else if (rightRoom >= 60) x = W - 16 - rightRoom + Math.random() * rightRoom;
-      else return;   // no margin room (narrow window / full-width column) — skip rather than touch text
+      else if (rightRoom >= 60) x = colR + 28 + Math.random() * rightRoom;
+      else return;   // no margin room (narrow window) — skip rather than touch text
       el.style.left = Math.round(x) + 'px';
       el.style.top = (10 + Math.random() * 80) + '%';
     }

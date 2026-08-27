@@ -243,6 +243,7 @@ Constellation.sessions = (function () {
     currentLore = [];   // new chats start with lore off by default
     Constellation.chat.reset();
     if (window.Constellation.storySky) window.Constellation.storySky.setChat(null);   // unwritten sky
+    if (window.Constellation.chronicle) window.Constellation.chronicle.setChat(null);
     applyLore();
     close();
     refresh();
@@ -267,6 +268,7 @@ Constellation.sessions = (function () {
     if (gen && s.gen && s.gen.model) gen.model = s.gen.model;
     currentLore = Array.isArray(s.lore) ? s.lore : [];
     if (window.Constellation.storySky) window.Constellation.storySky.setChat(s.id, s.title || 'Untitled');   // this chat's constellation takes the margin
+    if (window.Constellation.chronicle) window.Constellation.chronicle.setChat(s.id);   // its chronicle is ready behind the right tab
     Constellation.chat.loadSession(s.messages || [], system, project, gen, s.usage, s.systemFiles, s.projectFiles);
     applyLore();   // apply this chat's enabled lorebooks to retrieval
     // Restore this chat's saved draft (if any), and — if we arrived via search — jump to the match.
