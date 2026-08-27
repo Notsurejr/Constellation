@@ -226,6 +226,10 @@
           <span>Twinkle speed <em id="twinkleVal">1.00×</em></span>
           <input type="range" id="twinkleInput" min="0" max="250" step="5" value="100" />
         </label>
+        <label class="field checkbox">
+          <input type="checkbox" id="moodSkyInput" checked />
+          <span>Mood sky — the stars shift with the story's tone (calm, tense, sorrow, joy)</span>
+        </label>
         <div class="settings-actions">
           <span class="saved-tag" id="appearSaved">saved ✓</span>
           <button class="btn ghost" id="resetAccent" type="button">Reset accent</button>
@@ -360,6 +364,18 @@
     </div>
   </div>
 
+  <!-- Sky map — every chat is a constellation (Story Constellations) -->
+  <div class="settings-overlay" id="storyMapOverlay">
+    <div class="settings-panel story-map-panel">
+      <h2 class="lead">✦ Sky map</h2>
+      <div class="hint">Every chat is a constellation; every ★ you bookmark is a star in it. Bright stars are bookmarked moments — click a constellation to open that story.</div>
+      <div class="story-map" id="storyMap"></div>
+      <div class="settings-actions">
+        <button class="btn ghost" id="closeStoryMap" type="button">Close</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Lorebook overlay (❖) -->
   <div class="settings-overlay" id="lorebookOverlay">
     <div class="settings-panel" style="max-width:660px">
@@ -387,6 +403,8 @@
   <script src="js/engines.js"></script>
   <script src="js/colorfx.js"></script>
   <script src="js/constellations.js"></script>
+  <script src="js/story-sky.js"></script>
+  <script src="js/mood.js"></script>
   <script src="js/chat.js"></script>
   <script src="js/settings.js"></script>
   <script src="js/sessions.js"></script>

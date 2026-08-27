@@ -68,6 +68,7 @@ Constellation.settings = (function () {
       if ($('flareBlendInput')) $('flareBlendInput').value = cfg.flareBlend || 'screen';
       if ($('fxEventsInput')) $('fxEventsInput').checked = cfg.fxEvents !== false;
       if ($('colorWordsInput')) $('colorWordsInput').checked = cfg.colorWords !== false;
+      if ($('moodSkyInput')) $('moodSkyInput').checked = cfg.moodSky !== false;
       if ($('fxSizeInput')) { const fx = cfg.fxSize != null ? cfg.fxSize : 1; $('fxSizeInput').value = Math.round(fx * 100); $('fxSizeVal').textContent = fx.toFixed(1) + '×'; }
       syncFxSize();   // event size only means something while cosmic events are on
     } catch (e) {}
@@ -259,6 +260,7 @@ Constellation.settings = (function () {
       flare_blend: $('flareBlendInput').value,
       fx_events: $('fxEventsInput').checked ? 'on' : 'off',
       color_words: ($('colorWordsInput') && $('colorWordsInput').checked) ? 'on' : 'off',
+      mood_sky: ($('moodSkyInput') && $('moodSkyInput').checked) ? 'on' : 'off',
       fx_size: Number($('fxSizeInput').value) / 100,
     });
     applyColorFx();
@@ -428,7 +430,10 @@ Constellation.settings = (function () {
     if ($('flareBlendInput')) $('flareBlendInput').addEventListener('change', liveFlare);
     if ($('fxEventsInput')) $('fxEventsInput').addEventListener('change', () => { syncFxSize(); liveFlare(); });
     if ($('fxSizeInput')) $('fxSizeInput').addEventListener('input', () => { $('fxSizeVal').textContent = (Number($('fxSizeInput').value) / 100).toFixed(1) + '×'; liveFlare(); });
-    if ($('colorWordsInput')) $('colorWordsInput').addEventListener('change', applyColorFx);   // toggling retints the open chat instantly
+    if ($('colorWordsInput')) $('colorWordsInput').addEventListener('change', applyColorFx);
+    if ($('moodSkyInput')) $('moodSkyInput').addEventListener('change', function () {
+      if (window.Constellation.mood) window.Constellation.mood.setEnabled($('moodSkyInput').checked);   // live: off snaps to neutral, on resumes with the next reply
+    });   // toggling retints the open chat instantly
     const scf = $('saveColorFx'); if (scf) scf.addEventListener('click', saveColorFx);
     $('resetAccent').addEventListener('click', resetAccent);
     $('saveAppearance').addEventListener('click', saveAppearance);

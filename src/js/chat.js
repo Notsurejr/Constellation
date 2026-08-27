@@ -765,6 +765,7 @@ Constellation.chat = (function () {
         if (full) bodyBuf = full;
         bodyBuf = applyPhraseBans(bodyBuf);   // tidy banned phrases out of the final reply (model never sees the list)
         el.__raw = bodyBuf;   // the streamed reply's raw source was never set (placeholder was '') — copy/edit need it
+        if (window.Constellation.mood) window.Constellation.mood.assess(bodyBuf || thinkBuf);   // the sky weathers the story
         const vLore = loreCtx && loreCtx.items.length ? loreCtx.items.map((it) => ({ label: it.label, text: String(it.text || '').slice(0, 300) })) : undefined;
         if (variantTarget) {
           // Keep the prior take(s); add this one and make it the active variant.
@@ -881,6 +882,7 @@ Constellation.chat = (function () {
     el.dataset.bookmarked = res.bookmarked ? '1' : '';
     applyBookmarkGlyph(el);
     if (window.Constellation.toast) window.Constellation.toast(res.bookmarked ? 'Bookmarked' : 'Bookmark removed');
+    if (window.Constellation.storySky && window.Constellation.storySky.refresh) window.Constellation.storySky.refresh();   // a star is born (or fades) immediately
   }
   // Mark which messages in the current chat are already bookmarked (called after a chat loads).
   function markBookmarks(indices) {
@@ -890,6 +892,7 @@ Constellation.chat = (function () {
   function refreshBookmarkGlyphs() {
     if (window.Constellation && window.Constellation.sessions && window.Constellation.sessions.bookmarksForCurrent) {
       window.Constellation.sessions.bookmarksForCurrent().then((list) => markBookmarks(list.map((b) => b.msgIndex)));
+    if (window.Constellation.storySky && window.Constellation.storySky.refresh) window.Constellation.storySky.refresh();   // stars are born (or fade) with bookmarks
     }
   }
   // Jump to a specific message (by index, verified by its stored head text) and flash it — used by the overlay.
@@ -1105,6 +1108,7 @@ Constellation.chat = (function () {
     hint.appendChild(t); hint.appendChild(s);
     messagesEl.appendChild(hint);
     setStatus('connected', 'ok');
+    if (window.Constellation.mood) window.Constellation.mood.apply('neutral', true);   // a new chat starts under a neutral sky
     updateContextMeter();
     updateReadProgress();
   }
@@ -1134,6 +1138,7 @@ Constellation.chat = (function () {
       setStatus('connected', 'ok');
       updateContextMeter();
       refreshBookmarkGlyphs();    // restore ☆/★ on this chat's bookmarked messages
+      if (window.Constellation.mood) window.Constellation.mood.assess(turns.slice(-3).map(function (m) { return m.content || ''; }).join(' '));   // sky remembers the tone you left on
     };
     if (document.startViewTransition) document.startViewTransition(swap);   // crossfade where supported
     else swap();                                                             // plain instant swap fallback

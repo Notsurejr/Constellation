@@ -171,6 +171,7 @@ function getSettings() {
     flareBlend: ['screen','soft-light','overlay','normal'].includes(s.flare_blend) ? s.flare_blend : 'screen',
     fxEvents: s.fx_events === undefined ? true : /^(on|true|1)$/i.test(s.fx_events || ''),
     colorWords: s.color_words === undefined ? true : /^(on|true|1)$/i.test(s.color_words || ''),
+    moodSky: s.mood_sky === undefined ? true : /^(on|true|1)$/i.test(s.mood_sky || ''),
     fxSize: clamp(parseFloat(s.fx_size || '1') || 1, 0.4, 2.5),
   };
 }
@@ -241,6 +242,7 @@ ipcMain.handle('config:save', (_e, patch) => {
   if (patch.flare_blend !== undefined) setLine('flare_blend', patch.flare_blend);
   if (patch.fx_events !== undefined) setLine('fx_events', patch.fx_events);
   if (patch.color_words !== undefined) setLine('color_words', patch.color_words);
+  if (patch.mood_sky !== undefined) setLine('mood_sky', patch.mood_sky);
   if (patch.fx_size !== undefined) setLine('fx_size', patch.fx_size);
   fs.writeFileSync(SETTINGS_FILE, lines.join('\n'), 'utf8');
   return getSettings();
