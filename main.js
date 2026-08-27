@@ -574,7 +574,7 @@ ipcMain.handle('chronicle:extract', async (_e, { messages }) => {
   const r = await client.chat.completions.create({
     model: 'glm-5.3-flash',
     messages: [
-      { role: 'system', content: 'You maintain a story chronicle for a writer — a quick reference so they never misremember their own story. Extract ONLY durable story facts as terse one-line bullets: character traits and relationships, secrets revealed, promises and debts, injuries or status changes, locations and travel, goals, major events, unresolved tensions. Do NOT retell or summarize scenes. Record intimate or adult events as plain plot facts ("X and Y spent the night together") with no detail — this is a factual index, not a retelling. Pronouns become names. No preamble, no commentary: bullets only, each starting with "- ". If nothing durable happened, reply with exactly: NONE.' },
+      { role: 'system', content: 'You maintain a story chronicle for a writer — a quick reference so they never misremember their own story. Extract ONLY durable story facts as terse one-line bullets: character traits and relationships, secrets revealed, promises and debts, injuries or status changes, locations and travel, goals, major events, unresolved tensions. Do NOT retell or summarize scenes — this is a factual index, not a retelling. Pronouns become names. No preamble, no commentary: bullets only, each starting with "- ". If nothing durable happened, reply with exactly: NONE.' },
       { role: 'user', content: convo || '(empty story)' },
     ],
     max_tokens: 12288,   // flash thinks heavily — a small budget comes back empty after reasoning eats it
