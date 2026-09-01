@@ -165,6 +165,9 @@ function getSettings() {
     twinkleSpeed: clamp(parseFloat(s.twinkle_speed || '1') || 1, 0, 2.5),   // 0 = frozen
     contextWindow: clamp(parseInt(s.context_window || '0', 10) || 0, 0, 1000000),   // 0 = unlimited
     cliServer: /^(on|true|1)$/i.test(s.cli_server || ''),
+    teachEdits: /^(on|true|1)$/i.test(s.teach_edits || ''),
+    lastBackup: parseInt(s.last_backup || '0', 10) || 0,
+    sidebarSort: ['recent','name','size'].includes(s.sidebar_sort) ? s.sidebar_sort : 'recent',
     flareIntensity: clamp(parseFloat(s.flare_intensity || '0.5') || 0.5, 0, 1),
     flareRange: clamp(parseInt(s.flare_range || '140', 10) || 140, 50, 400),
     flareSize: clamp(parseInt(s.flare_size || '35', 10) || 35, 20, 100),
@@ -198,7 +201,7 @@ ipcMain.handle('config:load', () => {
     cliServer: s.cliServer,
     flareIntensity: s.flareIntensity, flareRange: s.flareRange, flareSize: s.flareSize, flareBlend: s.flareBlend,
     fxEvents: s.fxEvents, fxSize: s.fxSize,
-    colorWords: s.colorWords, moodSky: s.moodSky,
+    colorWords: s.colorWords, moodSky: s.moodSky, teachEdits: s.teachEdits, lastBackup: s.lastBackup, sidebarSort: s.sidebarSort,
     phraseBans: readTextSafe(PHRASE_BANS_FILE) || '',
     hasKey: !!s.apiKey,
   };
@@ -244,6 +247,9 @@ ipcMain.handle('config:save', (_e, patch) => {
   if (patch.fx_events !== undefined) setLine('fx_events', patch.fx_events);
   if (patch.color_words !== undefined) setLine('color_words', patch.color_words);
   if (patch.mood_sky !== undefined) setLine('mood_sky', patch.mood_sky);
+  if (patch.teach_edits !== undefined) setLine('teach_edits', patch.teach_edits);
+  if (patch.last_backup !== undefined) setLine('last_backup', patch.last_backup);
+  if (patch.sidebar_sort !== undefined) setLine('sidebar_sort', patch.sidebar_sort);
   if (patch.fx_size !== undefined) setLine('fx_size', patch.fx_size);
   fs.writeFileSync(SETTINGS_FILE, lines.join('\n'), 'utf8');
   return getSettings();
@@ -783,6 +789,19 @@ ipcMain.handle('backup:export', async () => {
     });
     if (res.canceled || !res.filePath) return { ok: false, canceled: true };
     fs.writeFileSync(res.filePath, JSON.stringify(bundle, null, 2), 'utf8');
+    try {
+      // remember when the last backup landed (shown in Settings → Data)
+      fs.mkdirSync(CONFIG_DIR, { recursive: true });
+      const l = fs.readFileSync(SETTINGS_FILE, 'utf8').split(/\r?\n/);
+      let hit = false;
+      const upd = l.map((x) => {
+        const t = x.trim();
+        if (!t.startsWith('#') && t.toLowerCase().startsWith('last_backup:')) { hit = true; return 'last_backup: ' + Date.now(); }
+        return x;
+      });
+      if (!hit) upd.push('last_backup: ' + Date.now());
+      fs.writeFileSync(SETTINGS_FILE, upd.join('\n'), 'utf8');
+    } catch (e) {}
     return { ok: true, path: res.filePath, sessions: Object.keys(bundle.sessions).length };
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 });

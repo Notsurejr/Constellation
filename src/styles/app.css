@@ -801,6 +801,18 @@ html, body {
   white-space: pre-wrap; word-break: break-word; max-height: 260px; overflow-y: auto;
 }
 .request-note { color: var(--text-faint); font-size: 11.5px; line-height: 1.5; padding-top: 2px; }
+
+/* Sculpted-prose marker on assistant messages */
+.sculpted-tag { color: var(--accent); }
+
+/* Sidebar sort dropdown (sits beside the search box) */
+.sidebar-sort {
+  background: rgba(0,0,0,0.35); border: 1px solid var(--panel-border); border-radius: 8px;
+  color: var(--text-dim); font: inherit; font-size: 12px;
+  padding: 7px 6px; outline: none; cursor: pointer; max-width: 92px;
+}
+.sidebar-sort:hover { color: var(--text); }
+.sidebar-sort:focus { border-color: var(--accent-dim); }
 .lore-drawer { position: fixed; top: 66px; right: 18px; width: min(360px, 90vw); max-height: 62vh; overflow-y: auto;
   z-index: 60; background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 12px;
   padding: 14px 16px; box-shadow: 0 8px 40px rgba(0,0,0,0.6); }

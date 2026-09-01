@@ -62,6 +62,11 @@
     <div class="sidebar-head">
       <button class="new-chat" id="newChat">＋ New chat</button>
       <input type="text" id="sessionSearch" class="session-search" placeholder="🔍 Search chats…" autocomplete="off" />
+        <select id="sidebarSort" class="sidebar-sort" title="How the chat list is ordered">
+          <option value="recent">Recent</option>
+          <option value="name">A–Z</option>
+          <option value="size">Longest</option>
+        </select>
     </div>
     <div class="session-list" id="sessionList"></div>
     <div class="sidebar-foot" id="sidebarFoot"></div>
@@ -183,6 +188,10 @@
             <option value="minimal">Minimal — skip thinking (fastest)</option>
           </select>
         </label>
+        <label class="field checkbox">
+          <input type="checkbox" id="teachEditsInput" />
+          <span>Teach from your edits — show the model how you sculpted its replies, so it leans toward your voice (off = your edits stay private)</span>
+        </label>
         <label class="field">
           <span>Text flow speed <em id="streamVal">Instant</em></span>
           <input type="range" id="streamInput" min="0" max="100" step="1" value="100" />
@@ -282,6 +291,7 @@
       <div class="settings-section">
         <h2>Data</h2>
         <div class="hint">Back up everything — chats, settings, prompts, and the craft journal — to one file, or restore from one. (Restore overwrites current data.)</div>
+        <div class="hint" id="backupDate"></div>
         <div class="settings-actions" style="justify-content:flex-start">
           <button class="btn" id="backupBtn" type="button">Backup</button>
           <button class="btn ghost" id="restoreBtn" type="button">Restore…</button>

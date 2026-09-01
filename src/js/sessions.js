@@ -11,6 +11,7 @@ Constellation.sessions = (function () {
   let searchTimer = null;
   let folders = {};   // folderId -> { id, name, collapsed }
   let showHidden = false;   // hidden chats stay tucked away until the footer toggle reveals them
+  let sortMode = 'recent';   // recent | name | size — pinned always floats to the top
 
   // Build a gen bundle (per-chat generation settings) from a global config snapshot — used to
   // seed new chats and as a fallback for old sessions that have no stored settings.
@@ -184,8 +185,11 @@ Constellation.sessions = (function () {
     list = visible;
     $('sidebar').classList.toggle('has-items', list.length > 0);
     // Partition: pinned (any folder) → foldered (non-pinned, by folder) → top-level (non-pinned, no folder).
-    const pinned = list.filter((s) => s.pinned);
-    const topLevel = list.filter((s) => !s.pinned && (!s.folder || !folders[s.folder]));
+    const sortFn = sortMode === 'name' ? (a, b) => String(a.title || '').localeCompare(String(b.title || ''))
+                 : sortMode === 'size' ? (a, b) => ((b.usage && b.usage.tokens) || 0) - ((a.usage && a.usage.tokens) || 0)
+                 : (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0);
+    const pinned = list.filter((s) => s.pinned).sort(sortFn);
+    const topLevel = list.filter((s) => !s.pinned && (!s.folder || !folders[s.folder])).sort(sortFn);
     const byFolder = {};
     for (const s of list) {
       if (!s.pinned && s.folder && folders[s.folder]) {
@@ -205,6 +209,7 @@ Constellation.sessions = (function () {
       fc.className = 'folder-children';
       fc.dataset.folder = fid;
       fc.style.display = folders[fid].collapsed ? 'none' : '';
+      (byFolder[fid] || []).sort(sortFn);
       for (const s of (byFolder[fid] || [])) fc.appendChild(makeItem(s, true));
       el.appendChild(fc);
     }
@@ -396,6 +401,13 @@ Constellation.sessions = (function () {
       if (e.target.closest('#sidebarToggle')) return;
       close();
     });
+    const sortSel = $('sidebarSort');
+    if (sortSel) sortSel.addEventListener('change', async () => {
+      sortMode = sortSel.value;
+      try { await window.api.saveConfig({ sidebar_sort: sortMode }); } catch (e) {}
+      refresh();
+    });
+    (async () => { try { const cfg = await window.api.loadConfig(); if (cfg && cfg.sidebarSort) { sortMode = cfg.sidebarSort; sortSel.value = sortMode; } } catch (e) {} })();
     $('sessionList').addEventListener('click', (e) => {
       // Folder row: toggle expand/collapse (or delete).
       const frow = e.target.closest('.folder-row');

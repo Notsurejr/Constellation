@@ -22,7 +22,7 @@ Constellation.chat = (function () {
   let bulkScroll = false;      // suppress per-message auto-scroll while bulk-rendering a chat
   let usage = { tokens: 0, requests: 0 };   // cumulative estimated tokens for the current chat
   let pendingFiles = [];   // [{ name, size, text }] queued attachments for the next send
-  let opts = { model: 'glm-5.2', temperature: 0.8, topP: 0.95, maxTokens: 0, thinking: false, reasoningEffort: 'max', streamCps: 0, contextWindow: 0 };
+  let opts = { model: 'glm-5.2', temperature: 0.8, topP: 0.95, maxTokens: 0, thinking: false, reasoningEffort: 'max', streamCps: 0, contextWindow: 0, teachEdits: false };
   let activeLore = [];   // lorebooks enabled for the current chat (each { entries, semantic }); sessions applies this
   let phraseBanRules = [];   // [{ re, replace }] tidied out of GLM's replies AFTER generation (the model never sees these)
   let systemFiles = [];   // [{name,text}] .md/.txt attached to this chat's system instructions (inlined into the system prompt)
@@ -83,11 +83,19 @@ Constellation.chat = (function () {
   }
 
   // Word/char count for a message footer, from its visible text.
-  function updateMeta(metaEl, text) {
+  function updateMeta(metaEl, text, edited) {
     if (!metaEl) return;
     const t = String(text || '').trim();
     const words = t ? t.split(/\s+/).filter(Boolean).length : 0;
+    metaEl.replaceChildren();
     metaEl.textContent = words + ' words · ' + t.length + ' chars';
+    if (edited) {
+      const b = document.createElement('span');
+      b.className = 'sculpted-tag';
+      b.textContent = ' · ✎ sculpted';
+      b.title = 'You edited this reply — the model\u2019s original is kept with the message';
+      metaEl.appendChild(b);
+    }
   }
 
   // Rough context-size estimate (chars/4 ≈ tokens) across the whole conversation.
@@ -190,6 +198,7 @@ Constellation.chat = (function () {
     opts.maxTokens = cfg.maxTokens ?? opts.maxTokens;
     opts.thinking = !!cfg.thinking;
     opts.reasoningEffort = cfg.reasoningEffort || 'max';
+    opts.teachEdits = cfg.teachEdits === true;   // off unless explicitly on — edits stay private by default
     opts.streamCps = cfg.streamCps ?? 0;
     opts.contextWindow = cfg.contextWindow ?? 0;
     setPhraseBans(cfg.phraseBans || '');
@@ -386,6 +395,19 @@ Constellation.chat = (function () {
     if (lc.body && out[0] && out[0].role === 'system') {
       out[0] = { role: 'system', content: out[0].content + '\n\n# World\nBackground facts about this world (true; use as context):\n\n' + lc.body };
     }
+    // The writer's hand (optional, off by default): your sculpted edits, shown to the model as the
+    // voice it should lean toward. Disabled, edits stay entirely private to the story.
+    if (opts.teachEdits && out[0] && out[0].role === 'system') {
+      const pairs = list.filter((m) => m.role === 'assistant' && m.edited && m.orig && m.orig !== m.content);
+      if (pairs.length) {
+        const lines = pairs.slice(-10).map((m) => {
+          const o = String(m.orig).replace(/\s+/g, ' ').trim().slice(0, 140);
+          const n = String(m.content).replace(/\s+/g, ' ').trim().slice(0, 140);
+          return '· "' + o + '" → "' + n + '"';
+        });
+        out[0] = { role: 'system', content: out[0].content + '\n\n# The writer\u2019s hand\nThe writer edits your replies after the fact; their edited wording is the voice they want. Lean toward it naturally — never mention or quote these notes.\n' + lines.join('\n') };
+      }
+    }
     return out;
   }
 
@@ -546,7 +568,7 @@ Constellation.chat = (function () {
     if (acts) el.insertBefore(ind, acts); else el.appendChild(ind);
   }
 
-  function addMessage(role, content, files, reasoning, lore) {
+  function addMessage(role, content, files, reasoning, lore, flags) {
     clearEmptyHint();
     const el = document.createElement('div');
     el.className = 'msg ' + role;
@@ -597,18 +619,21 @@ Constellation.chat = (function () {
       el.appendChild(fc);
     }
 
-    // Word/char count under responses (assistant only).
+    // Word/char count under responses (assistant only) — with a ✎ marker once sculpted.
     if (role === 'assistant') {
       const meta = document.createElement('div');
       meta.className = 'msg-meta';
-      updateMeta(meta, body.textContent);
+      updateMeta(meta, body.textContent, !!(flags && flags.edited));
       el.appendChild(meta);
     }
 
     const actions = document.createElement('div');
     actions.className = 'msg-actions';
     if (role === 'user') actions.appendChild(actionBtn('edit', '✎ Edit'));
-    else actions.appendChild(actionBtn('regen', '↻ Retry'));
+    else {
+      actions.appendChild(actionBtn('regen', '↻ Retry'));
+      actions.appendChild(actionBtn('sculpt', '✎ Sculpt'));
+    }
     actions.appendChild(actionBtn('fork', '⑂ Fork'));
     actions.appendChild(actionBtn('copy', '⎘ Copy'));
     actions.appendChild(actionBtn('bookmark', '☆'));
@@ -952,6 +977,7 @@ Constellation.chat = (function () {
     if (messagesEl.querySelector('.msg[data-editing="1"]')) return;   // an edit is already open
     const action = btn.dataset.action;
     if (action === 'edit') startEdit(el);
+    else if (action === 'sculpt') startSculpt(el);
     else if (action === 'regen') regenerate(el);
     else if (action === 'fork') forkFromEl(el);
     else if (action === 'copy') copyMessage(el);
@@ -1058,6 +1084,84 @@ Constellation.chat = (function () {
     }
   }
 
+  // ---- sculpt: edit the model's prose in place. No resend, nothing after it changes — the
+  // conversation (and the model's future context) simply carries your wording from here on.
+  // The model's original is kept on the message (m.orig) so the edit can be studied, and so an
+  // optional "teach from edits" mode can show the model how you bend its voice.
+  function startSculpt(el) {
+    const body = el.querySelector('.body');
+    if (!body || el.dataset.editing === '1') return;
+    const original = (el.__raw != null ? el.__raw : body.textContent);
+    el.dataset.editing = '1';
+    el.classList.add('editing');
+
+    const ta = document.createElement('textarea');
+    ta.className = 'edit-area';
+    ta.value = original;
+    body.replaceChildren(ta);
+    const growEdit = () => {
+      ta.style.height = 'auto';
+      ta.style.height = Math.min(ta.scrollHeight, Math.round(window.innerHeight * 0.6)) + 'px';
+    };
+    ta.addEventListener('input', growEdit);
+    growEdit();
+
+    const bar = document.createElement('div');
+    bar.className = 'edit-bar';
+    const save = actionBtn('commit', 'Save sculpted prose');
+    const cancel = actionBtn('cancel', 'Cancel');
+    bar.appendChild(save);
+    bar.appendChild(cancel);
+    el.querySelector('.msg-actions').replaceWith(bar);
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+
+    save.addEventListener('click', () => {
+      const v = ta.value.trim();
+      const m = conversation[convIndexForEl(el)];
+      if (!m) { restoreSculpt(el, original); return; }
+      if (v && v !== original) {
+        if (!m.orig) m.orig = original;   // first take stays on record; re-sculpts just move the target
+        m.content = v;
+        m.edited = true;
+        if (Array.isArray(m.variants) && m.variants[m.vActive || 0]) m.variants[m.vActive || 0].content = v;
+      }
+      persist();
+      renderSculpted(el, v || original, !!(m && m.edited));
+    });
+    cancel.addEventListener('click', () => restoreSculpt(el, original));
+  }
+  function restoreSculpt(el, original) {
+    el.dataset.editing = '';
+    el.classList.remove('editing');
+    const m = conversation[convIndexForEl(el)];
+    renderSculpted(el, original, !!(m && m.edited));
+  }
+  function renderSculpted(el, content, edited) {
+    el.__raw = content;
+    const body = el.querySelector('.body');
+    if (body) {
+      body.classList.add('md');
+      body.innerHTML = Constellation.md.render(content);
+      enhanceCodeBlocks(body);
+      if (window.Constellation && window.Constellation.colorfx) window.Constellation.colorfx.tagColors(body);
+    }
+    const bar = el.querySelector('.edit-bar');
+    if (bar) {
+      const actions = document.createElement('div');
+      actions.className = 'msg-actions';
+      actions.appendChild(actionBtn('regen', '↻ Retry'));
+      actions.appendChild(actionBtn('sculpt', '✎ Sculpt'));
+      actions.appendChild(actionBtn('fork', '⑂ Fork'));
+      actions.appendChild(actionBtn('copy', '⎘ Copy'));
+      actions.appendChild(actionBtn('bookmark', '☆'));
+      bar.replaceWith(actions);
+      applyBookmarkGlyph(el);
+    }
+    const metaEl = el.querySelector('.msg-meta');
+    if (metaEl) updateMeta(metaEl, body ? body.textContent : '', edited);
+  }
+
   function regenerate(el) {
     if (busy) return;
     truncateAfterEl(el);   // keep this reply, drop anything after it; we're adding another take
@@ -1077,7 +1181,7 @@ Constellation.chat = (function () {
       if (m.reasoning) { think.hidden = false; think.open = false; const tb = think.querySelector('.think-body'); if (tb) tb.textContent = m.reasoning; }
       else think.hidden = true;
     }
-    const metaEl = el.querySelector('.msg-meta'); if (metaEl) updateMeta(metaEl, body ? body.textContent : '');
+    const metaEl = el.querySelector('.msg-meta'); if (metaEl) updateMeta(metaEl, body ? body.textContent : '', !!m.edited);
     const oldLore = el.querySelector('.lore-used'); if (oldLore) oldLore.remove();
     if (m.lore && m.lore.length) addLoreIndicator(el, m.lore);
     renderVariantNav(el);
@@ -1198,10 +1302,10 @@ Constellation.chat = (function () {
       usage = incomingUsage || { tokens: 0, requests: 0 };   // restore this chat's cumulative usage
       bulkScroll = true;
       const turns = (msgs || []).filter((m) => m.role === 'user' || m.role === 'assistant')
-        .map((m) => ({ role: m.role, content: m.content, files: m.files, reasoning: m.reasoning }));
+        .map((m) => ({ role: m.role, content: m.content, files: m.files, reasoning: m.reasoning, lore: m.lore, edited: m.edited, orig: m.orig, variants: m.variants, vActive: m.vActive }));
       conversation = [{ role: 'system', content: buildSystem() }].concat(turns);
       for (const m of turns) {
-        const r = addMessage(m.role, m.content, m.files, m.reasoning, m.lore);
+        const r = addMessage(m.role, m.content, m.files, m.reasoning, m.lore, { edited: m.edited });
         if (m.role === 'assistant' && Array.isArray(m.variants) && m.variants.length > 1 && r && r.el) renderVariantNav(r.el);
       }
       bulkScroll = false;

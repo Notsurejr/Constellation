@@ -69,6 +69,13 @@ Constellation.settings = (function () {
       if ($('fxEventsInput')) $('fxEventsInput').checked = cfg.fxEvents !== false;
       if ($('colorWordsInput')) $('colorWordsInput').checked = cfg.colorWords !== false;
       if ($('moodSkyInput')) $('moodSkyInput').checked = cfg.moodSky !== false;
+      if ($('teachEditsInput')) $('teachEditsInput').checked = cfg.teachEdits === true;
+      if ($('backupDate')) {
+        const t = cfg.lastBackup || 0;
+        $('backupDate').textContent = t
+          ? ('Last backed up ' + relTime(t) + ' — ' + new Date(t).toLocaleDateString())
+          : 'Never backed up. One click below bundles every chat, lorebook, chronicle and setting into one file.';
+      }
       if ($('fxSizeInput')) { const fx = cfg.fxSize != null ? cfg.fxSize : 1; $('fxSizeInput').value = Math.round(fx * 100); $('fxSizeVal').textContent = fx.toFixed(1) + '×'; }
       syncFxSize();   // event size only means something while cosmic events are on
     } catch (e) {}
@@ -82,6 +89,17 @@ Constellation.settings = (function () {
   }
 
   function close() { $('settingsOverlay').classList.remove('open'); }
+
+  function relTime(t) {
+    const d = Date.now() - t;
+    const mins = Math.round(d / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + ' minutes ago';
+    const hrs = Math.round(mins / 60);
+    if (hrs < 24) return hrs + (hrs === 1 ? ' hour ago' : ' hours ago');
+    const days = Math.round(hrs / 24);
+    return days + (days === 1 ? ' day ago' : ' days ago');
+  }
 
   function flash(id) {
     const el = $(id);
@@ -182,13 +200,14 @@ Constellation.settings = (function () {
     const maxTokens = parseInt($('maxInput').value, 10);
     const thinking = $('thinkingInput').checked;
     const reasoningEffort = $('effortInput').value;
+    const teachEdits = $('teachEditsInput') ? $('teachEditsInput').checked : false;
     const streamCps = sliderToCps($('streamInput').value);
     const contextWindow = parseInt($('contextWindowInput').value, 10) || 0;
     // Per-chat: apply to this chat and persist with it.
-    Constellation.chat.setOptions({ model, temperature, topP, maxTokens, thinking, reasoningEffort, streamCps, contextWindow });
+    Constellation.chat.setOptions({ model, temperature, topP, maxTokens, thinking, reasoningEffort, streamCps, contextWindow, teachEdits });
     Constellation.chat.persist();
     // Also update the global default so new chats inherit these preferences.
-    await window.api.saveConfig({ model, temperature, top_p: topP, max_tokens: maxTokens, thinking, reasoning_effort: reasoningEffort, stream_cps: streamCps, context_window: contextWindow });
+    await window.api.saveConfig({ model, temperature, top_p: topP, max_tokens: maxTokens, thinking, reasoning_effort: reasoningEffort, stream_cps: streamCps, context_window: contextWindow, teach_edits: teachEdits ? 'on' : 'off' });
     flash('genSaved');
   }
 
