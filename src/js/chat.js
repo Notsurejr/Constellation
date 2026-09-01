@@ -1249,12 +1249,29 @@ Constellation.chat = (function () {
         const size = document.createElement('span');
         size.className = 'request-size';
         const text = typeof m.content === 'string' ? m.content : JSON.stringify(m.content, null, 2);
-        size.textContent = text.length.toLocaleString() + ' chars';
+        const think = m.reasoning_content ? String(m.reasoning_content) : '';
+        size.textContent = text.length.toLocaleString() + ' chars' + (think ? ' + thinking ' + think.length.toLocaleString() : '');
         head.appendChild(chip); head.appendChild(size);
+        // Preserved thinking, shown as its own collapsible block — proof it rides the request.
+        if (think) {
+          const td = document.createElement('details');
+          td.className = 'request-think';
+          const sum = document.createElement('summary');
+          sum.textContent = '✦ thinking · ' + think.length.toLocaleString() + ' chars (preserved, sent back verbatim)';
+          td.appendChild(sum);
+          const tp = document.createElement('div');
+          tp.className = 'request-think-text';
+          tp.textContent = think;
+          td.appendChild(tp);
+          row.appendChild(head);
+          row.appendChild(td);
+        } else {
+          row.appendChild(head);
+        }
         const pre = document.createElement('div');
         pre.className = 'request-text';
         pre.textContent = text;
-        row.appendChild(head); row.appendChild(pre);
+        row.appendChild(pre);
         body.appendChild(row);
       });
       const note = document.createElement('div');

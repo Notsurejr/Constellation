@@ -802,17 +802,48 @@ html, body {
 }
 .request-note { color: var(--text-faint); font-size: 11.5px; line-height: 1.5; padding-top: 2px; }
 
+/* The inspector gets its own scrollbar look — wider, tinted, with a visible track — so it
+   never gets mistaken for (or sniped instead of) the chat's thin translucent one. */
+#requestOverlay { background: rgba(0,0,0,0.74); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.request-body::-webkit-scrollbar, .request-text::-webkit-scrollbar, .request-think-text::-webkit-scrollbar { width: 12px; }
+.request-body::-webkit-scrollbar-track, .request-text::-webkit-scrollbar-track, .request-think-text::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 8px; }
+.request-body::-webkit-scrollbar-thumb, .request-text::-webkit-scrollbar-thumb, .request-think-text::-webkit-scrollbar-thumb {
+  background: rgba(159,184,255,0.45); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box;
+}
+.request-body::-webkit-scrollbar-thumb:hover, .request-text::-webkit-scrollbar-thumb:hover { background: rgba(159,184,255,0.65); background-clip: padding-box; }
+.request-think { margin: 0 12px; border-top: 1px dashed var(--panel-border); }
+.request-think summary {
+  cursor: pointer; font-size: 11.5px; color: var(--accent); opacity: 0.85;
+  padding: 6px 0 4px; letter-spacing: 0.3px; user-select: none;
+}
+.request-think summary:hover { opacity: 1; }
+.request-think-text {
+  font-size: 12px; line-height: 1.55; color: var(--text-dim);
+  white-space: pre-wrap; word-break: break-word;
+  max-height: 220px; overflow-y: auto; padding: 2px 0 8px;
+}
+
 /* Sculpted-prose marker on assistant messages */
 .sculpted-tag { color: var(--accent); }
 
-/* Sidebar sort dropdown (sits beside the search box) */
+/* Sidebar search + sort share one row; the sort dropdown matches the app's other selects */
+.sidebar-search-row { display: flex; gap: 8px; align-items: stretch; }
+.sidebar-search-row .session-search { flex: 1; min-width: 0; }
 .sidebar-sort {
-  background: rgba(0,0,0,0.35); border: 1px solid var(--panel-border); border-radius: 8px;
-  color: var(--text-dim); font: inherit; font-size: 12px;
-  padding: 7px 6px; outline: none; cursor: pointer; max-width: 92px;
+  flex: none; width: 96px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: 1px solid var(--panel-border);
+  background: rgba(0,0,0,0.4);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  outline: none; cursor: pointer;
+  color-scheme: dark;
 }
-.sidebar-sort:hover { color: var(--text); }
-.sidebar-sort:focus { border-color: var(--accent-dim); }
+.sidebar-sort:hover { border-color: var(--accent-dim); }
+.sidebar-sort:focus { border-color: var(--accent-dim); box-shadow: var(--glow); }
+.sidebar-sort option { background: #0b0e16; color: var(--text); }
 .lore-drawer { position: fixed; top: 66px; right: 18px; width: min(360px, 90vw); max-height: 62vh; overflow-y: auto;
   z-index: 60; background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 12px;
   padding: 14px 16px; box-shadow: 0 8px 40px rgba(0,0,0,0.6); }
@@ -1187,6 +1218,9 @@ input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
   font-family: var(--font-ui); font-size: 13px; outline: none;
 }
 .session-search:focus { border-color: var(--accent-dim); box-shadow: var(--glow); }
+.sidebar-search-row { display: flex; gap: 8px; align-items: stretch; margin-top: 8px; }
+.sidebar-search-row .session-search { width: auto; flex: 1; min-width: 0; margin-top: 0; }
+.sidebar-search-row .sidebar-sort { align-self: stretch; }
 
 .session-pin {
   background: none; border: none; cursor: pointer; color: var(--text-faint);

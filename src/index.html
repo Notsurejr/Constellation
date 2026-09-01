@@ -61,12 +61,14 @@
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-head">
       <button class="new-chat" id="newChat">＋ New chat</button>
-      <input type="text" id="sessionSearch" class="session-search" placeholder="🔍 Search chats…" autocomplete="off" />
+      <div class="sidebar-search-row">
+        <input type="text" id="sessionSearch" class="session-search" placeholder="🔍 Search chats…" autocomplete="off" />
         <select id="sidebarSort" class="sidebar-sort" title="How the chat list is ordered">
           <option value="recent">Recent</option>
           <option value="name">A–Z</option>
           <option value="size">Longest</option>
         </select>
+      </div>
     </div>
     <div class="session-list" id="sessionList"></div>
     <div class="sidebar-foot" id="sidebarFoot"></div>
