@@ -198,6 +198,7 @@ ipcMain.handle('config:load', () => {
     cliServer: s.cliServer,
     flareIntensity: s.flareIntensity, flareRange: s.flareRange, flareSize: s.flareSize, flareBlend: s.flareBlend,
     fxEvents: s.fxEvents, fxSize: s.fxSize,
+    colorWords: s.colorWords, moodSky: s.moodSky,
     phraseBans: readTextSafe(PHRASE_BANS_FILE) || '',
     hasKey: !!s.apiKey,
   };

@@ -18,6 +18,7 @@ Constellation.chat = (function () {
   let conversation = [];   // { role, content, files? } — conversation[0] is always the system message
   let busy = false;
   let currentRequest = null;   // active stream id, so the Stop button can cancel it
+  let lastRequest = null;      // the exact payload of the most recent send (for the ◐ inspector)
   let bulkScroll = false;      // suppress per-message auto-scroll while bulk-rendering a chat
   let usage = { tokens: 0, requests: 0 };   // cumulative estimated tokens for the current chat
   let pendingFiles = [];   // [{ name, size, text }] queued attachments for the next send
@@ -110,8 +111,8 @@ Constellation.chat = (function () {
     else if (total >= warmAt) ctxMeter.classList.add('warm');
     const fmt = (t) => t >= 1000 ? (t / 1000).toFixed(1) + 'k' : String(t);
     ctxMeter.textContent = trimming ? ('◐ ' + fmt(sent) + ' / ' + fmt(total)) : ('◐ ' + fmt(total));
-    ctxMeter.title = trimming ? ('Sending last ~' + fmt(sent) + ' of ' + fmt(total) + ' tokens (context window on)')
-                              : ('Estimated conversation size');
+    ctxMeter.title = (trimming ? ('Sending last ~' + fmt(sent) + ' of ' + fmt(total) + ' tokens (context window on)') : ('Estimated conversation size'))
+                   + ' — click to see exactly what was sent';
   }
 
   // Export the current chat to a Markdown file via a native save dialog.
@@ -200,6 +201,17 @@ Constellation.chat = (function () {
 
   function bind() {
     sendBtn.addEventListener('click', () => { if (busy) cancelStream(); else send(); });
+    if (ctxMeter) {
+      ctxMeter.addEventListener('click', viewLastRequest);
+      ctxMeter.style.cursor = 'pointer';
+    }
+    const cr = document.getElementById('closeRequest');
+    if (cr) cr.addEventListener('click', closeRequestView);
+    const ro = document.getElementById('requestOverlay');
+    if (ro) {
+      ro.addEventListener('click', (e) => { if (e.target === ro) closeRequestView(); });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeRequestView(); });
+    }
     inputEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
     });
@@ -738,6 +750,14 @@ Constellation.chat = (function () {
       }, 90000);
     };
     kickWatchdog();
+    // Snapshot the exact payload for the "what was sent" inspector (click the ◐ meter). In-memory
+    // only — a reference for the curious, never persisted.
+    lastRequest = {
+      at: new Date().toLocaleTimeString(),
+      model: opts.model || 'glm-5.3',
+      opts: { temperature: opts.temperature, top_p: opts.topP, max_tokens: opts.maxTokens || '(provider default)', thinking: !!opts.thinking, effort: opts.reasoningEffort || 'max', context_window: opts.contextWindow || 0 },
+      messages: reqMsgs,
+    };
     currentRequest = window.api.chatStream(reqMsgs, opts, {
       onRetry: (attempt) => setStatus('retrying… (attempt ' + attempt + ')', 'ok'),
       onThink: (delta) => {
@@ -1094,11 +1114,63 @@ Constellation.chat = (function () {
     persist();
   }
 
+  // ---- the "what was sent" inspector: click the ◐ meter to see the exact last request ----
+  function viewLastRequest() {
+    const ov = document.getElementById('requestOverlay');
+    const summary = document.getElementById('requestSummary');
+    const body = document.getElementById('requestBody');
+    if (!ov || !body || !summary) return;
+    summary.replaceChildren();
+    body.replaceChildren();
+    if (!lastRequest) {
+      summary.textContent = 'Nothing sent in this chat yet.';
+      const e = document.createElement('div');
+      e.className = 'chronicle-empty';
+      e.textContent = 'Send a message, then click the ◐ meter — the full request (system prompt, injected lore, every message) appears here for that send.';
+      body.appendChild(e);
+    } else {
+      const o = lastRequest.opts;
+      const est = Math.round(lastRequest.messages.reduce((n, m) => n + String(typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).length, 0) / 4);
+      summary.textContent = lastRequest.model + ' · ' + lastRequest.messages.length + ' messages · ~' + (est >= 1000 ? (est / 1000).toFixed(1) + 'k' : est) + ' tokens · temp ' + o.temperature + ' · top_p ' + o.top_p
+        + ' · thinking ' + (o.thinking ? 'on (' + o.effort + ')' : 'off') + ' · max_tokens ' + o.max_tokens
+        + (o.context_window ? ' · trimmed to ' + o.context_window + ' ctx' : '') + ' · sent ' + lastRequest.at;
+      lastRequest.messages.forEach((m, i) => {
+        const row = document.createElement('div');
+        row.className = 'request-msg role-' + (m.role || 'user');
+        const head = document.createElement('div');
+        head.className = 'request-msg-head';
+        const chip = document.createElement('span');
+        chip.className = 'request-role';
+        chip.textContent = (m.role || '?') + (i === 0 ? ' · instructions + lore' : '');
+        const size = document.createElement('span');
+        size.className = 'request-size';
+        const text = typeof m.content === 'string' ? m.content : JSON.stringify(m.content, null, 2);
+        size.textContent = text.length.toLocaleString() + ' chars';
+        head.appendChild(chip); head.appendChild(size);
+        const pre = document.createElement('div');
+        pre.className = 'request-text';
+        pre.textContent = text;
+        row.appendChild(head); row.appendChild(pre);
+        body.appendChild(row);
+      });
+      const note = document.createElement('div');
+      note.className = 'request-note';
+      note.textContent = 'Exactly what left your machine for this one send. Phrase bans are applied AFTER generation, so they are not part of this.';
+      body.appendChild(note);
+    }
+    ov.classList.add('open');
+  }
+  function closeRequestView() {
+    const ov = document.getElementById('requestOverlay');
+    if (ov) ov.classList.remove('open');
+  }
+
   // Start a fresh empty chat (keeps the current system prompt + project instructions).
   function reset() {
     conversation = [{ role: 'system', content: buildSystem() }];
     usage = { tokens: 0, requests: 0 };
     pendingFiles = [];
+    lastRequest = null;   // the inspector shows per-chat sends; switching chats clears it
     renderChips();
     messagesEl.replaceChildren();
     const hint = document.createElement('div');

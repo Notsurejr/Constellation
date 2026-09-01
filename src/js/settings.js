@@ -237,6 +237,16 @@ Constellation.settings = (function () {
     applyStarfield(starDensity, twinkleSpeed);
     flash('appearSaved');
   }
+  // Checkbox preferences persist the moment they are toggled (sliders stay live-preview + Save —
+  // toggles are decisions, not experiments).
+  async function saveTogglesNow() {
+    await window.api.saveConfig({
+      color_words: ($('colorWordsInput') && $('colorWordsInput').checked) ? 'on' : 'off',
+      mood_sky: ($('moodSkyInput') && $('moodSkyInput').checked) ? 'on' : 'off',
+      fx_events: ($('fxEventsInput') && $('fxEventsInput').checked) ? 'on' : 'off',
+    });
+  }
+
   // Push the current Color-atmosphere inputs to the live engine (used by every live slider + Save).
   function applyColorFx() {
     if (!(window.Constellation && window.Constellation.colorfx)) return;
@@ -428,12 +438,13 @@ Constellation.settings = (function () {
     if ($('flareRangeInput')) $('flareRangeInput').addEventListener('input', () => { $('flareRangeVal').textContent = $('flareRangeInput').value + 'px'; liveFlare(); });
     if ($('flareSizeInput')) $('flareSizeInput').addEventListener('input', () => { $('flareSizeVal').textContent = $('flareSizeInput').value + '%'; liveFlare(); });
     if ($('flareBlendInput')) $('flareBlendInput').addEventListener('change', liveFlare);
-    if ($('fxEventsInput')) $('fxEventsInput').addEventListener('change', () => { syncFxSize(); liveFlare(); });
+    if ($('fxEventsInput')) $('fxEventsInput').addEventListener('change', () => { syncFxSize(); liveFlare(); saveTogglesNow(); });
     if ($('fxSizeInput')) $('fxSizeInput').addEventListener('input', () => { $('fxSizeVal').textContent = (Number($('fxSizeInput').value) / 100).toFixed(1) + '×'; liveFlare(); });
-    if ($('colorWordsInput')) $('colorWordsInput').addEventListener('change', applyColorFx);
+    if ($('colorWordsInput')) $('colorWordsInput').addEventListener('change', function () { applyColorFx(); saveTogglesNow(); });   // toggles apply live AND persist immediately
     if ($('moodSkyInput')) $('moodSkyInput').addEventListener('change', function () {
       if (window.Constellation.mood) window.Constellation.mood.setEnabled($('moodSkyInput').checked);   // live: off snaps to neutral, on resumes with the next reply
-    });   // toggling retints the open chat instantly
+      saveTogglesNow();
+    });
     const scf = $('saveColorFx'); if (scf) scf.addEventListener('click', saveColorFx);
     $('resetAccent').addEventListener('click', resetAccent);
     $('saveAppearance').addEventListener('click', saveAppearance);
