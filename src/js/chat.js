@@ -22,7 +22,7 @@ Constellation.chat = (function () {
   let bulkScroll = false;      // suppress per-message auto-scroll while bulk-rendering a chat
   let usage = { tokens: 0, requests: 0 };   // cumulative estimated tokens for the current chat
   let pendingFiles = [];   // [{ name, size, text }] queued attachments for the next send
-  let opts = { model: 'glm-5.2', temperature: 0.8, topP: 0.95, maxTokens: 0, thinking: false, reasoningEffort: 'max', streamCps: 0, contextWindow: 0, teachEdits: false };
+  let opts = { model: 'glm-5.2', temperature: 0.8, topP: 0.95, maxTokens: 0, thinking: false, reasoningEffort: 'max', streamCps: 0, contextWindow: 0, teachEdits: false, preservedThinking: true };
   let activeLore = [];   // lorebooks enabled for the current chat (each { entries, semantic }); sessions applies this
   let phraseBanRules = [];   // [{ re, replace }] tidied out of GLM's replies AFTER generation (the model never sees these)
   let systemFiles = [];   // [{name,text}] .md/.txt attached to this chat's system instructions (inlined into the system prompt)
@@ -199,6 +199,7 @@ Constellation.chat = (function () {
     opts.thinking = !!cfg.thinking;
     opts.reasoningEffort = cfg.reasoningEffort || 'max';
     opts.teachEdits = cfg.teachEdits === true;   // off unless explicitly on — edits stay private by default
+    opts.preservedThinking = cfg.preservedThinking !== false;   // GLM Preserved Thinking — on by default
     opts.streamCps = cfg.streamCps ?? 0;
     opts.contextWindow = cfg.contextWindow ?? 0;
     setPhraseBans(cfg.phraseBans || '');
@@ -367,7 +368,7 @@ Constellation.chat = (function () {
   // is the exact, unedited concatenation of the model's own reasoning_content deltas.
   function toApiMessages(loreCtx, src) {
     const list = src || conversation;
-    const preserve = !!opts.thinking;
+    const preserve = !!opts.thinking && opts.preservedThinking !== false;   // GLM Preserved Thinking (user-adjustable)
     const out = list.map((m) => {
       if (m.role === 'user' && m.files && m.files.length) {
         const imgs = m.files.filter((f) => f.kind === 'image' && f.dataUrl);

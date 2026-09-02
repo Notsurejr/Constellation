@@ -166,6 +166,7 @@ function getSettings() {
     contextWindow: clamp(parseInt(s.context_window || '0', 10) || 0, 0, 1000000),   // 0 = unlimited
     cliServer: /^(on|true|1)$/i.test(s.cli_server || ''),
     teachEdits: /^(on|true|1)$/i.test(s.teach_edits || ''),
+    preservedThinking: s.preserved_thinking === undefined ? true : /^(on|true|1)$/i.test(s.preserved_thinking || ''),
     lastBackup: parseInt(s.last_backup || '0', 10) || 0,
     sidebarSort: ['recent','name','size'].includes(s.sidebar_sort) ? s.sidebar_sort : 'recent',
     flareIntensity: clamp(parseFloat(s.flare_intensity || '0.5') || 0.5, 0, 1),
@@ -201,7 +202,7 @@ ipcMain.handle('config:load', () => {
     cliServer: s.cliServer,
     flareIntensity: s.flareIntensity, flareRange: s.flareRange, flareSize: s.flareSize, flareBlend: s.flareBlend,
     fxEvents: s.fxEvents, fxSize: s.fxSize,
-    colorWords: s.colorWords, moodSky: s.moodSky, teachEdits: s.teachEdits, lastBackup: s.lastBackup, sidebarSort: s.sidebarSort,
+    colorWords: s.colorWords, moodSky: s.moodSky, teachEdits: s.teachEdits, preservedThinking: s.preservedThinking, lastBackup: s.lastBackup, sidebarSort: s.sidebarSort,
     phraseBans: readTextSafe(PHRASE_BANS_FILE) || '',
     hasKey: !!s.apiKey,
   };
@@ -248,6 +249,7 @@ ipcMain.handle('config:save', (_e, patch) => {
   if (patch.color_words !== undefined) setLine('color_words', patch.color_words);
   if (patch.mood_sky !== undefined) setLine('mood_sky', patch.mood_sky);
   if (patch.teach_edits !== undefined) setLine('teach_edits', patch.teach_edits);
+  if (patch.preserved_thinking !== undefined) setLine('preserved_thinking', patch.preserved_thinking);
   if (patch.last_backup !== undefined) setLine('last_backup', patch.last_backup);
   if (patch.sidebar_sort !== undefined) setLine('sidebar_sort', patch.sidebar_sort);
   if (patch.fx_size !== undefined) setLine('fx_size', patch.fx_size);
@@ -869,6 +871,12 @@ ipcMain.handle('chat:stream', async (event, payload) => {
     const client = new OpenAI({ apiKey: s.apiKey, baseURL: s.baseUrl, maxRetries: 0 });
     const supportsEffort = /^glm-5\.[2-9]/i.test(String(opts.model || s.model));   // reasoning_effort is GLM-5.2+
     const isGlmEndpoint = /z\.ai|bigmodel/i.test(String(s.baseUrl || ''));   // GLM-specific params (thinking) only go to GLM
+    // Preserved thinking (reasoning_content echo-back) is a GLM capability — never send the field
+    // to other providers, where it's noise at best and a schema error at worst.
+    const apiMessages = isGlmEndpoint ? messages : messages.map((m) => {
+      if (m && m.reasoning_content != null) { const c = Object.assign({}, m); delete c.reasoning_content; return c; }
+      return m;
+    });
 
     // Retry the initial request on transient failures (rate limits, network blips),
     // but give up immediately on billing errors (e.g. out-of-credits 429).
@@ -879,12 +887,14 @@ ipcMain.handle('chat:stream', async (event, payload) => {
       try {
         stream = await client.chat.completions.create({
           model: opts.model || s.model,
-          messages,
+          messages: apiMessages,
           temperature: opts.temperature ?? s.temperature,
           top_p: opts.topP ?? s.topP,
           ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
           ...(opts.thinking && isGlmEndpoint ? {
-              thinking: { type: 'enabled', clear_thinking: false },   // clear_thinking:false = Preserved Thinking
+              // Preserved Thinking (GLM-only capability): clear_thinking:false keeps each reply's
+              // reasoning in context across turns; the user can turn it off to save tokens.
+              thinking: { type: 'enabled', clear_thinking: opts.preservedThinking === false },
               ...(supportsEffort && opts.reasoningEffort && opts.reasoningEffort !== 'max'
                 ? { reasoning_effort: opts.reasoningEffort } : {}),
             } : {}),

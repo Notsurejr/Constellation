@@ -70,6 +70,7 @@ Constellation.settings = (function () {
       if ($('colorWordsInput')) $('colorWordsInput').checked = cfg.colorWords !== false;
       if ($('moodSkyInput')) $('moodSkyInput').checked = cfg.moodSky !== false;
       if ($('teachEditsInput')) $('teachEditsInput').checked = cfg.teachEdits === true;
+      if ($('preservedThinkingInput')) $('preservedThinkingInput').checked = cfg.preservedThinking !== false;
       if ($('backupDate')) {
         const t = cfg.lastBackup || 0;
         $('backupDate').textContent = t
@@ -201,13 +202,14 @@ Constellation.settings = (function () {
     const thinking = $('thinkingInput').checked;
     const reasoningEffort = $('effortInput').value;
     const teachEdits = $('teachEditsInput') ? $('teachEditsInput').checked : false;
+    const preservedThinking = $('preservedThinkingInput') ? $('preservedThinkingInput').checked : true;
     const streamCps = sliderToCps($('streamInput').value);
     const contextWindow = parseInt($('contextWindowInput').value, 10) || 0;
     // Per-chat: apply to this chat and persist with it.
-    Constellation.chat.setOptions({ model, temperature, topP, maxTokens, thinking, reasoningEffort, streamCps, contextWindow, teachEdits });
+    Constellation.chat.setOptions({ model, temperature, topP, maxTokens, thinking, reasoningEffort, streamCps, contextWindow, teachEdits, preservedThinking });
     Constellation.chat.persist();
     // Also update the global default so new chats inherit these preferences.
-    await window.api.saveConfig({ model, temperature, top_p: topP, max_tokens: maxTokens, thinking, reasoning_effort: reasoningEffort, stream_cps: streamCps, context_window: contextWindow, teach_edits: teachEdits ? 'on' : 'off' });
+    await window.api.saveConfig({ model, temperature, top_p: topP, max_tokens: maxTokens, thinking, reasoning_effort: reasoningEffort, stream_cps: streamCps, context_window: contextWindow, teach_edits: teachEdits ? 'on' : 'off', preserved_thinking: preservedThinking ? 'on' : 'off' });
     flash('genSaved');
   }
 

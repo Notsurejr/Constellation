@@ -194,6 +194,10 @@
           <input type="checkbox" id="teachEditsInput" />
           <span>Teach from your edits — show the model how you sculpted its replies, so it leans toward your voice (off = your edits stay private)</span>
         </label>
+        <label class="field checkbox">
+          <input type="checkbox" id="preservedThinkingInput" checked />
+          <span>Preserved thinking — GLM keeps each reply's reasoning in context across turns (GLM-only; off saves tokens, but the model re-reasons from scratch)</span>
+        </label>
         <label class="field">
           <span>Text flow speed <em id="streamVal">Instant</em></span>
           <input type="range" id="streamInput" min="0" max="100" step="1" value="100" />
