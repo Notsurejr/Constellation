@@ -347,6 +347,12 @@ html, body {
 }
 .sigil-cell:hover { background: rgba(159,184,255,0.12); border-color: var(--panel-border); }
 .sigil-empty { grid-column: 1 / -1; color: var(--text-faint); font-size: 12.5px; padding: 12px 4px; text-align: center; }
+.sigil-pager { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.sigil-pager[hidden] { display: none; }
+.sigil-prev, .sigil-next { background: none; border: 1px solid var(--panel-border); border-radius: 7px; color: var(--text-dim); font: inherit; font-size: 14px; line-height: 1; padding: 3px 10px; cursor: pointer; }
+.sigil-prev:hover:not(:disabled), .sigil-next:hover:not(:disabled) { color: var(--accent); border-color: var(--accent-dim); }
+.sigil-prev:disabled, .sigil-next:disabled { opacity: 0.35; cursor: default; }
+.sigil-page { font-size: 11px; color: var(--text-dim); letter-spacing: 1px; }
 .sigil-hint { color: var(--text-faint); font-size: 10.5px; text-align: center; letter-spacing: 0.3px; }
 .btn-attach:hover { background: rgba(159,184,255,0.16); color: var(--accent); box-shadow: var(--glow); }
 .btn-attach:active { transform: scale(0.95); }
