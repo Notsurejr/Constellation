@@ -1414,3 +1414,71 @@ body.zen .zen-hint:hover { color: var(--accent); border-color: var(--accent-dim)
   line-height: 1.7;
   white-space: pre-wrap;
 }
+
+/* ---------- Immersion grammar — typographic registers inside message prose ---------- */
+/* Split field: origin/self flush-left italic; present/other flush-right bold. */
+.body .g-earth { text-align: left; font-style: italic; max-width: 88%; margin: 0 0 14px; text-wrap: balance; }
+.body .g-ship  { text-align: right; font-weight: 600; color: #aec6e8; max-width: 88%; margin: 0 0 14px auto; text-wrap: balance; }
+/* Cinematic establisher. */
+.body .g-slug {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 10.5px; letter-spacing: 0.24em; text-transform: uppercase;
+  color: var(--text-faint); margin: 18px 0 10px; display: flex; align-items: center; gap: 10px;
+}
+.body .g-slug::before { content: ""; width: 14px; height: 1px; background: var(--accent-dim); }
+/* Centered interlude (verse, ritual, refrain). */
+.body .g-center { text-align: center; font-style: italic; margin: 22px auto; max-width: 74%; line-height: 1.9; }
+/* Drop-cap paragraph (scene/chapter openings). */
+.body .g-dropcap::first-letter {
+  font-size: 46px; line-height: 0.85; font-weight: 600; color: var(--accent);
+  float: left; padding: 5px 9px 0 0;
+}
+/* Letter distortions — atomic: a word spread by design never splits by accident. */
+.g-smash  { letter-spacing: -0.045em; white-space: nowrap; }
+.g-spaced { letter-spacing: 0.42em; margin-right: -0.42em; margin-left: 0.34em; white-space: nowrap; }
+.g-whisper { font-size: 0.82em; color: var(--text-dim); font-style: italic; }
+.g-alien {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.86em; color: #aec6e8; letter-spacing: 0.08em;
+  text-shadow: 0 0 12px rgba(174,198,232,0.28);
+}
+/* The mark — a lamp-glow underline for the word a scene turns on. */
+.g-mark { background: linear-gradient(transparent 56%, rgba(159,184,255,0.42) 44%); box-decoration-break: clone; padding: 0 0.06em; }
+/* Gated text — hidden until hovered, clicked, or drag-selected. */
+.g-redact {
+  background: #20242e; color: #20242e; border-radius: 2px; padding: 0.02em 0.3em;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -2px 4px rgba(0,0,0,0.45);
+  cursor: pointer; transition: color .25s, background .25s, box-shadow .25s;
+  -webkit-tap-highlight-color: transparent; user-select: text;
+}
+.g-redact:hover, .g-redact:focus-visible, .g-redact.on {
+  background: transparent; color: var(--danger);
+  box-shadow: inset 0 0 0 1px rgba(255,155,155,0.3); outline: none;
+}
+.g-redact::selection, .g-redact *::selection { background: var(--danger); color: #000; }
+/* Messages-within-the-story. */
+.g-msg {
+  display: inline-block; font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.82em; color: var(--text); background: rgba(159,184,255,0.09);
+  border: 1px solid var(--panel-border); border-radius: 12px 12px 12px 3px;
+  padding: 5px 12px; margin: 0 4px 6px 0;
+}
+.g-msg.self { border-radius: 12px 12px 3px 12px; background: rgba(159,184,255,0.16); }
+/* Dossier: fenced blocks tagged ```file */
+.body pre:has(code.language-file), .body pre:has(code.lang-file) {
+  border: 1px solid var(--panel-border); border-left: 2px solid var(--accent-dim);
+  border-radius: 8px; background: rgba(255,255,255,0.02);
+}
+.body pre code.language-file, .body pre code.lang-file {
+  font-size: 12.5px; color: var(--text-dim); line-height: 1.8;
+}
+/* Chapter chrome and scene-break ornaments (override the plainer chat defaults below this). */
+.msg .body h1, .msg .body h2, .msg .body h3 {
+  text-align: center; font-variant-caps: all-small-caps; font-weight: 600;
+  letter-spacing: 0.18em; color: var(--accent); font-size: 15px;
+  margin: 26px 0 18px; padding: 10px 0;
+  border-top: 1px solid var(--panel-border); border-bottom: 1px solid var(--panel-border);
+}
+.msg .body hr { border: none; height: auto; text-align: center; margin: 26px auto; background: none; }
+.msg .body hr::after { content: "· · ⋯ ✦ ⋯ · ·"; color: var(--accent-dim); letter-spacing: 0.5em; font-size: 12px; }
+.msg .body blockquote { border-left: 1px solid var(--accent-dim); padding: 2px 0 2px 16px; color: var(--text-dim); font-style: italic; }

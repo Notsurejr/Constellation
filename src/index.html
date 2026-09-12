@@ -199,6 +199,10 @@
           <input type="checkbox" id="preservedThinkingInput" checked />
           <span>Preserved thinking — GLM keeps each reply's reasoning in context across turns (GLM-only; off saves tokens, but the model re-reasons from scratch)</span>
         </label>
+        <label class="field checkbox">
+          <input type="checkbox" id="immersionInput" />
+          <span>Immersion grammar — teach the model the story's typographic registers: split worlds, pacing, whispers, gated text</span>
+        </label>
         <label class="field">
           <span>Text flow speed <em id="streamVal">Instant</em></span>
           <input type="range" id="streamInput" min="0" max="100" step="1" value="100" />

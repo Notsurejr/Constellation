@@ -22,7 +22,7 @@ Constellation.chat = (function () {
   let bulkScroll = false;      // suppress per-message auto-scroll while bulk-rendering a chat
   let usage = { tokens: 0, requests: 0 };   // cumulative estimated tokens for the current chat
   let pendingFiles = [];   // [{ name, size, text }] queued attachments for the next send
-  let opts = { model: 'glm-5.2', temperature: 0.8, topP: 0.95, maxTokens: 0, thinking: false, reasoningEffort: 'max', streamCps: 0, contextWindow: 0, teachEdits: false, preservedThinking: true };
+  let opts = { model: 'glm-5.2', temperature: 0.8, topP: 0.95, maxTokens: 0, thinking: false, reasoningEffort: 'max', streamCps: 0, contextWindow: 0, teachEdits: false, preservedThinking: true, immersion: false };
   let activeLore = [];   // lorebooks enabled for the current chat (each { entries, semantic }); sessions applies this
   let phraseBanRules = [];   // [{ re, replace }] tidied out of GLM's replies AFTER generation (the model never sees these)
   let systemFiles = [];   // [{name,text}] .md/.txt attached to this chat's system instructions (inlined into the system prompt)
@@ -144,12 +144,35 @@ Constellation.chat = (function () {
     if (!files || !files.length) return '';
     return files.map((f) => '===== ' + f.name + ' (' + (f.text || '').length + ' chars) =====\n' + (f.text || '')).join('\n\n');
   }
+  // The immersion grammar, taught to the model when the toggle is on. Restraint is the whole
+  // game: the mandate is a few devices per story, chosen by the moment, never explained.
+  function immersionBlock() {
+    return [
+      '# Prose typography — immersion grammar',
+      'You shape this story with typographic registers. They are part of the prose, never mentioned by you.',
+      'Rules of restraint: plain prose is the default. Use at most one or two devices per scene, and only when the moment earns it. Never stack everything. Never explain the marks.',
+      '- `<< line` — the origin/self world (flush left, italic). `>> line` — the present/other world (flush right, bold). For montages, contrasts, thesis couplets. The axis is origin vs here, NOT good vs bad — painful memories still belong to the self column.',
+      '- Pacing: collapse to short fragments at peak stress; open into long connected sentences at calm. White space is a tempo instrument.',
+      '- `!!words!!` — compressed panic. `::w o r d s::` — dissociation, reality thinning (you space the letters). Mirror images; never both at once, and rarely.',
+      '- `{{word}}` — a whisper, the barely-said.',
+      '- `~words~` — speech the POV character does not truly understand (foreign, machine, dream). The reader may understand it; the character must not.',
+      '- `==word==` — the single word a scene turns on. At most once per scene.',
+      '- `||text||` — gated content the reader chooses to reveal (hover/click). Reserve for the worst moments.',
+      '- A line starting `@ ` — a cinematic establisher of time/place, like a shot change.',
+      '- A paragraph starting `^` opens with a drop cap — scene or chapter openings only.',
+      '- A block between `%%` lines is a centered interlude (verse, ritual, refrain).',
+      '- `[[message]]` — an on-screen text or written note; `[[>message]]` — one the POV character sends.',
+      '- A fenced code block tagged `file` renders as a flat document or dossier.',
+    ].join('\n');
+  }
+
   function buildSystem() {
     return [
       roleplayPrompt,
       projectInstructions && ('# Project instructions\n' + projectInstructions),
       filesBlock(systemFiles),
       filesBlock(projectFiles),
+      opts.immersion && immersionBlock(),
     ].filter(Boolean).join('\n\n');
   }
 
@@ -200,6 +223,7 @@ Constellation.chat = (function () {
     opts.reasoningEffort = cfg.reasoningEffort || 'max';
     opts.teachEdits = cfg.teachEdits === true;   // off unless explicitly on — edits stay private by default
     opts.preservedThinking = cfg.preservedThinking !== false;   // GLM Preserved Thinking — on by default
+    opts.immersion = cfg.immersion === true;   // immersion grammar — off until asked for
     opts.streamCps = cfg.streamCps ?? 0;
     opts.contextWindow = cfg.contextWindow ?? 0;
     setPhraseBans(cfg.phraseBans || '');
@@ -215,6 +239,7 @@ Constellation.chat = (function () {
       ctxMeter.addEventListener('click', viewLastRequest);
       ctxMeter.style.cursor = 'pointer';
     }
+    messagesEl.addEventListener('click', (e) => { const r = e.target.closest('.g-redact'); if (r) r.classList.toggle('on'); });   // gated text: click to reveal/hide
     const cr = document.getElementById('closeRequest');
     if (cr) cr.addEventListener('click', closeRequestView);
     const ro = document.getElementById('requestOverlay');

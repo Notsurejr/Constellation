@@ -167,6 +167,7 @@ function getSettings() {
     cliServer: /^(on|true|1)$/i.test(s.cli_server || ''),
     teachEdits: /^(on|true|1)$/i.test(s.teach_edits || ''),
     preservedThinking: s.preserved_thinking === undefined ? true : /^(on|true|1)$/i.test(s.preserved_thinking || ''),
+    immersion: /^(on|true|1)$/i.test(s.immersion || ''),
     lastBackup: parseInt(s.last_backup || '0', 10) || 0,
     sidebarSort: ['recent','name','size'].includes(s.sidebar_sort) ? s.sidebar_sort : 'recent',
     flareIntensity: clamp(parseFloat(s.flare_intensity || '0.5') || 0.5, 0, 1),
@@ -202,7 +203,7 @@ ipcMain.handle('config:load', () => {
     cliServer: s.cliServer,
     flareIntensity: s.flareIntensity, flareRange: s.flareRange, flareSize: s.flareSize, flareBlend: s.flareBlend,
     fxEvents: s.fxEvents, fxSize: s.fxSize,
-    colorWords: s.colorWords, moodSky: s.moodSky, teachEdits: s.teachEdits, preservedThinking: s.preservedThinking, lastBackup: s.lastBackup, sidebarSort: s.sidebarSort,
+    colorWords: s.colorWords, moodSky: s.moodSky, teachEdits: s.teachEdits, preservedThinking: s.preservedThinking, immersion: s.immersion, lastBackup: s.lastBackup, sidebarSort: s.sidebarSort,
     phraseBans: readTextSafe(PHRASE_BANS_FILE) || '',
     hasKey: !!s.apiKey,
   };
@@ -250,6 +251,7 @@ ipcMain.handle('config:save', (_e, patch) => {
   if (patch.mood_sky !== undefined) setLine('mood_sky', patch.mood_sky);
   if (patch.teach_edits !== undefined) setLine('teach_edits', patch.teach_edits);
   if (patch.preserved_thinking !== undefined) setLine('preserved_thinking', patch.preserved_thinking);
+  if (patch.immersion !== undefined) setLine('immersion', patch.immersion);
   if (patch.last_backup !== undefined) setLine('last_backup', patch.last_backup);
   if (patch.sidebar_sort !== undefined) setLine('sidebar_sort', patch.sidebar_sort);
   if (patch.fx_size !== undefined) setLine('fx_size', patch.fx_size);
