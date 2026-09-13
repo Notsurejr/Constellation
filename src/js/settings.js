@@ -28,7 +28,7 @@ Constellation.settings = (function () {
     }
     if ($('tempInput')) { const tv = o.temperature != null ? o.temperature : 0.8; $('tempInput').value = tv; $('tempVal').textContent = Number(tv).toFixed(2); }
     if ($('topPInput')) { const tpv = o.topP != null ? o.topP : 0.95; $('topPInput').value = tpv; $('topPVal').textContent = Number(tpv).toFixed(2); }
-    if ($('maxInput')) { const mv = o.maxTokens || 4096; $('maxInput').value = mv; $('maxVal').textContent = mv; }
+    if ($('maxInput')) { $('maxInput').value = maxTokensToPos(o.maxTokens || 4096); $('maxVal').textContent = posToMaxTokens($('maxInput').value); }
     if ($('thinkingInput')) $('thinkingInput').checked = !!o.thinking;
     if ($('effortInput')) $('effortInput').value = o.reasoningEffort || 'max';
     const cps = o.streamCps != null ? o.streamCps : 0;
@@ -184,6 +184,19 @@ Constellation.settings = (function () {
     const v = Math.round(99 * Math.log(cps / 25) / Math.log(700 / 25));
     return Math.max(0, Math.min(99, v));
   }
+  // Reply length uses a log scale: slider position 0–700 maps 512 → 65536 tokens
+  // (512 * 2^(pos/100)), so the low end stays easy to aim while the ceiling is reachable;
+  // powers of two land exactly on positions 0, 100, … 700. Values snap to multiples of 256.
+  function posToMaxTokens(v) {
+    v = parseInt(v, 10); if (isNaN(v)) v = 300;
+    v = Math.max(0, Math.min(700, v));
+    return Math.max(512, Math.round(512 * Math.pow(2, v / 100) / 256) * 256);
+  }
+  function maxTokensToPos(t) {
+    t = Number(t) || 4096;
+    t = Math.max(512, Math.min(65536, t));
+    return Math.round(100 * Math.log2(t / 512));
+  }
   function cpsLabel(cps) {
     if (!cps) return 'Instant';
     return cps + ' chars/s';
@@ -199,7 +212,7 @@ Constellation.settings = (function () {
       : ($('modelInput').value.trim() || 'glm-5.3');
     const temperature = parseFloat($('tempInput').value);
     const topP = parseFloat($('topPInput').value);
-    const maxTokens = parseInt($('maxInput').value, 10);
+    const maxTokens = posToMaxTokens($('maxInput').value);
     const thinking = $('thinkingInput').checked;
     const reasoningEffort = $('effortInput').value;
     const teachEdits = $('teachEditsInput') ? $('teachEditsInput').checked : false;
@@ -432,7 +445,7 @@ Constellation.settings = (function () {
     });
     $('tempInput').addEventListener('input', () => { $('tempVal').textContent = Number($('tempInput').value).toFixed(2); });
     $('topPInput').addEventListener('input', () => { $('topPVal').textContent = Number($('topPInput').value).toFixed(2); });
-    $('maxInput').addEventListener('input', () => { $('maxVal').textContent = $('maxInput').value; });
+    $('maxInput').addEventListener('input', () => { $('maxVal').textContent = posToMaxTokens($('maxInput').value); });
     $('contextWindowInput').addEventListener('input', () => { $('contextWindowVal').textContent = cwLabel($('contextWindowInput').value); });
     $('streamInput').addEventListener('input', () => {
       $('streamVal').textContent = cpsLabel(sliderToCps($('streamInput').value));
