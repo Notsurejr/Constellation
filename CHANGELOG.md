@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.6.1 — Longer Skies
+
+*Released: 2026-09-13*
+
+### Changed
+
+- **Max reply length: 16k → 64k, log-scale slider** — the old ceiling was ours, not the
+  model's (GLM 5.x writes up to 128k). The slider now sweeps 512 → 65,536 tokens
+  logarithmically, so the everyday low end stays just as easy to aim while chapter-scale
+  replies and thinking-heavy generations get the room they need. Saved settings carry
+  over unchanged.
+
 ## v0.6.0 — The Sky Remembers
 
 *Released: 2026-08-27*
