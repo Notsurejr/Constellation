@@ -1482,3 +1482,15 @@ body.zen .zen-hint:hover { color: var(--accent); border-color: var(--accent-dim)
 .msg .body hr { border: none; height: auto; text-align: center; margin: 26px auto; background: none; }
 .msg .body hr::after { content: "· · ⋯ ✦ ⋯ · ·"; color: var(--accent-dim); letter-spacing: 0.5em; font-size: 12px; }
 .msg .body blockquote { border-left: 1px solid var(--accent-dim); padding: 2px 0 2px 16px; color: var(--text-dim); font-style: italic; }
+
+/* ---- Markdown export popover (⤓ in the topbar) ---- */
+.export-pop { width: 300px; padding: 12px; gap: 4px; }
+.export-pop-title { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px; }
+.export-pop-row {
+  display: flex; align-items: baseline; gap: 9px; padding: 5px 2px;
+  font-size: 13px; color: var(--text); cursor: pointer; border-radius: 6px;
+}
+.export-pop-row:hover { background: rgba(255,255,255,0.03); }
+.export-pop-row input[type="checkbox"] { transform: translateY(1px); }
+.export-pop-row em { font-style: normal; color: var(--text-dim); font-size: 11.5px; }
+.export-pop .btn { margin-top: 8px; width: 100%; }

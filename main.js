@@ -12,6 +12,9 @@ const crypto = require('crypto');
 const _openai = require('openai');
 const OpenAI = _openai.default || _openai.OpenAI || _openai;
 
+// Markdown export builder — shared by per-chat export and the Markdown backup.
+const mdexport = require('./mdexport');
+
 // Writable user data lives in the OS app-data folder — safe inside a packaged .exe and
 // survives reinstalls/updates. (app.getPath is available once 'electron' is required.)
 const USER_DATA_DIR = app.getPath('userData');
@@ -169,6 +172,7 @@ function getSettings() {
     preservedThinking: s.preserved_thinking === undefined ? true : /^(on|true|1)$/i.test(s.preserved_thinking || ''),
     immersion: /^(on|true|1)$/i.test(s.immersion || ''),
     lastBackup: parseInt(s.last_backup || '0', 10) || 0,
+    mdThinking: s.md_thinking === undefined ? true : /^(on|true|1)$/i.test(s.md_thinking || ''),
     sidebarSort: ['recent','name','size'].includes(s.sidebar_sort) ? s.sidebar_sort : 'recent',
     flareIntensity: clamp(parseFloat(s.flare_intensity || '0.5') || 0.5, 0, 1),
     flareRange: clamp(parseInt(s.flare_range || '140', 10) || 140, 50, 400),
@@ -203,7 +207,7 @@ ipcMain.handle('config:load', () => {
     cliServer: s.cliServer,
     flareIntensity: s.flareIntensity, flareRange: s.flareRange, flareSize: s.flareSize, flareBlend: s.flareBlend,
     fxEvents: s.fxEvents, fxSize: s.fxSize,
-    colorWords: s.colorWords, moodSky: s.moodSky, teachEdits: s.teachEdits, preservedThinking: s.preservedThinking, immersion: s.immersion, lastBackup: s.lastBackup, sidebarSort: s.sidebarSort,
+    colorWords: s.colorWords, moodSky: s.moodSky, teachEdits: s.teachEdits, preservedThinking: s.preservedThinking, immersion: s.immersion, lastBackup: s.lastBackup, sidebarSort: s.sidebarSort, mdThinking: s.mdThinking,
     phraseBans: readTextSafe(PHRASE_BANS_FILE) || '',
     hasKey: !!s.apiKey,
   };
@@ -254,6 +258,7 @@ ipcMain.handle('config:save', (_e, patch) => {
   if (patch.immersion !== undefined) setLine('immersion', patch.immersion);
   if (patch.last_backup !== undefined) setLine('last_backup', patch.last_backup);
   if (patch.sidebar_sort !== undefined) setLine('sidebar_sort', patch.sidebar_sort);
+  if (patch.md_thinking !== undefined) setLine('md_thinking', patch.md_thinking);
   if (patch.fx_size !== undefined) setLine('fx_size', patch.fx_size);
   fs.writeFileSync(SETTINGS_FILE, lines.join('\n'), 'utf8');
   return getSettings();
@@ -728,11 +733,18 @@ ipcMain.handle('craft:journal:append', (_e, line) => {
 });
 
 // ---------- IPC: export current chat to a Markdown/text file ----------
-ipcMain.handle('export:markdown', async (_e, { defaultName, content }) => {
+ipcMain.handle('export:chatMarkdown', async (_e, payload) => {
   try {
-    const safeName = (String(defaultName || 'chat').replace(/[\\/:*?"<>|]/g, '').trim().slice(0, 60)) || 'chat';
+    payload = payload || {};
+    const safeName = mdexport.safeFileTitle(payload.title || payload.defaultName);
+    const md = mdexport.chatToMarkdown({
+      title: payload.title || safeName,
+      messages: payload.messages || [],
+      model: payload.model,
+      system: payload.system,
+    }, { thinking: payload.includeThinking !== false, system: !!payload.includeSystem });
     const res = await dialog.showSaveDialog({
-      title: 'Export chat',
+      title: 'Export chat as Markdown',
       defaultPath: safeName + '.md',
       filters: [
         { name: 'Markdown', extensions: ['md'] },
@@ -740,7 +752,7 @@ ipcMain.handle('export:markdown', async (_e, { defaultName, content }) => {
       ],
     });
     if (res.canceled || !res.filePath) return { ok: false, canceled: true };
-    fs.writeFileSync(res.filePath, String(content || ''), 'utf8');
+    fs.writeFileSync(res.filePath, md, 'utf8');
     return { ok: true, path: res.filePath };
   } catch (e) {
     return { ok: false, error: String((e && e.message) || e) };
@@ -809,6 +821,59 @@ ipcMain.handle('backup:export', async () => {
     return { ok: true, path: res.filePath, sessions: Object.keys(bundle.sessions).length };
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 });
+
+// Markdown backup: every chat as its own readable .md in a folder the user picks —
+// chats stay separate ("as they are"), never mashed into one fat file.
+ipcMain.handle('backup:exportMarkdown', async () => {
+  try {
+    const dirRes = await dialog.showOpenDialog({
+      title: 'Choose a folder for the Markdown backup',
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (dirRes.canceled || !dirRes.filePaths || !dirRes.filePaths[0]) return { ok: false, canceled: true };
+    const outDir = dirRes.filePaths[0];
+    const includeThinking = getSettings().mdThinking !== false;
+    const sessions = readJsonDir(SESSIONS_DIR);
+    const day = localDateStamp();
+    const used = new Map();   // lowercase base name -> count, for collision suffixes
+    let count = 0, skipped = 0;
+    for (const id of Object.keys(sessions)) {
+      const sess = sessions[id];
+      if (!sess || !Array.isArray(sess.messages)) { skipped++; continue; }
+      const hasTurns = sess.messages.some((m) => m && ((m.content || '').trim() || (includeThinking && m.reasoning)));
+      if (!hasTurns) { skipped++; continue; }
+      let base = day + ' ' + mdexport.safeFileTitle(sess.title || 'Untitled');
+      const key = base.toLowerCase();
+      if (used.has(key)) { const n = used.get(key) + 1; used.set(key, n); base += ' (' + n + ')'; }
+      else used.set(key, 1);
+      const md = mdexport.chatToMarkdown({
+        title: sess.title || 'Untitled',
+        messages: sess.messages,
+        model: sess.gen && sess.gen.model,
+      }, { thinking: includeThinking });
+      fs.writeFileSync(path.join(outDir, base + '.md'), md, 'utf8');
+      count++;
+    }
+    try {   // a Markdown backup still counts as "the data is safe somewhere"
+      fs.mkdirSync(CONFIG_DIR, { recursive: true });
+      const l = fs.readFileSync(SETTINGS_FILE, 'utf8').split(/\r?\n/);
+      let hit = false;
+      const upd = l.map((x) => {
+        const t = x.trim();
+        if (!t.startsWith('#') && t.toLowerCase().startsWith('last_backup:')) { hit = true; return 'last_backup: ' + Date.now(); }
+        return x;
+      });
+      if (!hit) upd.push('last_backup: ' + Date.now());
+      fs.writeFileSync(SETTINGS_FILE, upd.join('\n'), 'utf8');
+    } catch (e) {}
+    return { ok: true, path: outDir, count, skipped };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+});
+
+function localDateStamp() {
+  const d = new Date();
+  return d.getFullYear() + '-' + (d.getMonth() + 1 < 10 ? '0' : '') + (d.getMonth() + 1) + '-' + (d.getDate() < 10 ? '0' : '') + d.getDate();
+}
 
 ipcMain.handle('backup:import', async () => {
   try {

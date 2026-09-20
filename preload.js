@@ -54,7 +54,7 @@ contextBridge.exposeInMainWorld('api', {
   loadCraftJournal: () => ipcRenderer.invoke('craft:journal:load'),
   appendCraftJournal: (line) => ipcRenderer.invoke('craft:journal:append', line),
 
-  exportMarkdown: (defaultName, content) => ipcRenderer.invoke('export:markdown', { defaultName, content }),
+  exportChatMarkdown: (payload) => ipcRenderer.invoke('export:chatMarkdown', payload),
 
   writeClipboard: (text) => ipcRenderer.invoke('clipboard:write', text),
 
@@ -65,6 +65,7 @@ contextBridge.exposeInMainWorld('api', {
   sendCliRes: (p) => { ipcRenderer.send('cli:res', p); },
 
   backupExport: () => ipcRenderer.invoke('backup:export'),
+  backupExportMarkdown: () => ipcRenderer.invoke('backup:exportMarkdown'),
   backupRestore: () => ipcRenderer.invoke('backup:import'),
 
   // Stream a chat completion. onChunk(delta) fires per piece, then onDone(full, finishReason) or onError(msg).

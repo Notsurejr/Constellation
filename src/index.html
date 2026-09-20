@@ -305,8 +305,13 @@
         <div class="hint" id="backupDate"></div>
         <div class="settings-actions" style="justify-content:flex-start">
           <button class="btn" id="backupBtn" type="button">Backup</button>
+          <button class="btn ghost" id="backupMdBtn" type="button">Markdown backup…</button>
           <button class="btn ghost" id="restoreBtn" type="button">Restore…</button>
         </div>
+        <label class="field checkbox">
+          <input type="checkbox" id="mdThinkingInput" />
+          <span>Markdown exports include thinking blocks — the JSON backup always keeps them; this only shapes the readable copies (chats export as one file each, Obsidian-friendly)</span>
+        </label>
       </div>
 
       <div class="settings-section">

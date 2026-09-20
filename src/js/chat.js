@@ -123,20 +123,62 @@ Constellation.chat = (function () {
                    + ' — click to see exactly what was sent';
   }
 
-  // Export the current chat to a Markdown file via a native save dialog.
+  // Export this chat as Obsidian-readable Markdown. A small popover gathers the
+  // options first — thinking blocks default from Settings, system prompt off by default.
+  let exportPop = null;
+  function closeExportPop() { if (exportPop) { exportPop.remove(); exportPop = null; } }
   async function exportChat() {
     const turns = conversation.filter((m) => m.role !== 'system');
-    if (!turns.length) return;
+    if (!turns.length) { if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Nothing to export yet'); return; }
+    if (exportPop) { closeExportPop(); return; }
+    let mdThinking = true;
+    try { const cfg = await window.api.loadConfig(); mdThinking = cfg.mdThinking !== false; } catch (e) {}
     const firstUser = turns.find((m) => m.role === 'user');
     const title = (firstUser ? firstUser.content : 'chat').replace(/\s+/g, ' ').trim().slice(0, 60) || 'chat';
-    const lines = ['# ' + title, ''];
-    for (const m of turns) {
-      lines.push('## ' + (m.role === 'user' ? 'You' : 'GLM'));
-      lines.push('');
-      lines.push(m.content || '');
-      lines.push('');
-    }
-    try { await window.api.exportMarkdown(title, lines.join('\n')); if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Exported "' + title + '"'); } catch (e) {}
+
+    exportPop = document.createElement('div');
+    exportPop.className = 'sigil-pop export-pop';
+    const h = document.createElement('div'); h.className = 'export-pop-title'; h.textContent = 'Export as Markdown';
+    exportPop.appendChild(h);
+
+    const mkRow = (label, checked, hint) => {
+      const row = document.createElement('label'); row.className = 'export-pop-row';
+      const box = document.createElement('input'); box.type = 'checkbox'; box.checked = !!checked;
+      const span = document.createElement('span');
+      span.textContent = label;
+      if (hint) { const em = document.createElement('em'); em.textContent = ' ' + hint; span.appendChild(em); }
+      row.appendChild(box); row.appendChild(span);
+      exportPop.appendChild(row);
+      return box;
+    };
+    const thinkBox = mkRow('Thinking blocks', mdThinking, '— folded, click to open');
+    const sysBox = mkRow('System prompt', false, '— folded at the top');
+
+    const go = document.createElement('button'); go.className = 'btn'; go.type = 'button'; go.textContent = 'Export';
+    exportPop.appendChild(go);
+    document.body.appendChild(exportPop);
+    const eb = document.getElementById('exportBtn');   // anchor under the ⤓ button
+    if (eb) { const r = eb.getBoundingClientRect(); exportPop.style.left = Math.max(8, Math.min(window.innerWidth - 336, r.right - 320)) + 'px'; exportPop.style.top = (r.bottom + 8) + 'px'; }
+
+    const dismiss = (ev) => { if (exportPop && !exportPop.contains(ev.target) && ev.target !== document.getElementById('exportBtn')) { closeExportPop(); document.removeEventListener('mousedown', dismiss); } };
+    setTimeout(() => document.addEventListener('mousedown', dismiss), 0);
+
+    go.addEventListener('click', async () => {
+      const payload = {
+        title: title,
+        messages: turns.map((m) => ({ role: m.role, content: m.content || '', reasoning: m.reasoning || '', edited: !!m.edited, orig: m.orig || '' })),
+        model: opts.model,
+        includeThinking: thinkBox.checked,
+        includeSystem: sysBox.checked,
+        system: sysBox.checked && conversation[0] && conversation[0].role === 'system' ? conversation[0].content : '',
+      };
+      closeExportPop();
+      try {
+        const r = await window.api.exportChatMarkdown(payload);
+        if (r && r.ok && window.Constellation && window.Constellation.toast) window.Constellation.toast('Exported "' + title + '"');
+        else if (r && r.error && window.Constellation && window.Constellation.toast) window.Constellation.toast('Export failed: ' + r.error);
+      } catch (e) {}
+    });
   }
 
   // Render attached .md/.txt files as delimited blocks (the model sees these as reference context).

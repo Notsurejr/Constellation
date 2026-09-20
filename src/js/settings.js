@@ -72,6 +72,7 @@ Constellation.settings = (function () {
       if ($('teachEditsInput')) $('teachEditsInput').checked = cfg.teachEdits === true;
       if ($('preservedThinkingInput')) $('preservedThinkingInput').checked = cfg.preservedThinking !== false;
       if ($('immersionInput')) $('immersionInput').checked = cfg.immersion === true;
+      if ($('mdThinkingInput')) $('mdThinkingInput').checked = cfg.mdThinking !== false;
       if ($('backupDate')) {
         const t = cfg.lastBackup || 0;
         $('backupDate').textContent = t
@@ -280,6 +281,7 @@ Constellation.settings = (function () {
       color_words: ($('colorWordsInput') && $('colorWordsInput').checked) ? 'on' : 'off',
       mood_sky: ($('moodSkyInput') && $('moodSkyInput').checked) ? 'on' : 'off',
       fx_events: ($('fxEventsInput') && $('fxEventsInput').checked) ? 'on' : 'off',
+      md_thinking: ($('mdThinkingInput') && $('mdThinkingInput').checked) ? 'on' : 'off',
     });
   }
 
@@ -324,6 +326,13 @@ Constellation.settings = (function () {
     try {
       const r = await window.api.backupExport();
       if (r && r.ok) { if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Backed up ' + (r.sessions || 0) + ' chats'); }
+      else if (r && r.error) { if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Backup failed: ' + r.error); }
+    } catch (e) {}
+  }
+  async function backupExportMarkdown() {
+    try {
+      const r = await window.api.backupExportMarkdown();
+      if (r && r.ok) { if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Markdown backup: ' + (r.count || 0) + ' chats → ' + r.path); }
       else if (r && r.error) { if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Backup failed: ' + r.error); }
     } catch (e) {}
   }
@@ -486,6 +495,8 @@ Constellation.settings = (function () {
     $('saveAppearance').addEventListener('click', saveAppearance);
     $('backupBtn').addEventListener('click', backupExport);
     $('restoreBtn').addEventListener('click', backupRestore);
+    const bmdb = $('backupMdBtn'); if (bmdb) bmdb.addEventListener('click', backupExportMarkdown);
+    if ($('mdThinkingInput')) $('mdThinkingInput').addEventListener('change', saveTogglesNow);
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && $('settingsOverlay').classList.contains('open')) close();
     });

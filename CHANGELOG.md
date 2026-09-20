@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.6.2 — Human-Readable Archives
+
+*Released: 2026-09-19*
+
+### New
+
+- **Obsidian-style Markdown export** — the ⤓ export button now writes chats in a format
+  built for Markdown readers: each turn is a callout (`[!QUESTION]` for you, `[!NOTE]` for
+  the model — a clear divide between writer and AI), with YAML frontmatter carrying the
+  title, model, and date. Sculpted replies are marked `✎ edited`.
+- **Thinking blocks in exports — toggleable** — preserved thinking exports as *folded*
+  callouts (collapsed until clicked). Toggle per-export in the ⤓ popover, or set the
+  default in Settings → Data.
+- **Markdown backup** — Settings → Data gains "Markdown backup…": every chat written as
+  its own `.md` file into a folder you pick, dated and titled — chats stay separate,
+  never mashed into one fat file. The JSON backup remains the full-fidelity restore path.
+
 ## v0.6.1 — Longer Skies
 
 *Released: 2026-09-13*
