@@ -1,14 +1,15 @@
 // Boots the app once the page is ready.
 // Lightweight toast notifications (called from other modules via Constellation.toast).
-Constellation.toast = function (msg) {
+// linger (ms) overrides the default — errors pass a longer one so they're readable in hindsight.
+Constellation.toast = function (msg, linger) {
   const host = document.getElementById('toasts');
   if (!host) return;
   const t = document.createElement('div');
-  t.className = 'toast';
+  t.className = 'toast' + (linger >= 5000 ? ' sticky' : '');
   t.textContent = msg;
   host.appendChild(t);
   requestAnimationFrame(() => t.classList.add('show'));
-  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 1800);
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, linger || 1800);
 };
 
 // The single source of truth for model options — populates both the top-bar switcher and Settings.
@@ -83,7 +84,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       window.Constellation.colorfx.setParams({ intensity: cfg.flareIntensity != null ? cfg.flareIntensity : 0.5, range: cfg.flareRange || 140, size: cfg.flareSize || 35, blend: cfg.flareBlend || 'screen', events: cfg.fxEvents !== false, fxSize: cfg.fxSize != null ? cfg.fxSize : 1, colorWords: cfg.colorWords !== false });
     }
     if (window.Constellation.mood) window.Constellation.mood.setEnabled(cfg.moodSky !== false);
-  } catch (e) {}
+  } catch (e) { console.warn('[constellation]', e && e.message || e); }
 
   if (window.Constellation && window.Constellation.settings) {
     window.Constellation.settings.init();

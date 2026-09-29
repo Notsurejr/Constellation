@@ -53,7 +53,7 @@ function loadWindowState() {
   try { return JSON.parse(fs.readFileSync(WINDOW_STATE_FILE, 'utf8')); } catch (e) { return null; }
 }
 function saveWindowState(state) {
-  try { fs.writeFileSync(WINDOW_STATE_FILE, JSON.stringify(state), 'utf8'); } catch (e) {}
+  try { fs.writeFileSync(WINDOW_STATE_FILE, JSON.stringify(state), 'utf8'); } catch (e) { console.warn('[constellation]', e && e.message || e); }
 }
 function createWindow() {
   const saved = loadWindowState() || {};
@@ -148,76 +148,83 @@ function parseTxt(filePath) {
 
 function clamp(n, lo, hi) { return Math.min(hi, Math.max(lo, n)); }
 
+// Every settings.txt key in ONE table: getSettings parses it, config:load returns it,
+// config:save writes it. Adding a setting = one row here + the renderer wiring — no more
+// three scattered lists drifting apart. Kinds preserve the original parser semantics
+// exactly (including "0/garbage/absent falls back to the default" where that was the case).
+//   ['txt key', 'response field', kind, default, ...kind args]
+const SETTINGS_SPEC = [
+  ['api_key', 'apiKey', 'key', ''],
+  ['model', 'model', 'str', 'glm-5.3'],
+  ['base_url', 'baseUrl', 'str', 'https://open.bigmodel.cn/api/paas/v4/'],
+  ['temperature', 'temperature', 'float', 0.8],
+  ['top_p', 'topP', 'float', 0.95],
+  ['max_tokens', 'maxTokens', 'int', 0],                                   // 0 = provider default
+  ['thinking', 'thinking', 'onoff', false],
+  ['reasoning_effort', 'reasoningEffort', 'enum', 'max', ['max', 'xhigh', 'high', 'medium', 'low', 'minimal', 'none']],
+  ['font_scale', 'fontScale', 'clampedFloat', 1, 0.8, 1.6],
+  ['chat_width', 'chatWidth', 'clampedInt', 880, 600, 1500],
+  ['accent', 'accent', 'hex', ''],
+  ['stream_cps', 'streamCps', 'clampedInt', 0, 0, 2000],                   // 0 = instant
+  ['star_density', 'starDensity', 'clampedFloat', 1, 0.2, 2.5],
+  ['twinkle_speed', 'twinkleSpeed', 'clampedFloat', 1, 0, 2.5],            // 0 = frozen
+  ['context_window', 'contextWindow', 'clampedInt', 0, 0, 1000000],        // 0 = unlimited
+  ['cli_server', 'cliServer', 'onoff', false],
+  ['teach_edits', 'teachEdits', 'onoff', false],
+  ['preserved_thinking', 'preservedThinking', 'onoff', true],
+  ['immersion', 'immersion', 'onoff', false],
+  ['last_backup', 'lastBackup', 'int', 0],
+  ['md_thinking', 'mdThinking', 'onoff', true],
+  ['send_attachments', 'sendAttachments', 'onoff', true],
+  ['sidebar_sort', 'sidebarSort', 'enum', 'recent', ['recent', 'name', 'size']],
+  ['flare_intensity', 'flareIntensity', 'clampedFloat', 0.5, 0, 1],
+  ['flare_range', 'flareRange', 'clampedInt', 140, 50, 400],
+  ['flare_size', 'flareSize', 'clampedInt', 35, 20, 100],
+  ['flare_blend', 'flareBlend', 'enum', 'screen', ['screen', 'soft-light', 'overlay', 'normal']],
+  ['fx_events', 'fxEvents', 'onoff', true],
+  ['fx_size', 'fxSize', 'clampedFloat', 1, 0.4, 2.5],
+  ['color_words', 'colorWords', 'onoff', true],
+  ['mood_sky', 'moodSky', 'onoff', true],
+];
+
+function readSetting(row, raw) {
+  const v = raw[row[0]];
+  const def = row[3];
+  switch (row[2]) {
+    case 'key': return v || process.env.ZAI_API_KEY || '';
+    case 'str': return v || def;
+    case 'float': { const n = parseFloat(v); return isNaN(n) ? def : n; }
+    case 'int': return parseInt(v, 10) || def;
+    case 'clampedInt': return clamp(parseInt(v, 10) || def, row[4], row[5]);
+    case 'clampedFloat': return clamp(parseFloat(v) || def, row[4], row[5]);
+    case 'onoff': return v === undefined ? def : /^(on|true|1)$/i.test(v || '');
+    case 'enum': return row[4].includes(v) ? v : def;
+    case 'hex': return /^#[0-9a-f]{6}$/i.test(v || '') ? v : '';
+    default: return def;
+  }
+}
+
 function getSettings() {
   let s = {};
   try { s = parseTxt(SETTINGS_FILE); } catch (e) { /* file missing -> defaults */ }
-  return {
-    apiKey: s.api_key || process.env.ZAI_API_KEY || '',
-    model: s.model || 'glm-5.3',
-    baseUrl: s.base_url || 'https://open.bigmodel.cn/api/paas/v4/',
-    temperature: parseFloat(s.temperature || '0.8'),
-    topP: parseFloat(s.top_p || '0.95'),
-    maxTokens: parseInt(s.max_tokens || '0', 10) || 0,
-    thinking: /^(on|true|1)$/i.test(s.thinking || ''),
-    reasoningEffort: ['max','xhigh','high','medium','low','minimal','none'].includes(s.reasoning_effort) ? s.reasoning_effort : 'max',
-    fontScale: clamp(parseFloat(s.font_scale || '1') || 1, 0.8, 1.6),
-    chatWidth: clamp(parseInt(s.chat_width || '880', 10) || 880, 600, 1500),
-    accent: /^#[0-9a-f]{6}$/i.test(s.accent || '') ? s.accent : '',
-    streamCps: clamp(parseInt(s.stream_cps || '0', 10) || 0, 0, 2000),   // 0 = instant
-    starDensity: clamp(parseFloat(s.star_density || '1') || 1, 0.2, 2.5),
-    twinkleSpeed: clamp(parseFloat(s.twinkle_speed || '1') || 1, 0, 2.5),   // 0 = frozen
-    contextWindow: clamp(parseInt(s.context_window || '0', 10) || 0, 0, 1000000),   // 0 = unlimited
-    cliServer: /^(on|true|1)$/i.test(s.cli_server || ''),
-    teachEdits: /^(on|true|1)$/i.test(s.teach_edits || ''),
-    preservedThinking: s.preserved_thinking === undefined ? true : /^(on|true|1)$/i.test(s.preserved_thinking || ''),
-    immersion: /^(on|true|1)$/i.test(s.immersion || ''),
-    lastBackup: parseInt(s.last_backup || '0', 10) || 0,
-    mdThinking: s.md_thinking === undefined ? true : /^(on|true|1)$/i.test(s.md_thinking || ''),
-    sendAttachments: s.send_attachments === undefined ? true : /^(on|true|1)$/i.test(s.send_attachments || ''),
-    sidebarSort: ['recent','name','size'].includes(s.sidebar_sort) ? s.sidebar_sort : 'recent',
-    flareIntensity: clamp(parseFloat(s.flare_intensity || '0.5') || 0.5, 0, 1),
-    flareRange: clamp(parseInt(s.flare_range || '140', 10) || 140, 50, 400),
-    flareSize: clamp(parseInt(s.flare_size || '35', 10) || 35, 20, 100),
-    flareBlend: ['screen','soft-light','overlay','normal'].includes(s.flare_blend) ? s.flare_blend : 'screen',
-    fxEvents: s.fx_events === undefined ? true : /^(on|true|1)$/i.test(s.fx_events || ''),
-    colorWords: s.color_words === undefined ? true : /^(on|true|1)$/i.test(s.color_words || ''),
-    moodSky: s.mood_sky === undefined ? true : /^(on|true|1)$/i.test(s.mood_sky || ''),
-    fxSize: clamp(parseFloat(s.fx_size || '1') || 1, 0.4, 2.5),
-  };
+  const out = {};
+  for (const row of SETTINGS_SPEC) out[row[1]] = readSetting(row, s);
+  return out;
 }
 
 // ---------- IPC: config ----------
 ipcMain.handle('config:load', () => {
   const s = getSettings();
-  return {
-    apiKey: s.apiKey,
-    model: s.model,
-    baseUrl: s.baseUrl,
-    temperature: s.temperature,
-    topP: s.topP,
-    maxTokens: s.maxTokens,
-    thinking: s.thinking,
-    reasoningEffort: s.reasoningEffort,
-    fontScale: s.fontScale,
-    chatWidth: s.chatWidth,
-    accent: s.accent,
-    streamCps: s.streamCps,
-    starDensity: s.starDensity,
-    twinkleSpeed: s.twinkleSpeed,
-    contextWindow: s.contextWindow,
-    cliServer: s.cliServer,
-    flareIntensity: s.flareIntensity, flareRange: s.flareRange, flareSize: s.flareSize, flareBlend: s.flareBlend,
-    fxEvents: s.fxEvents, fxSize: s.fxSize,
-    colorWords: s.colorWords, moodSky: s.moodSky, teachEdits: s.teachEdits, preservedThinking: s.preservedThinking, immersion: s.immersion, lastBackup: s.lastBackup, sidebarSort: s.sidebarSort, mdThinking: s.mdThinking, sendAttachments: s.sendAttachments,
+  return Object.assign(s, {
     phraseBans: readTextSafe(PHRASE_BANS_FILE) || '',
     hasKey: !!s.apiKey,
-  };
+  });
 });
 
 ipcMain.handle('config:save', (_e, patch) => {
   fs.mkdirSync(CONFIG_DIR, { recursive: true });
   let lines = [];
-  try { lines = fs.readFileSync(SETTINGS_FILE, 'utf8').split(/\r?\n/); } catch (e) {}
+  try { lines = fs.readFileSync(SETTINGS_FILE, 'utf8').split(/\r?\n/); } catch (e) { console.warn('[constellation]', e && e.message || e); }
 
   const setLine = (key, val) => {
     let found = false;
@@ -231,37 +238,10 @@ ipcMain.handle('config:save', (_e, patch) => {
     });
     if (!found) lines.push(`${key}: ${val}`);
   };
-  if (patch.api_key !== undefined) setLine('api_key', patch.api_key);
-  if (patch.model !== undefined) setLine('model', patch.model);
-  if (patch.base_url !== undefined) setLine('base_url', patch.base_url);
-  if (patch.temperature !== undefined) setLine('temperature', patch.temperature);
-  if (patch.top_p !== undefined) setLine('top_p', patch.top_p);
-  if (patch.max_tokens !== undefined) setLine('max_tokens', patch.max_tokens);
-  if (patch.thinking !== undefined) setLine('thinking', patch.thinking ? 'on' : 'off');
-  if (patch.reasoning_effort !== undefined) setLine('reasoning_effort', patch.reasoning_effort);
-  if (patch.font_scale !== undefined) setLine('font_scale', patch.font_scale);
-  if (patch.chat_width !== undefined) setLine('chat_width', patch.chat_width);
-  if (patch.accent !== undefined) setLine('accent', patch.accent);
-  if (patch.stream_cps !== undefined) setLine('stream_cps', patch.stream_cps);
-  if (patch.star_density !== undefined) setLine('star_density', patch.star_density);
-  if (patch.twinkle_speed !== undefined) setLine('twinkle_speed', patch.twinkle_speed);
-  if (patch.context_window !== undefined) setLine('context_window', patch.context_window);
-  if (patch.cli_server !== undefined) setLine('cli_server', patch.cli_server);
-  if (patch.flare_intensity !== undefined) setLine('flare_intensity', patch.flare_intensity);
-  if (patch.flare_range !== undefined) setLine('flare_range', patch.flare_range);
-  if (patch.flare_size !== undefined) setLine('flare_size', patch.flare_size);
-  if (patch.flare_blend !== undefined) setLine('flare_blend', patch.flare_blend);
-  if (patch.fx_events !== undefined) setLine('fx_events', patch.fx_events);
-  if (patch.color_words !== undefined) setLine('color_words', patch.color_words);
-  if (patch.mood_sky !== undefined) setLine('mood_sky', patch.mood_sky);
-  if (patch.teach_edits !== undefined) setLine('teach_edits', patch.teach_edits);
-  if (patch.preserved_thinking !== undefined) setLine('preserved_thinking', patch.preserved_thinking);
-  if (patch.immersion !== undefined) setLine('immersion', patch.immersion);
-  if (patch.last_backup !== undefined) setLine('last_backup', patch.last_backup);
-  if (patch.sidebar_sort !== undefined) setLine('sidebar_sort', patch.sidebar_sort);
-  if (patch.md_thinking !== undefined) setLine('md_thinking', patch.md_thinking);
-  if (patch.send_attachments !== undefined) setLine('send_attachments', patch.send_attachments);
-  if (patch.fx_size !== undefined) setLine('fx_size', patch.fx_size);
+  for (const row of SETTINGS_SPEC) {
+    const v = patch[row[0]];
+    if (v !== undefined) setLine(row[0], typeof v === 'boolean' ? (v ? 'on' : 'off') : v);
+  }
   fs.writeFileSync(SETTINGS_FILE, lines.join('\n'), 'utf8');
   return getSettings();
 });
@@ -344,7 +324,7 @@ ipcMain.handle('sessions:save', (_e, { id, title, messages, system, project, gen
   id = safeId(id) || 's_' + Date.now() + '_' + Math.floor(Math.random() * 1e9);   // invalid/absent id → fresh one, never trusted
   const file = path.join(SESSIONS_DIR, id + '.json');
   let pinned = false, pId, pTitle, folder = null, pLore = null, wasHidden = false;
-  try { const ex = JSON.parse(fs.readFileSync(file, 'utf8')); pinned = !!ex.pinned; pId = ex.parentId; pTitle = ex.parentTitle; folder = ex.folder || null; pLore = Array.isArray(ex.lore) ? ex.lore : null; wasHidden = !!ex.hidden; } catch (e) {}
+  try { const ex = JSON.parse(fs.readFileSync(file, 'utf8')); pinned = !!ex.pinned; pId = ex.parentId; pTitle = ex.parentTitle; folder = ex.folder || null; pLore = Array.isArray(ex.lore) ? ex.lore : null; wasHidden = !!ex.hidden; } catch (e) { console.warn('[constellation]', e && e.message || e); }
   const data = {
     id, title: title || 'Untitled', messages: messages || [], system, project, systemFiles: systemFiles || [], projectFiles: projectFiles || [], gen, usage, pinned, hidden: wasHidden,
     parentId: parentId !== undefined ? parentId : pId, parentTitle: parentTitle !== undefined ? parentTitle : pTitle,
@@ -357,12 +337,12 @@ ipcMain.handle('sessions:save', (_e, { id, title, messages, system, project, gen
 
 ipcMain.handle('sessions:delete', (_e, id) => {
   if (!safeId(id)) return { ok: false };
-  try { fs.unlinkSync(path.join(SESSIONS_DIR, id + '.json')); } catch (e) {}
+  try { fs.unlinkSync(path.join(SESSIONS_DIR, id + '.json')); } catch (e) { console.warn('[constellation]', e && e.message || e); }
   try {   // a deleted chat's bookmarks are now orphans — drop them
     const bms = readBookmarks();
     const next = bms.filter((b) => b.chatId !== id);
     if (next.length !== bms.length) writeBookmarks(next);
-  } catch (e) {}
+  } catch (e) { console.warn('[constellation]', e && e.message || e); }
   return { ok: true };
 });
 
@@ -429,7 +409,7 @@ ipcMain.handle('folders:load', () => {
 ipcMain.handle('folders:save', (_e, { id, name }) => {
   try {
     let d = {};
-    try { d = JSON.parse(fs.readFileSync(FOLDERS_FILE, 'utf8')) || {}; } catch (e) {}
+    try { d = JSON.parse(fs.readFileSync(FOLDERS_FILE, 'utf8')) || {}; } catch (e) { console.warn('[constellation]', e && e.message || e); }
     id = safeId(id) || 'f_' + Date.now() + '_' + Math.floor(Math.random() * 1e9);
     d[id] = { id, name: (name || 'Folder').trim().slice(0, 60), collapsed: d[id] ? !!d[id].collapsed : false };
     fs.writeFileSync(FOLDERS_FILE, JSON.stringify(d, null, 2), 'utf8');
@@ -440,7 +420,7 @@ ipcMain.handle('folders:delete', (_e, { id }) => {
   if (!safeId(id)) return { ok: false };
   try {
     let d = {};
-    try { d = JSON.parse(fs.readFileSync(FOLDERS_FILE, 'utf8')) || {}; } catch (e) {}
+    try { d = JSON.parse(fs.readFileSync(FOLDERS_FILE, 'utf8')) || {}; } catch (e) { console.warn('[constellation]', e && e.message || e); }
     delete d[id];
     fs.writeFileSync(FOLDERS_FILE, JSON.stringify(d, null, 2), 'utf8');
     return { ok: true };
@@ -450,7 +430,7 @@ ipcMain.handle('folders:toggle', (_e, { id, collapsed }) => {
   if (!safeId(id)) return { ok: false };
   try {
     let d = {};
-    try { d = JSON.parse(fs.readFileSync(FOLDERS_FILE, 'utf8')) || {}; } catch (e) {}
+    try { d = JSON.parse(fs.readFileSync(FOLDERS_FILE, 'utf8')) || {}; } catch (e) { console.warn('[constellation]', e && e.message || e); }
     if (d[id]) { d[id].collapsed = !!collapsed; fs.writeFileSync(FOLDERS_FILE, JSON.stringify(d, null, 2), 'utf8'); }
     return { ok: true };
   } catch (e) { return { ok: false }; }
@@ -476,7 +456,7 @@ ipcMain.handle('sessions:search', (_e, q) => {
           }
         }
         if (idx !== -1) out.push({ id: d.id || f.replace(/\.json$/, ''), title, snippet, updatedAt: d.updatedAt || 0 });
-      } catch (e) {}
+      } catch (e) { console.warn('[constellation]', e && e.message || e); }
     }
     out.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     return out;
@@ -489,7 +469,7 @@ function readBookmarks() {
   try { return JSON.parse(fs.readFileSync(BOOKMARKS_FILE, 'utf8')) || []; } catch (e) { return []; }
 }
 function writeBookmarks(list) {
-  try { fs.mkdirSync(DATA_DIR, { recursive: true }); fs.writeFileSync(BOOKMARKS_FILE, JSON.stringify(list, null, 2), 'utf8'); } catch (e) {}
+  try { fs.mkdirSync(DATA_DIR, { recursive: true }); fs.writeFileSync(BOOKMARKS_FILE, JSON.stringify(list, null, 2), 'utf8'); } catch (e) { console.warn('[constellation]', e && e.message || e); }
 }
 ipcMain.handle('bookmarks:load', () => readBookmarks());
 ipcMain.handle('bookmarks:add', (_e, { chatId, chatTitle, msgIndex, head, role }) => {
@@ -518,7 +498,7 @@ function readLorebooks() {
   catch (e) { return {}; }
 }
 function writeLorebooks(map) {
-  try { fs.mkdirSync(DATA_DIR, { recursive: true }); fs.writeFileSync(LOREBOOKS_FILE, JSON.stringify(map || {}, null, 2), 'utf8'); } catch (e) {}
+  try { fs.mkdirSync(DATA_DIR, { recursive: true }); fs.writeFileSync(LOREBOOKS_FILE, JSON.stringify(map || {}, null, 2), 'utf8'); } catch (e) { console.warn('[constellation]', e && e.message || e); }
 }
 // One-time migration: fold the legacy single lorebook into the collection as "Main".
 function migrateLorebook() {
@@ -528,7 +508,7 @@ function migrateLorebook() {
     if (!raw) return;
     const id = 'lb_' + Date.now() + '_' + Math.floor(Math.random() * 1e9);
     writeLorebooks({ [id]: { id, name: 'Main', semantic: raw.semantic === true, entries: Array.isArray(raw.entries) ? raw.entries : [] } });
-  } catch (e) {}
+  } catch (e) { console.warn('[constellation]', e && e.message || e); }
 }
 ipcMain.handle('lorebooks:load', () => readLorebooks());
 ipcMain.handle('lorebooks:save', (_e, map) => { writeLorebooks(map); return readLorebooks(); });
@@ -675,10 +655,10 @@ ipcMain.handle('drafts:load', () => {
 ipcMain.handle('drafts:save', (_e, { id, text }) => {
   try {
     let d = {};
-    try { d = JSON.parse(fs.readFileSync(DRAFTS_FILE, 'utf8')) || {}; } catch (e) {}
+    try { d = JSON.parse(fs.readFileSync(DRAFTS_FILE, 'utf8')) || {}; } catch (e) { console.warn('[constellation]', e && e.message || e); }
     if (text) d[id] = text; else delete d[id];
     fs.writeFileSync(DRAFTS_FILE, JSON.stringify(d, null, 2), 'utf8');
-  } catch (e) {}
+  } catch (e) { console.warn('[constellation]', e && e.message || e); }
   return { ok: true };
 });
 
@@ -718,7 +698,7 @@ ipcMain.handle('presets:save', (_e, { id, name, system, project }) => {
 
 ipcMain.handle('presets:delete', (_e, id) => {
   if (!safeId(id)) return { ok: false };
-  try { fs.unlinkSync(path.join(PRESETS_DIR, id + '.json')); } catch (e) {}
+  try { fs.unlinkSync(path.join(PRESETS_DIR, id + '.json')); } catch (e) { console.warn('[constellation]', e && e.message || e); }
   return { ok: true };
 });
 
@@ -772,11 +752,11 @@ ipcMain.handle('clipboard:write', (_e, text) => {
 function readTextSafe(p) { try { return fs.readFileSync(p, 'utf8'); } catch (e) { return null; } }
 function readJsonDir(dir) {
   const out = {};
-  try { for (const f of fs.readdirSync(dir)) { if (!f.endsWith('.json')) continue; try { out[f.replace(/\.json$/, '')] = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')); } catch (e) {} } } catch (e) {}
+  try { for (const f of fs.readdirSync(dir)) { if (!f.endsWith('.json')) continue; try { out[f.replace(/\.json$/, '')] = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')); } catch (e) { console.warn('[constellation]', e && e.message || e); } } } catch (e) { console.warn('[constellation]', e && e.message || e); }
   return out;
 }
 function clearJsonDir(dir) {
-  try { for (const f of fs.readdirSync(dir)) if (f.endsWith('.json')) { try { fs.unlinkSync(path.join(dir, f)); } catch (e) {} } } catch (e) {}
+  try { for (const f of fs.readdirSync(dir)) if (f.endsWith('.json')) { try { fs.unlinkSync(path.join(dir, f)); } catch (e) { console.warn('[constellation]', e && e.message || e); } } } catch (e) { console.warn('[constellation]', e && e.message || e); }
 }
 
 ipcMain.handle('backup:export', async () => {
@@ -819,7 +799,7 @@ ipcMain.handle('backup:export', async () => {
       });
       if (!hit) upd.push('last_backup: ' + Date.now());
       fs.writeFileSync(SETTINGS_FILE, upd.join('\n'), 'utf8');
-    } catch (e) {}
+    } catch (e) { console.warn('[constellation]', e && e.message || e); }
     return { ok: true, path: res.filePath, sessions: Object.keys(bundle.sessions).length };
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 });
@@ -867,7 +847,7 @@ ipcMain.handle('backup:exportMarkdown', async () => {
       });
       if (!hit) upd.push('last_backup: ' + Date.now());
       fs.writeFileSync(SETTINGS_FILE, upd.join('\n'), 'utf8');
-    } catch (e) {}
+    } catch (e) { console.warn('[constellation]', e && e.message || e); }
     return { ok: true, path: outDir, count, skipped };
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 });
@@ -1021,7 +1001,7 @@ ipcMain.handle('chat:stream', async (event, payload) => {
 // Stop an in-flight stream; whatever was already generated is kept (chat:done fires with the partial).
 ipcMain.handle('chat:cancel', (_e, { requestId }) => {
   const ac = activeStreams.get(requestId);
-  if (ac) { try { ac.abort(); } catch (e) {} }
+  if (ac) { try { ac.abort(); } catch (e) { console.warn('[constellation]', e && e.message || e); } }
   return { ok: true };
 });
 
@@ -1057,9 +1037,9 @@ function backfillUsage() {
         }
         d.usage = { tokens, requests };
         fs.writeFileSync(file, JSON.stringify(d, null, 2), 'utf8');
-      } catch (e) {}
+      } catch (e) { console.warn('[constellation]', e && e.message || e); }
     }
-  } catch (e) {}
+  } catch (e) { console.warn('[constellation]', e && e.message || e); }
 }
 
 // ---------- Local CLI server (Shape A) — localhost-only, token-protected, off by default ----------
@@ -1094,7 +1074,7 @@ async function handleCliHttp(req, res, token) {
     if (!cmd) { res.writeHead(404, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ error: 'unknown route: ' + u.pathname })); }
     let args = {};
     if (req.method === 'GET') u.searchParams.forEach((v, k) => { args[k] = v; });
-    else { const body = await new Promise((r) => { let d = ''; req.on('data', (c) => (d += c)); req.on('end', () => r(d)); }); try { args = JSON.parse(body || '{}'); } catch (e) {} }
+    else { const body = await new Promise((r) => { let d = ''; req.on('data', (c) => (d += c)); req.on('end', () => r(d)); }); try { args = JSON.parse(body || '{}'); } catch (e) { console.warn('[constellation]', e && e.message || e); } }
     const result = await rendererCmd(cmd, args, cmd === 'dry-send' ? 180000 : 30000);
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify(result));
@@ -1111,7 +1091,7 @@ function startCliServer() {
   cliServer = http.createServer((req, res) => handleCliHttp(req, res, token));
   cliServer.on('error', () => { cliServer = null; });
   cliServer.listen(PORT, '127.0.0.1', () => {
-    try { fs.writeFileSync(path.join(USER_DATA_DIR, 'cli-server.json'), JSON.stringify({ port: PORT, token, enabled: true }), 'utf8'); } catch (e) {}
+    try { fs.writeFileSync(path.join(USER_DATA_DIR, 'cli-server.json'), JSON.stringify({ port: PORT, token, enabled: true }), 'utf8'); } catch (e) { console.warn('[constellation]', e && e.message || e); }
   });
 }
 

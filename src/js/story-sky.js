@@ -121,8 +121,8 @@ Constellation.storySky = (function () {
     if (!overlay || !host) return;
     let sessions = [];
     let allBms = [];
-    try { sessions = await window.api.listSessions(); } catch (e) {}
-    try { allBms = await window.api.loadBookmarks(); } catch (e) {}
+    try { sessions = await window.api.listSessions(); } catch (e) { console.warn('[constellation]', e && e.message || e); }
+    try { allBms = await window.api.loadBookmarks(); } catch (e) { console.warn('[constellation]', e && e.message || e); }
     sessions = sessions.filter(function (s) { return !s.hidden; });
     host.replaceChildren();
     if (!sessions.length) {

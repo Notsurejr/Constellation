@@ -1,5 +1,30 @@
 # Changelog
 
+## v0.6.5 — Quiet Fixes
+
+*Released: 2026-09-29*
+
+### Fixed
+
+- **Scroll no longer bumps while you read** — model-side additions only auto-follow when you're
+  already at the bottom; regenerating or continuing mid-read no longer yanks you down.
+- **Forked chats keep their history intact** — sculpted replies now carry their ✎ state,
+  preserved originals, and variants into the fork (previously silently dropped).
+
+### Changed
+
+- **Errors linger and explain themselves** — error toasts stay ~9 seconds with a highlighted
+  border, and the status pill keeps the full message on hover after the toast fades. The
+  provider's "unsafe/sensitive content" flag now explains the likely causes (old attachments
+  riding in context) and what to do about it.
+- **One settings table** — every settings.txt key is now defined in a single spec driving
+  load, parse, and save (was three hand-maintained lists waiting to drift).
+
+### Internal
+
+- 63 silent `catch {}` blocks now log to the console (visible when debugging; invisible in
+  normal use). The "newest-only attachments" rule is one shared function instead of two copies.
+
 ## v0.6.4 — Controls on the Chips
 
 *Released: 2026-09-19*

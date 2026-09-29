@@ -68,7 +68,7 @@ Constellation.chronicle = (function () {
     const cancel = document.createElement('button');
     cancel.className = 'chronicle-progress-cancel'; cancel.type = 'button'; cancel.textContent = '✕ stop';
     cancel.title = 'Stop the capture — everything read so far is kept';
-    cancel.addEventListener('click', function () { try { window.api.cancelChronicle(); } catch (e) {} });
+    cancel.addEventListener('click', function () { try { window.api.cancelChronicle(); } catch (e) { console.warn('[constellation]', e && e.message || e); } });
     progWrap.appendChild(cancel);
     const btnRow = document.createElement('div');
     btnRow.className = 'chronicle-btnrow';
@@ -105,7 +105,7 @@ Constellation.chronicle = (function () {
 
   function persist() {
     if (!chatId) return;
-    try { window.api.saveChronicle(chatId, facts, seen); } catch (e) {}
+    try { window.api.saveChronicle(chatId, facts, seen); } catch (e) { console.warn('[constellation]', e && e.message || e); }
   }
 
   function render() {
@@ -198,7 +198,7 @@ Constellation.chronicle = (function () {
     chatId = id || null;
     facts = []; seen = 0;
     if (chatId) {
-      try { const r = await window.api.loadChronicle(chatId); facts = (r && r.facts) || []; seen = (r && r.seen) || 0; } catch (e) {}
+      try { const r = await window.api.loadChronicle(chatId); facts = (r && r.facts) || []; seen = (r && r.seen) || 0; } catch (e) { console.warn('[constellation]', e && e.message || e); }
     }
     render();
   }

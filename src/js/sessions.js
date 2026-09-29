@@ -155,7 +155,7 @@ Constellation.sessions = (function () {
     el.replaceChildren();
     if (searchQuery) {
       let results = [];
-      try { results = await window.api.searchSessions(searchQuery); } catch (e) {}
+      try { results = await window.api.searchSessions(searchQuery); } catch (e) { console.warn('[constellation]', e && e.message || e); }
       $('sidebar').classList.toggle('has-items', results.length > 0);
       if (!results.length) {
         const empty = document.createElement('div');
@@ -179,7 +179,7 @@ Constellation.sessions = (function () {
     }
     try { folders = await window.api.loadFolders(); } catch (e) { folders = {}; }
     let list = [];
-    try { list = await window.api.listSessions(); } catch (e) {}
+    try { list = await window.api.listSessions(); } catch (e) { console.warn('[constellation]', e && e.message || e); }
     const hiddenCount = list.filter((s) => s.hidden).length;
     const visible = list.filter((s) => showHidden || !s.hidden);   // hidden chats stay out of the way until asked for
     list = visible;
@@ -238,11 +238,11 @@ Constellation.sessions = (function () {
     currentTitle = null;
     // A new chat starts from the default instruction files + default generation settings.
     let rp = '', proj = '';
-    try { rp = (await window.api.loadModes()).roleplay || ''; } catch (e) {}
-    try { proj = (await window.api.loadProject()) || ''; } catch (e) {}
+    try { rp = (await window.api.loadModes()).roleplay || ''; } catch (e) { console.warn('[constellation]', e && e.message || e); }
+    try { proj = (await window.api.loadProject()) || ''; } catch (e) { console.warn('[constellation]', e && e.message || e); }
     Constellation.chat.setPrompts({ roleplay: rp, project: proj, systemFiles: [], projectFiles: [] });
     let gen = null;
-    try { gen = cfgToGen(await window.api.loadConfig()); } catch (e) {}
+    try { gen = cfgToGen(await window.api.loadConfig()); } catch (e) { console.warn('[constellation]', e && e.message || e); }
     if (gen) Constellation.chat.setOptions(gen);   // don't inherit the previous chat's settings
     if (Constellation.chat.setDraft) Constellation.chat.setDraft('');
     currentLore = [];   // new chats start with lore off by default
@@ -262,14 +262,14 @@ Constellation.sessions = (function () {
     // Restore this chat's own instructions; older chats without any fall back to the default files.
     let system = s.system, project = s.project;
     if (system === undefined && project === undefined) {
-      try { system = (await window.api.loadModes()).roleplay || ''; } catch (e) {}
-      try { project = (await window.api.loadProject()) || ''; } catch (e) {}
+      try { system = (await window.api.loadModes()).roleplay || ''; } catch (e) { console.warn('[constellation]', e && e.message || e); }
+      try { project = (await window.api.loadProject()) || ''; } catch (e) { console.warn('[constellation]', e && e.message || e); }
     }
     // Restore generation settings: start from GLOBAL Settings, then carry over only this chat's
     // model. Older snapshots froze thinking/effort/etc per-chat — whitelisting heals those chats
     // (e.g. ones stuck on effort "high") so what Settings says today is what every chat does.
     let gen = null;
-    try { gen = cfgToGen(await window.api.loadConfig()); } catch (e) {}
+    try { gen = cfgToGen(await window.api.loadConfig()); } catch (e) { console.warn('[constellation]', e && e.message || e); }
     if (gen && s.gen && s.gen.model) gen.model = s.gen.model;
     currentLore = Array.isArray(s.lore) ? s.lore : [];
     if (window.Constellation.storySky) window.Constellation.storySky.setChat(s.id, s.title || 'Untitled');   // this chat's constellation takes the margin
@@ -277,7 +277,7 @@ Constellation.sessions = (function () {
     Constellation.chat.loadSession(s.messages || [], system, project, gen, s.usage, s.systemFiles, s.projectFiles);
     applyLore();   // apply this chat's enabled lorebooks to retrieval
     // Restore this chat's saved draft (if any), and — if we arrived via search — jump to the match.
-    try { const drafts = await window.api.loadDrafts(); if (Constellation.chat.setDraft) Constellation.chat.setDraft(drafts[id] || ''); } catch (e) {}
+    try { const drafts = await window.api.loadDrafts(); if (Constellation.chat.setDraft) Constellation.chat.setDraft(drafts[id] || ''); } catch (e) { console.warn('[constellation]', e && e.message || e); }
     close();
     refresh();
     if (searchQuery && Constellation.chat.scrollToMatch) Constellation.chat.scrollToMatch(searchQuery);
@@ -290,7 +290,7 @@ Constellation.sessions = (function () {
       currentId = res.id;
       currentTitle = title;   // keep it across later auto-saves
       refresh();
-    } catch (e) {}
+    } catch (e) { console.warn('[constellation]', e && e.message || e); }
   }
 
   // Create a new chat that branches off a conversation prefix (carrying the parent's instructions
@@ -302,7 +302,7 @@ Constellation.sessions = (function () {
       const res = await window.api.saveSession({ id: null, title, messages: bundle.messages, system: bundle.system, project: bundle.project, gen: bundle.gen, parentId, parentTitle });
       await load(res.id);   // create + switch into the new fork
       if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Forked to "' + title + '"');
-    } catch (e) {}
+    } catch (e) { console.warn('[constellation]', e && e.message || e); }
   }
 
   // Inline-rename a saved chat: swap the title for an input, save on Enter/blur, cancel on Esc.
@@ -323,7 +323,7 @@ Constellation.sessions = (function () {
       done = true;
       const v = input.value.trim();
       if (v && v !== original) {
-        try { await window.api.renameSession(id, v); } catch (e) {}
+        try { await window.api.renameSession(id, v); } catch (e) { console.warn('[constellation]', e && e.message || e); }
         if (id === currentId) currentTitle = v;   // so the next auto-save keeps the new name
       }
       refresh();
@@ -404,10 +404,10 @@ Constellation.sessions = (function () {
     const sortSel = $('sidebarSort');
     if (sortSel) sortSel.addEventListener('change', async () => {
       sortMode = sortSel.value;
-      try { await window.api.saveConfig({ sidebar_sort: sortMode }); } catch (e) {}
+      try { await window.api.saveConfig({ sidebar_sort: sortMode }); } catch (e) { console.warn('[constellation]', e && e.message || e); }
       refresh();
     });
-    (async () => { try { const cfg = await window.api.loadConfig(); if (cfg && cfg.sidebarSort) { sortMode = cfg.sidebarSort; sortSel.value = sortMode; } } catch (e) {} })();
+    (async () => { try { const cfg = await window.api.loadConfig(); if (cfg && cfg.sidebarSort) { sortMode = cfg.sidebarSort; sortSel.value = sortMode; } } catch (e) { console.warn('[constellation]', e && e.message || e); } })();
     $('sessionList').addEventListener('click', (e) => {
       // Folder row: toggle expand/collapse (or delete).
       const frow = e.target.closest('.folder-row');
@@ -461,7 +461,7 @@ Constellation.sessions = (function () {
   // Persist the in-progress input for the current chat (called by chat.js on input).
   function saveDraft(text) {
     if (currentId && window.api && window.api.saveDraft) {
-      try { window.api.saveDraft(currentId, text); } catch (e) {}
+      try { window.api.saveDraft(currentId, text); } catch (e) { console.warn('[constellation]', e && e.message || e); }
     }
   }
 
@@ -489,12 +489,12 @@ Constellation.sessions = (function () {
     try {
       const map = await window.api.loadLorebooks() || {};
       Constellation.chat.setActiveLore(currentLore.map((id) => map[id]).filter(Boolean));
-    } catch (e) {}
+    } catch (e) { console.warn('[constellation]', e && e.message || e); }
   }
   // Enable/disable a lorebook for the current chat (called from the Lorebook overlay checkboxes).
   function setLore(ids) {
     currentLore = Array.isArray(ids) ? ids.slice() : [];
-    if (currentId) { try { window.api.setSessionLore(currentId, currentLore); } catch (e) {} }
+    if (currentId) { try { window.api.setSessionLore(currentId, currentLore); } catch (e) { console.warn('[constellation]', e && e.message || e); } }
     applyLore();
   }
   function getLore() { return currentLore; }

@@ -28,10 +28,12 @@ Constellation.chat = (function () {
   let systemFiles = [];   // [{name,text}] .md/.txt attached to this chat's system instructions (inlined into the system prompt)
   let projectFiles = [];  // [{name,text}] attached to this chat's project instructions
 
-  function setStatus(text, cls) {
+  function setStatus(text, cls, detail) {
     statusEl.textContent = text;
     statusEl.className = 'status' + (cls ? ' ' + cls : '');
     statusEl.classList.toggle('breathe', /^connected\b/.test(String(text)));   // gentle idle pulse
+    // Errors stay visible after the toast fades: hover the pill to re-read what happened.
+    statusEl.title = (cls === 'err' && detail) ? detail : '';
   }
 
   // Only auto-follow the stream when the reader is already near the bottom; if they've
@@ -42,6 +44,13 @@ Constellation.chat = (function () {
   function scrollToBottom() { messagesEl.scrollTop = messagesEl.scrollHeight; }
   function maybeScroll() { if (atBottom()) scrollToBottom(); }
   function updateJumpBtn() { if (jumpBtn) jumpBtn.hidden = atBottom(); }
+
+  // The newest user message — the one whose attachments still go out when "send attachments"
+  // is off. One shared rule so the composer (toApiMessages) and the context meter can't drift.
+  function lastUserIndex(list) {
+    for (let i = list.length - 1; i >= 0; i--) { if (list[i].role === 'user') return i; }
+    return -1;
+  }
 
   // --- Scroll preservation across a reply's finish ---
   // Finishing mutates layout ABOVE the reader's line (final markdown re-render, code-block toolbars,
@@ -104,9 +113,7 @@ Constellation.chat = (function () {
   function updateContextMeter() {
     if (!ctxMeter) return;
     let lastUserIdx = -1;
-    if (opts.sendAttachments === false) {
-      for (let i = conversation.length - 1; i >= 0; i--) { if (conversation[i].role === 'user') { lastUserIdx = i; break; } }
-    }
+    if (opts.sendAttachments === false) lastUserIdx = lastUserIndex(conversation);
     let chars = 0;
     for (const m of conversation) {
       chars += (m.content || '').length;   // includes the system message (your instructions)
@@ -142,7 +149,7 @@ Constellation.chat = (function () {
     if (!turns.length) { if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Nothing to export yet'); return; }
     if (exportPop) { closeExportPop(); return; }
     let mdThinking = true;
-    try { const cfg = await window.api.loadConfig(); mdThinking = cfg.mdThinking !== false; } catch (e) {}
+    try { const cfg = await window.api.loadConfig(); mdThinking = cfg.mdThinking !== false; } catch (e) { console.warn('[constellation]', e && e.message || e); }
     const firstUser = turns.find((m) => m.role === 'user');
     const title = (firstUser ? firstUser.content : 'chat').replace(/\s+/g, ' ').trim().slice(0, 60) || 'chat';
 
@@ -187,7 +194,7 @@ Constellation.chat = (function () {
         const r = await window.api.exportChatMarkdown(payload);
         if (r && r.ok && window.Constellation && window.Constellation.toast) window.Constellation.toast('Exported "' + title + '"');
         else if (r && r.error && window.Constellation && window.Constellation.toast) window.Constellation.toast('Export failed: ' + r.error);
-      } catch (e) {}
+      } catch (e) { console.warn('[constellation]', e && e.message || e); }
     });
   }
 
@@ -260,13 +267,13 @@ Constellation.chat = (function () {
     try {
       const modes = await window.api.loadModes();
       roleplayPrompt = (modes.roleplay || '').trim();
-    } catch (e) {}
-    try { projectInstructions = ((await window.api.loadProject()) || '').trim(); } catch (e) {}
+    } catch (e) { console.warn('[constellation]', e && e.message || e); }
+    try { projectInstructions = ((await window.api.loadProject()) || '').trim(); } catch (e) { console.warn('[constellation]', e && e.message || e); }
 
     conversation = [{ role: 'system', content: buildSystem() }];
 
     let cfg = { hasKey: false, model: 'glm-5.2' };
-    try { cfg = await window.api.loadConfig(); } catch (e) {}
+    try { cfg = await window.api.loadConfig(); } catch (e) { console.warn('[constellation]', e && e.message || e); }
     opts.model = cfg.model || 'glm-5.2';
     opts.temperature = cfg.temperature ?? opts.temperature;
     opts.topP = cfg.topP ?? opts.topP;
@@ -453,9 +460,7 @@ Constellation.chat = (function () {
     // "Send attachments" off → only the NEWEST user message keeps its files/images; older ones are
     // context ballast that can trip moderation, but the fresh attachment is the one being asked about.
     let lastUserIdx = -1;
-    if (opts.sendAttachments === false) {
-      for (let i = list.length - 1; i >= 0; i--) { if (list[i].role === 'user') { lastUserIdx = i; break; } }
-    }
+    if (opts.sendAttachments === false) lastUserIdx = lastUserIndex(list);
     const out = list.map((m, i) => {
       if (m.role === 'user' && m.files && m.files.length) {
         const suppressed = opts.sendAttachments === false && i !== lastUserIdx;
@@ -733,12 +738,17 @@ Constellation.chat = (function () {
     if (role === 'assistant' && lore && lore.length) addLoreIndicator(el, lore);
 
     messagesEl.appendChild(el);
-    if (!bulkScroll) { scrollToBottom(); updateJumpBtn(); updateReadProgress(); }
+    // Your own send pulls you to the newest exchange; model-side additions only follow if you
+    // were already reading at the bottom — never yank someone who scrolled up mid-generation.
+    if (!bulkScroll) { if (role === 'user') scrollToBottom(); else maybeScroll(); updateJumpBtn(); updateReadProgress(); }
     return { el, body, thinkDetails, thinkBody };
   }
 
   function friendlyError(msg) {
     const m = String(msg || '');
+    if (/unsafe|sensitive content|potentially.*content/i.test(m)) {
+      return "GLM's safety layer flagged this conversation. Old attachments riding along in context are a common trigger — hide them with the eye in ✎ Edit, or turn off Send attachments (newest only) in Settings → Generation, then retry.";
+    }
     if (/429|余额|insufficient|quota|rate.?limit/i.test(m)) {
       return 'GLM says your account is out of credits or lacks a resource pack for this model/endpoint (429). Check model/endpoint in Settings.';
     }
@@ -797,7 +807,7 @@ Constellation.chat = (function () {
       body.classList.add('caret');
     }
     setStatus('thinking…', 'ok');
-    scrollToBottom();
+    maybeScroll();   // follow only if reading at the bottom — regen/continue from mid-read must not snap
     updateJumpBtn();
     body.classList.remove('caret');
     showThinking(el);   // animated "working" indicator while lore + the model get ready (hides any latency)
@@ -859,10 +869,10 @@ Constellation.chat = (function () {
         streaming = false;
         busy = false;
         restoreSendBtn();
-        setStatus('error', 'err');
+        setStatus('error', 'err', 'Timed out after 90s with no data from the model — request cancelled.');
         hideThinking(el);
         el.remove();
-        if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Timed out waiting for the model — request cancelled');
+        if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Timed out waiting for the model — request cancelled', 9000);
       }, 90000);
     };
     kickWatchdog();
@@ -941,7 +951,7 @@ Constellation.chat = (function () {
         if (rafId) cancelAnimationFrame(rafId);
         rafId = null;
         const friendly = friendlyError(message);
-        if (window.Constellation && window.Constellation.toast) window.Constellation.toast(friendly);
+        if (window.Constellation && window.Constellation.toast) window.Constellation.toast(friendly, 9000);   // linger: errors are read in hindsight
         if (variantTarget) {
           renderActiveVariant(el);   // regen failed — restore the existing active take
         } else {
@@ -950,7 +960,7 @@ Constellation.chat = (function () {
         }
         busy = false;
         restoreSendBtn();
-        setStatus('error', 'err');
+        setStatus('error', 'err', friendly);   // hover the pill to re-read the error after the toast fades
         inputEl.focus();
       },
     });
@@ -976,7 +986,7 @@ Constellation.chat = (function () {
   // Stop the in-flight stream (keeps whatever was already generated).
   function cancelStream() {
     if (currentRequest && window.api && window.api.cancelStream) {
-      try { window.api.cancelStream(currentRequest); } catch (e) {}
+      try { window.api.cancelStream(currentRequest); } catch (e) { console.warn('[constellation]', e && e.message || e); }
     }
   }
   function restoreSendBtn() {
@@ -1084,7 +1094,7 @@ Constellation.chat = (function () {
     if (idx === -1) return;
     // conversation[0] is the system message (no DOM element), so DOM idx -> conversation[idx+1].
     const prefix = conversation.slice(1, idx + 2)
-      .map((m) => ({ role: m.role, content: m.content, files: m.files, reasoning: m.reasoning }));
+      .map((m) => ({ role: m.role, content: m.content, files: m.files, reasoning: m.reasoning, edited: !!m.edited, orig: m.orig, variants: m.variants, vActive: m.vActive, lore: m.lore }));
     if (window.Constellation && window.Constellation.sessions && window.Constellation.sessions.forkFrom) {
       window.Constellation.sessions.forkFrom({ messages: prefix, system: roleplayPrompt, project: projectInstructions, gen: genSnapshot() });
     }

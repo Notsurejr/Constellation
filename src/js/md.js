@@ -17,7 +17,7 @@ Constellation.md = (function () {
     try {
       if (typeof window.marked.use === 'function') window.marked.use({ gfm: true, breaks: true });
       else if (typeof window.marked.setOptions === 'function') window.marked.setOptions({ gfm: true, breaks: true });
-    } catch (e) {}
+    } catch (e) { console.warn('[constellation]', e && e.message || e); }
     _markedReady = true;
   }
   function escapeHtml(s) {
@@ -151,7 +151,7 @@ Constellation.md = (function () {
     catch (e) { return escapeHtml(src).replace(/\n/g, '<br>'); }
     const tpl = document.createElement('template');
     tpl.innerHTML = html;
-    try { postGrammar(tpl.content); } catch (e) {}
+    try { postGrammar(tpl.content); } catch (e) { console.warn('[constellation]', e && e.message || e); }
     sanitizeFragment(tpl.content);
     return tpl.innerHTML;
   }

@@ -27,7 +27,7 @@ Constellation.lorebook = (function () {
   function scheduleSave() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(async () => {
-      try { lorebooks = await window.api.saveLorebooks(lorebooks) || lorebooks; } catch (e) {}
+      try { lorebooks = await window.api.saveLorebooks(lorebooks) || lorebooks; } catch (e) { console.warn('[constellation]', e && e.message || e); }
       refreshActive();    // the active lorebooks' entry data may have changed → refresh chat's copy
       requestIndex();
     }, 400);

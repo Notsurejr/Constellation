@@ -82,7 +82,7 @@ Constellation.settings = (function () {
       }
       if ($('fxSizeInput')) { const fx = cfg.fxSize != null ? cfg.fxSize : 1; $('fxSizeInput').value = Math.round(fx * 100); $('fxSizeVal').textContent = fx.toFixed(1) + '×'; }
       syncFxSize();   // event size only means something while cosmic events are on
-    } catch (e) {}
+    } catch (e) { console.warn('[constellation]', e && e.message || e); }
     await refreshPresets();
   }
 
@@ -329,14 +329,14 @@ Constellation.settings = (function () {
       const r = await window.api.backupExport();
       if (r && r.ok) { if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Backed up ' + (r.sessions || 0) + ' chats'); }
       else if (r && r.error) { if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Backup failed: ' + r.error); }
-    } catch (e) {}
+    } catch (e) { console.warn('[constellation]', e && e.message || e); }
   }
   async function backupExportMarkdown() {
     try {
       const r = await window.api.backupExportMarkdown();
       if (r && r.ok) { if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Markdown backup: ' + (r.count || 0) + ' chats → ' + r.path); }
       else if (r && r.error) { if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Backup failed: ' + r.error); }
-    } catch (e) {}
+    } catch (e) { console.warn('[constellation]', e && e.message || e); }
   }
   async function backupRestore() {
     try {
@@ -347,14 +347,14 @@ Constellation.settings = (function () {
       } else if (r && r.error) {
         if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Restore failed: ' + r.error);
       }
-    } catch (e) {}
+    } catch (e) { console.warn('[constellation]', e && e.message || e); }
   }
 
   // ---- Presets (saved sets of system + project instructions) ----
 
   async function refreshPresets() {
     let list = [];
-    try { list = await window.api.listPresets(); } catch (e) {}
+    try { list = await window.api.listPresets(); } catch (e) { console.warn('[constellation]', e && e.message || e); }
     const el = $('presetList');
     if (!el) return;
     el.replaceChildren();
@@ -404,7 +404,7 @@ Constellation.settings = (function () {
     // Reuse a preset that already has this exact name (update it); otherwise create a brand-new one.
     let id = null;
     let list = [];
-    try { list = await window.api.listPresets(); } catch (e) {}
+    try { list = await window.api.listPresets(); } catch (e) { console.warn('[constellation]', e && e.message || e); }
     const match = list.find((p) => p.name === name);
     if (match) id = match.id;
     const res = await window.api.savePreset({ id, name, system, project });

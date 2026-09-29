@@ -1315,6 +1315,9 @@ input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
 }
 .toast.show { opacity: 1; transform: translateY(0); }
+.toast.sticky { pointer-events: auto; border-color: var(--danger); max-width: 70ch; white-space: normal; text-align: center; }
+.toast.sticky.show { animation: toastBreathe 3s ease-in-out infinite; }
+@keyframes toastBreathe { 0%,100% { box-shadow: 0 6px 20px rgba(0,0,0,0.5); } 50% { box-shadow: 0 6px 24px rgba(0,0,0,0.75); } }
 
 .shortcut { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 14px; color: var(--text-dim); }
 .shortcut kbd {

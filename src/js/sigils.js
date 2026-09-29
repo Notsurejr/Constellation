@@ -381,7 +381,7 @@ Constellation.sigils = (function () {
   // ---- state ----
   let pop = null, tab = 'type', query = '', recents = [];
   try { recents = JSON.parse(localStorage.getItem('sigil_recents') || '[]'); } catch (e) { recents = []; }
-  function saveRecents() { try { localStorage.setItem('sigil_recents', JSON.stringify(recents)); } catch (e) {} }
+  function saveRecents() { try { localStorage.setItem('sigil_recents', JSON.stringify(recents)); } catch (e) { console.warn('[constellation]', e && e.message || e); } }
 
   function allItems() { return GROUPS.reduce(function (a, g) { return a.concat(g.items); }, []); }
 
