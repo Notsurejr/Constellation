@@ -10,6 +10,7 @@ Constellation.sessions = (function () {
   let searchQuery = '';
   let searchTimer = null;
   let folders = {};   // folderId -> { id, name, collapsed }
+  let charMap = {};   // characterId -> card record (avatars for the sidebar badges)
   let showHidden = false;   // hidden chats stay tucked away until the footer toggle reveals them
   let sortMode = 'recent';   // recent | name | size — pinned always floats to the top
 
@@ -61,12 +62,25 @@ Constellation.sessions = (function () {
   // Build a single session-item row (reused for pinned, foldered, and top-level chats).
   function makeItem(s, indented) {
     const item = document.createElement('div');
-    item.className = 'session-item' + (s.id === currentId ? ' active' : '') + (s.pinned ? ' pinned' : '') + (indented ? ' indented' : '') + (s.hidden ? ' hidden-chat' : '');
+    item.className = 'session-item' + (s.id === currentId ? ' active' : '') + (s.pinned ? ' pinned' : '') + (indented ? ' indented' : '') + (s.hidden ? ' hidden-chat' : '') + (s.character ? ' char-chat' : '');
     item.dataset.id = s.id;
     const pin = document.createElement('button');
     pin.className = 'session-pin'; pin.textContent = s.pinned ? '★' : '☆'; pin.title = s.pinned ? 'Unpin' : 'Pin to top';
     const title = document.createElement('span');
     title.className = 'session-title'; title.textContent = s.title || 'Untitled';
+    if (s.character) {   // character chats wear their face — avatar from the Cast store, falling back to an initial
+      const chip = document.createElement('span');
+      chip.className = 'session-char';
+      chip.title = 'Character chat — ' + (s.character.name || '');
+      const c = charMap[s.character.id];
+      if (c && c.avatar) {
+        const img = document.createElement('img');
+        img.src = c.avatar; img.alt = ''; chip.appendChild(img);
+      } else {
+        chip.textContent = String(s.character.name || '?').slice(0, 1).toUpperCase();
+      }
+      title.prepend(chip);
+    }
     const move = document.createElement('button');
     move.className = 'session-move'; move.textContent = '📁'; move.title = 'Move to folder';
     const rename = document.createElement('button');
@@ -153,6 +167,9 @@ Constellation.sessions = (function () {
   async function refresh() {
     const el = $('sessionList');
     el.replaceChildren();
+    try {   // character avatars for badges (cheap local read; absent API = no badges, never a failure)
+      if (window.api && window.api.listCharacters) { const chars = await window.api.listCharacters(); charMap = {}; for (const c of chars) charMap[c.id] = c; }
+    } catch (e) { console.warn('[constellation]', e && e.message || e); }
     if (searchQuery) {
       let results = [];
       try { results = await window.api.searchSessions(searchQuery); } catch (e) { console.warn('[constellation]', e && e.message || e); }

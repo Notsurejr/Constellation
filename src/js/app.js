@@ -101,6 +101,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (window.Constellation && window.Constellation.lorebook) {
     window.Constellation.lorebook.init();
   }
+  if (window.Constellation && window.Constellation.cast) {
+    window.Constellation.cast.init();
+  }
   if (window.Constellation && window.Constellation.cliBridge) {
     window.Constellation.cliBridge.init();
   }

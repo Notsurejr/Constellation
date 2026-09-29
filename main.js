@@ -24,6 +24,8 @@ const PHRASE_BANS_FILE = path.join(CONFIG_DIR, 'phrase_bans.txt');   // global p
 const MODES_DIR = path.join(CONFIG_DIR, 'modes');
 const DATA_DIR = path.join(USER_DATA_DIR, 'data');
 const SESSIONS_DIR = path.join(DATA_DIR, 'sessions');
+const CHARACTERS_DIR = path.join(DATA_DIR, 'characters');   // imported character cards, one JSON each
+const PERSONAS_FILE = path.join(CONFIG_DIR, 'personas.json');   // the user's playable personas ({{user}} side)
 const PRESETS_DIR = path.join(DATA_DIR, 'presets');
 const DRAFTS_FILE = path.join(DATA_DIR, 'drafts.json');
 const FOLDERS_FILE = path.join(DATA_DIR, 'folders.json');
@@ -299,7 +301,7 @@ ipcMain.handle('sessions:list', () => {
       .map((f) => {
         try {
           const d = JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, f), 'utf8'));
-          return { id: d.id || f.replace(/\.json$/, ''), title: d.title || 'Untitled', updatedAt: d.updatedAt || 0, pinned: !!d.pinned, hidden: !!d.hidden, usage: d.usage || { tokens: 0, requests: 0 }, parentId: d.parentId, parentTitle: d.parentTitle, folder: d.folder || null };
+          return { id: d.id || f.replace(/\.json$/, ''), title: d.title || 'Untitled', updatedAt: d.updatedAt || 0, pinned: !!d.pinned, hidden: !!d.hidden, usage: d.usage || { tokens: 0, requests: 0 }, parentId: d.parentId, parentTitle: d.parentTitle, folder: d.folder || null, character: d.character || null };
         } catch (e) { return null; }
       })
       .filter(Boolean)
@@ -319,16 +321,17 @@ ipcMain.handle('sessions:load', (_e, id) => {
   } catch (e) { return { id, title: 'Untitled', messages: [] }; }
 });
 
-ipcMain.handle('sessions:save', (_e, { id, title, messages, system, project, gen, usage, parentId, parentTitle, systemFiles, projectFiles, lore }) => {
+ipcMain.handle('sessions:save', (_e, { id, title, messages, system, project, gen, usage, parentId, parentTitle, systemFiles, projectFiles, lore, character }) => {
   fs.mkdirSync(SESSIONS_DIR, { recursive: true });
   id = safeId(id) || 's_' + Date.now() + '_' + Math.floor(Math.random() * 1e9);   // invalid/absent id → fresh one, never trusted
   const file = path.join(SESSIONS_DIR, id + '.json');
-  let pinned = false, pId, pTitle, folder = null, pLore = null, wasHidden = false;
-  try { const ex = JSON.parse(fs.readFileSync(file, 'utf8')); pinned = !!ex.pinned; pId = ex.parentId; pTitle = ex.parentTitle; folder = ex.folder || null; pLore = Array.isArray(ex.lore) ? ex.lore : null; wasHidden = !!ex.hidden; } catch (e) { console.warn('[constellation]', e && e.message || e); }
+  let pinned = false, pId, pTitle, folder = null, pLore = null, wasHidden = false, pChar = null;
+  try { const ex = JSON.parse(fs.readFileSync(file, 'utf8')); pinned = !!ex.pinned; pId = ex.parentId; pTitle = ex.parentTitle; folder = ex.folder || null; pLore = Array.isArray(ex.lore) ? ex.lore : null; wasHidden = !!ex.hidden; pChar = ex.character || null; } catch (e) {}
   const data = {
     id, title: title || 'Untitled', messages: messages || [], system, project, systemFiles: systemFiles || [], projectFiles: projectFiles || [], gen, usage, pinned, hidden: wasHidden,
     parentId: parentId !== undefined ? parentId : pId, parentTitle: parentTitle !== undefined ? parentTitle : pTitle,
     folder, lore: Array.isArray(lore) ? lore : (pLore || []),
+    character: character !== undefined ? character : pChar,   // { id, name } — seeds the sidebar badge
     updatedAt: Date.now(),
   };
   fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8');
@@ -746,6 +749,117 @@ ipcMain.handle('export:chatMarkdown', async (_e, payload) => {
 // async (returns a Promise) and silently rejects on big text, so the renderer routes copies here.
 ipcMain.handle('clipboard:write', (_e, text) => {
   try { clipboard.writeText(String(text || '')); return true; } catch (e) { return false; }
+});
+
+// ---------- IPC: characters (imported cards) + personas ----------
+function cardId(name) {
+  const base = String(name || 'character').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'character';
+  return 'c_' + base + '_' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
+}
+
+// Pull the avatar once at import and inline it as a data URL — the renderer CSP blocks
+// remote images, and we don't want cards phoning home on every render.
+async function fetchAvatarDataUrl(url) {
+  try {
+    const res = await fetch(String(url), { signal: AbortSignal.timeout(12000) });
+    if (!res.ok) return '';
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > 600 * 1024) return '';   // oversized "avatars" aren't avatars
+    const type = res.headers.get('content-type') || 'image/png';
+    if (!/^image\//.test(type)) return '';
+    return 'data:' + type + ';base64,' + buf.toString('base64');
+  } catch (e) { console.warn('[constellation]', e && e.message || e); return ''; }
+}
+
+function normalizeCard(raw) {
+  // chara_card_v2 wraps fields in `data`; JanitorAI/Chub exports sometimes carry them at the
+  // root. Accept both, prefer the wrapper when present.
+  const d = (raw && raw.data && (raw.data.name || raw.data.description)) ? raw.data : raw;
+  if (!d || !d.name) return null;
+  return {
+    name: String(d.name).slice(0, 80),
+    description: String(d.description || ''),
+    personality: String(d.personality || ''),
+    scenario: String(d.scenario || ''),
+    firstMes: String(d.first_mes || d.greeting || ''),
+    altGreetings: Array.isArray(d.alternate_greetings) ? d.alternate_greetings.map(String) : [],
+    mesExample: String(d.mes_example || ''),
+    tags: Array.isArray(d.tags) ? d.tags.map(String).slice(0, 12) : [],
+    creator: String(d.creator || ''),
+    avatarUrl: String(d.avatar || ''),
+    characterBook: d.character_book && Array.isArray(d.character_book.entries) && d.character_book.entries.length ? d.character_book : null,
+    hasSystemPrompt: !!(d.system_prompt && String(d.system_prompt).trim()),
+    hasPhi: !!(d.post_history_instructions && String(d.post_history_instructions).trim()),
+    spec: String(raw && raw.spec || 'chara_card_v2'),
+  };
+}
+
+async function importCharacterFiles(paths) {
+  fs.mkdirSync(CHARACTERS_DIR, { recursive: true });
+  const out = [];
+  for (const p of paths) {
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+      const norm = normalizeCard(raw);
+      if (!norm) { out.push({ ok: false, error: 'No character name found in ' + path.basename(p) }); continue; }
+      const avatar = norm.avatarUrl ? await fetchAvatarDataUrl(norm.avatarUrl) : '';
+      const rec = Object.assign({ id: cardId(norm.name), avatar: avatar, importedAt: Date.now(), source: path.basename(p) }, norm);
+      delete rec.avatarUrl;
+      fs.writeFileSync(path.join(CHARACTERS_DIR, rec.id + '.json'), JSON.stringify(rec, null, 2), 'utf8');
+      out.push({ ok: true, character: rec });
+    } catch (e) { out.push({ ok: false, error: String((e && e.message) || e) }); }
+  }
+  return out;
+}
+
+ipcMain.handle('characters:import', async () => {
+  try {
+    const res = await dialog.showOpenDialog({
+      title: 'Import character cards', properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'Character cards', extensions: ['json'] }],
+    });
+    if (res.canceled || !res.filePaths || !res.filePaths.length) return { ok: false, canceled: true };
+    const results = await importCharacterFiles(res.filePaths);
+    return { ok: true, results: results };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+});
+
+// Headless-friendly entry (tests / future drag-drop): same parser, explicit paths.
+ipcMain.handle('characters:importFiles', (_e, paths) => importCharacterFiles(Array.isArray(paths) ? paths : []));
+
+ipcMain.handle('characters:list', () => {
+  const out = [];
+  try {
+    fs.mkdirSync(CHARACTERS_DIR, { recursive: true });
+    for (const f of fs.readdirSync(CHARACTERS_DIR)) {
+      if (!f.endsWith('.json')) continue;
+      try { out.push(JSON.parse(fs.readFileSync(path.join(CHARACTERS_DIR, f), 'utf8'))); } catch (e) { console.warn('[constellation]', e && e.message || e); }
+    }
+  } catch (e) { console.warn('[constellation]', e && e.message || e); }
+  out.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+  return out;
+});
+
+ipcMain.handle('characters:delete', (_e, id) => {
+  if (!safeId(id)) return { ok: false };
+  try { fs.unlinkSync(path.join(CHARACTERS_DIR, id + '.json')); return { ok: true }; } catch (e) { return { ok: false }; }
+});
+
+ipcMain.handle('personas:load', () => {
+  try {
+    const d = JSON.parse(fs.readFileSync(PERSONAS_FILE, 'utf8'));
+    if (Array.isArray(d) && d.length) return d;
+  } catch (e) { console.warn('[constellation]', e && e.message || e); }
+  return [{ id: 'p_default', name: 'You', description: '', default: true }];
+});
+
+ipcMain.handle('personas:save', (_e, list) => {
+  try {
+    if (!Array.isArray(list)) return { ok: false };
+    fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    fs.writeFileSync(PERSONAS_FILE, JSON.stringify(list.filter((p) => p && p.name), null, 2), 'utf8');
+    return { ok: true };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 });
 
 // ---------- IPC: backup / restore ----------

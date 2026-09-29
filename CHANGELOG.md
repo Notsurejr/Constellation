@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.7.0 — The Cast
+
+*Released: 2026-09-29*
+
+### New
+
+- **Cast panel (♛ in the topbar) — character cards & personas, separate from your chats.**
+  Import chara_card_v2 JSON exports (JanitorAI / Chub / SillyTavern-adjacent); avatars are
+  downloaded once and stored locally. The card's creator storefront, extension junk, and its
+  own system directives are kept out of the prompt (noted on the card, never compiled).
+- **Personas — the {{user}} side.** Any number of playables (name + description), one
+  default, editable in the panel; substituted into cards at chat start.
+- **Start chat screen.** Pick the greeting (Vanessa-grade cards bring 35+ alternates), the
+  base instructions (your roleplay defaults / any preset / none — card only), and the persona —
+  then review the fully compiled system prompt, editable line-by-line before the first send,
+  with a live token estimate.
+- **Seeded chats are ordinary chats.** The compiled prompt becomes that chat's system
+  instructions; the greeting lands as the first reply. Everything you know — sculpt, Story
+  Constellations, chronicle, mood-weather, the request inspector — just works. The card's
+  embedded lorebook (character_book) is translated into a Constellation lorebook and attached.
+- **Sidebar badges.** Character chats wear the character's avatar (or initial) on their
+  session row, title tinted — distinct at a glance, same sidebar, same folders.
+
 ## v0.6.8 — Spent, Not Size
 
 *Released: 2026-09-29*

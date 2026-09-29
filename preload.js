@@ -40,6 +40,12 @@ contextBridge.exposeInMainWorld('api', {
 
   loadLorebooks: () => ipcRenderer.invoke('lorebooks:load'),
   saveLorebooks: (map) => ipcRenderer.invoke('lorebooks:save', map),
+  importCharacters: () => ipcRenderer.invoke('characters:import'),
+  importCharacterFiles: (paths) => ipcRenderer.invoke('characters:importFiles', paths),
+  listCharacters: () => ipcRenderer.invoke('characters:list'),
+  deleteCharacter: (id) => ipcRenderer.invoke('characters:delete', id),
+  loadPersonas: () => ipcRenderer.invoke('personas:load'),
+  savePersonas: (list) => ipcRenderer.invoke('personas:save', list),
 
   embedTexts: (texts, query) => ipcRenderer.invoke('lore:embed', { texts, query }),
 

@@ -1531,3 +1531,73 @@ input.num {
 }
 input.num:focus { border-color: var(--accent-dim); outline: none; box-shadow: var(--glow); }
 input.num::-webkit-outer-spin-button, input.num::-webkit-inner-spin-button { opacity: .45; }
+
+/* ---- Cast: character cards + personas panel, and the Start-chat screen ---- */
+.cast-overlay {
+  position: fixed; inset: 0; z-index: 70;
+  background: rgba(0,0,0,0.62); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+}
+.cast-panel {
+  width: min(720px, 92vw); max-height: 84vh;
+  background: rgba(8, 10, 16, 0.97);
+  border: 1px solid var(--panel-border); border-radius: 16px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.65);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.cast-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px 6px; }
+.cast-title { font-size: 15px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-dim); }
+.cast-close { background: none; border: none; color: var(--text-dim); font-size: 20px; cursor: pointer; }
+.cast-close:hover { color: var(--text); }
+.cast-hint { padding: 0 18px 10px; font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+.cast-body { padding: 0 18px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.cast-subhead { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-dim); margin-top: 8px; display: flex; align-items: center; justify-content: space-between; }
+.cast-personas { display: flex; flex-direction: column; gap: 8px; }
+.cast-persona { display: grid; grid-template-columns: auto 1fr auto; gap: 6px 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--panel-border); border-radius: 10px; }
+.cast-persona-desc { grid-column: 1 / -1; background: rgba(0,0,0,0.3); border: 1px solid var(--panel-border); border-radius: 6px; color: var(--text); font: inherit; font-size: 12.5px; padding: 6px 8px; resize: vertical; min-height: 34px; }
+.cast-persona-name { background: rgba(0,0,0,0.3); border: 1px solid var(--panel-border); border-radius: 6px; color: var(--text); font: inherit; font-size: 13px; padding: 4px 8px; }
+.cast-mini-btn { background: none; border: none; color: var(--text-dim); font-size: 15px; cursor: pointer; }
+.cast-mini-btn:hover { color: var(--danger); }
+.cast-add-persona { align-self: flex-start; font-size: 12px; padding: 4px 10px; }
+.cast-import { font-size: 12px; padding: 4px 10px; }
+.cast-empty { color: var(--text-dim); font-size: 13px; padding: 14px 2px; }
+.cast-card { border: 1px solid var(--panel-border); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; background: rgba(255,255,255,0.015); }
+.cast-card-head { display: flex; gap: 12px; align-items: center; }
+.cast-avatar { width: 44px; height: 44px; border-radius: 10px; object-fit: cover; border: 1px solid var(--panel-border); flex: none; }
+.cast-avatar-blank { display: flex; align-items: center; justify-content: center; color: var(--accent-dim); font-size: 19px; background: rgba(255,255,255,0.03); }
+.cast-card-name { font-size: 15px; color: var(--text); }
+.cast-card-sub { font-size: 11.5px; color: var(--text-dim); margin-top: 2px; }
+.cast-card-tags { font-size: 11px; color: var(--accent-dim); margin-top: 2px; letter-spacing: 0.04em; }
+.cast-card-desc { font-size: 12.5px; color: var(--text-dim); line-height: 1.55; border-top: 1px solid var(--panel-border); padding-top: 8px; }
+.cast-card-actions { display: flex; gap: 8px; }
+
+/* Start-chat screen */
+.cast-start-overlay { position: fixed; inset: 0; z-index: 75; background: rgba(0,0,0,0.72); backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; }
+.cast-start { width: min(860px, 94vw); max-height: 88vh; background: rgba(8, 10, 16, 0.98); border: 1px solid var(--panel-border); border-radius: 16px; box-shadow: 0 24px 70px rgba(0,0,0,0.7); display: flex; flex-direction: column; padding: 16px 20px; gap: 10px; overflow: hidden; }
+.cast-start-title { font-size: 15px; color: var(--accent-dim); letter-spacing: 0.08em; }
+.cast-start-row { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--text); }
+.cast-start-lbl { width: 64px; flex: none; color: var(--text-dim); font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; }
+.cast-start-row select { flex: 1; }
+.cast-base-opts { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; flex: 1; }
+.cast-base-opt { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+.cast-preset-sel { max-width: 200px; }
+.cast-preview-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 11.5px; color: var(--text-dim); letter-spacing: 0.06em; margin-top: 4px; }
+.cast-tok-est { font-style: normal; color: var(--accent-dim); font-size: 11px; }
+.cast-preview {
+  flex: 1; min-height: 220px; max-height: 46vh; resize: vertical;
+  background: rgba(0,0,0,0.35); border: 1px solid var(--panel-border); border-radius: 8px;
+  color: var(--text); font-family: ui-monospace, Consolas, monospace; font-size: 12px; line-height: 1.55;
+  padding: 10px 12px; outline: none;
+}
+.cast-preview:focus { border-color: var(--accent-dim); box-shadow: var(--glow); }
+.cast-start-bar { display: flex; justify-content: flex-end; gap: 10px; }
+
+/* Sidebar character-chat badges */
+.session-title .session-char {
+  display: inline-flex; width: 16px; height: 16px; border-radius: 5px; overflow: hidden;
+  align-items: center; justify-content: center; margin-right: 6px; vertical-align: -3px;
+  font-size: 10px; color: var(--accent-dim); border: 1px solid var(--panel-border);
+  background: rgba(255,255,255,0.04);
+}
+.session-title .session-char img { width: 100%; height: 100%; object-fit: cover; }
+.session-item.char-chat .session-title { color: var(--accent-dim); }
