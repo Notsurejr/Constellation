@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.6.8 — Spent, Not Size
+
+*Released: 2026-09-29*
+
+### Changed
+
+- **Sidebar token figures now read "spent"** — the per-chat and total numbers are lifetime
+  usage (every send re-carries the full history, matching what the API bills), not current
+  context size. Hover any figure for the explanation; the ◐ meter remains the live context size.
+
 ## v0.6.7 — Exact Values
 
 *Released: 2026-09-29*

@@ -53,9 +53,9 @@ Constellation.sessions = (function () {
   }
   function fmtTokens(t) {
     t = Number(t) || 0;
-    if (t >= 1000000) return (t / 1000000).toFixed(2) + 'M tok';
-    if (t >= 1000) return (t / 1000).toFixed(1) + 'k tok';
-    return t + ' tok';
+    if (t >= 1000000) return (t / 1000000).toFixed(2) + 'M spent';
+    if (t >= 1000) return (t / 1000).toFixed(1) + 'k spent';
+    return t + ' spent';
   }
 
   // Build a single session-item row (reused for pinned, foldered, and top-level chats).
@@ -82,7 +82,7 @@ Constellation.sessions = (function () {
       const meta = document.createElement('div');
       meta.className = 'session-meta';
       if (s.parentId && s.parentTitle) { const lin = document.createElement('span'); lin.className = 'session-lineage'; lin.textContent = '↳ ' + s.parentTitle; meta.appendChild(lin); }
-      if (s.usage && s.usage.tokens > 0) { const u = document.createElement('span'); u.className = 'session-usage'; u.textContent = fmtTokens(s.usage.tokens); meta.appendChild(u); }
+      if (s.usage && s.usage.tokens > 0) { const u = document.createElement('span'); u.className = 'session-usage'; u.textContent = fmtTokens(s.usage.tokens); u.title = 'Lifetime tokens spent in this chat — every send re-carries the full history (this is what the API bills). The ◐ meter in the top bar shows the CURRENT context size instead.'; meta.appendChild(u); }
       main.appendChild(meta);
     }
     item.appendChild(pin); item.appendChild(main); item.appendChild(move); item.appendChild(rename); item.appendChild(hide); item.appendChild(del);
