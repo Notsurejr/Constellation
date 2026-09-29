@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.6.4 — Controls on the Chips
+
+*Released: 2026-09-19*
+
+### Changed
+
+- **Attachment controls now overlay the attachment chips themselves** — when editing a
+  prompt, the eye (hide from context) and × (delete) sit directly on each file/image
+  thumbnail instead of in a separate list. Same behavior, more intuitive placement.
+
 ## v0.6.3 — Context You Control
 
 *Released: 2026-09-19*

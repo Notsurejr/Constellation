@@ -1142,47 +1142,52 @@ Constellation.chat = (function () {
     for (const f of (el.__files || [])) fc.appendChild(fileChipEl(f, false));
   }
 
-  // Attachment controls shown ONLY while editing a user prompt: eye = hide from context (stays in
-  // chat, stops being sent), × = delete from the chat entirely. Both take effect immediately.
-  function attachEditStrip(el, ta) {
-    const files = el.__files;
-    if (!files || !files.length) return null;
-    const strip = document.createElement('div');
-    strip.className = 'attach-edit-strip';
-    const head = document.createElement('div'); head.className = 'attach-edit-head';
-    head.textContent = 'Attachments — 👁 hide from context · × delete';
-    strip.appendChild(head);
-    const rows = document.createElement('div'); rows.className = 'attach-edit-rows';
-    strip.appendChild(rows);
-    const draw = () => {
-      rows.replaceChildren();
-      for (const f of files) {
-        const row = document.createElement('div');
-        row.className = 'attach-edit-row' + (f.excluded ? ' excluded' : '');
-        const eye = document.createElement('button');
-        eye.type = 'button'; eye.className = 'attach-eye';
-        eye.title = f.excluded ? 'Hidden from context — click to send with future calls' : 'Sent with every call — click to hide from context (stays in chat)';
-        eye.appendChild(eyeSvg(!!f.excluded));
-        eye.addEventListener('click', () => { f.excluded = !f.excluded; persist(); draw(); refreshMsgFileChips(el); updateContextMeter(); });
-        const nm = document.createElement('span'); nm.className = 'attach-edit-name';
-        nm.textContent = (f.kind === 'image' ? '🖼 ' : '') + f.name;
-        const tag = document.createElement('span'); tag.className = 'attach-edit-tag';
-        tag.textContent = f.excluded ? 'not sent' : '';
-        const x = document.createElement('button');
-        x.type = 'button'; x.className = 'attach-x'; x.title = 'Delete from this chat'; x.textContent = '×';
-        x.addEventListener('click', () => {
-          const i = files.indexOf(f);
-          if (i !== -1) files.splice(i, 1);
-          persist(); draw(); refreshMsgFileChips(el); updateContextMeter();
-          if (!files.length) strip.remove();
-        });
-        row.appendChild(eye); row.appendChild(nm); row.appendChild(tag); row.appendChild(x);
-        rows.appendChild(row);
-      }
-    };
-    draw();
-    ta.insertAdjacentElement('afterend', strip);
-    return strip;
+  // Attachment controls while editing a user prompt: the eye and × overlay the chips themselves
+  // (no separate list). Eye = hide from context (stays in chat, stops being sent); × = delete
+  // from the chat entirely. Both take effect immediately.
+  function applyAttachEditControls(el) {
+    const files = el.__files || [];
+    const fc = el.querySelector('.msg-files');
+    if (!fc || !files.length) return;
+    const chips = Array.from(fc.children).filter((c) => c.classList && c.classList.contains('attach-chip'));
+    chips.forEach((chip, i) => {
+      const f = files[i];
+      if (!f) return;
+      chip.classList.add('editing');
+      chip.querySelectorAll('.attach-eye, .attach-x').forEach((b) => b.remove());
+      const eye = document.createElement('button');
+      eye.type = 'button'; eye.className = 'attach-eye';
+      eye.title = f.excluded ? 'Hidden from context — click to send with future calls' : 'Sent with every call — click to hide from context (stays in chat)';
+      eye.appendChild(eyeSvg(!!f.excluded));
+      eye.addEventListener('click', () => {
+        f.excluded = !f.excluded; persist();
+        chip.classList.toggle('excluded', !!f.excluded);
+        applyAttachEditControls(el);   // refresh the eye state
+        updateContextMeter();
+      });
+      const x = document.createElement('button');
+      x.type = 'button'; x.className = 'attach-x'; x.title = 'Delete from this chat'; x.textContent = '×';
+      x.addEventListener('click', () => {
+        const idx = files.indexOf(f);
+        if (idx !== -1) files.splice(idx, 1);
+        persist();
+        if (!files.length) { fc.remove(); }
+        else { refreshMsgFileChips(el); applyAttachEditControls(el); }
+        updateContextMeter();
+      });
+      chip.appendChild(eye);
+      chip.appendChild(x);
+    });
+  }
+
+  // Edit ended (cancel path — save path rebuilds the message): drop the overlay controls.
+  function clearAttachEditControls(el) {
+    const fc = el.querySelector('.msg-files');
+    if (!fc) return;
+    fc.querySelectorAll('.attach-chip.editing').forEach((chip) => {
+      chip.classList.remove('editing');
+      chip.querySelectorAll('.attach-eye, .attach-x').forEach((b) => b.remove());
+    });
   }
 
   function startEdit(el) {
@@ -1196,7 +1201,7 @@ Constellation.chat = (function () {
     ta.className = 'edit-area';
     ta.value = original;
     body.replaceChildren(ta);
-    attachEditStrip(el, ta);   // eye/X per attachment — only exists in edit mode
+    applyAttachEditControls(el);   // eye/X overlay the attachment chips — edit mode only
 
     // Size the edit box to fit its contents and keep growing as you type.
     const growEdit = () => {
@@ -1234,6 +1239,7 @@ Constellation.chat = (function () {
   function restoreMessage(el, original) {
     el.dataset.editing = '';
     el.classList.remove('editing');
+    clearAttachEditControls(el);   // chips return to display-only (excluded state stays)
     const body = el.querySelector('.body');
     if (body) { body.classList.add('md'); body.innerHTML = Constellation.md.render(original); enhanceCodeBlocks(body); }
     const bar = el.querySelector('.edit-bar');
