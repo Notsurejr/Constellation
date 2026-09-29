@@ -71,14 +71,16 @@ You need two things: the installer and an API key.
 
 | | |
 |---|---|
-| **Chat** | Streamed markdown replies · expandable code blocks · edit & resend · stop mid-stream · continue after length-cuts · copy anything |
+| **Chat** | Streamed markdown replies · expandable code blocks · edit & resend · stop mid-stream · continue after length-cuts · copy anything · replies up to 64k tokens (log-scale control) |
+| **The Cast** | Import character cards (chara_card_v2 — JanitorAI/Chub) · personas you play ({{user}}) · Start-chat compiles your instructions + the card + your persona into one editable prompt · embedded card lorebooks become Constellation lorebooks · chats badged with the character's face |
 | **Thinking** | Collapsible reasoning blocks, saved with the chat; models carry reasoning between turns (Preserved Thinking) |
 | **Chronicle** | Per-chat fact panel for the reader · chunked capture with live progress · incremental (reads only what's new) · Rebuild re-reads · editable facts · never injected into prompts |
 | **Story Constellations** | Every chat is a constellation · stars = bookmarks · margin pattern with hover previews + jump · **Sky map** of all stories |
 | **Lorebooks** | Titled collection · per-chat enable/disable · trigger-word entries · smart passage retrieval (BM25 + optional on-device semantic matching via nomic embeddings) · attach files to entries · 🌍 log + Living Constellations show exactly what was pulled |
 | **Instructions** | Per-chat system + project prompts · presets · file attachments as context · first-run template files you can rewrite freely |
-| **Writing tools** | Phrase bans & substitutions · variant takes ‹ n/m › · forks with lineage links · bookmarks (★) · craft coach + journal |
-| **Media** | Image input for vision models (incl. glm-5.3-flash) · thumbnails in chat · export to Markdown |
+| **Writing tools** | Sculpt mode (edit the model's prose in place, originals kept) · phrase bans & substitutions · variant takes ‹ n/m › · forks with lineage links · bookmarks (★) · craft coach + journal |
+| **Media** | Image input for vision models (incl. glm-5.3-flash) · thumbnails in chat · per-attachment context controls (hide from context / delete while editing) |
+| **Exports** | Obsidian-friendly Markdown per chat (callout turns, folded thinking blocks, ✎ sculpted marks) · Markdown backup: one dated .md per chat · JSON backup/restore for everything |
 | **Connection** | GLM (Coding plan / General) · OpenRouter · any OpenAI-compatible base URL + custom model ID · thinking effort mapped for non-GLM providers |
 | **Organize** | Folders · pinned chats · hidden chats · full-text search with jump-to-match · drafts per chat · usage/token tracking per chat |
 | **The sky** | Color-word tints in prose (223 names) + margin glows + cosmic events (toggleable, size/blend/reach controls) · mood-weather starfield · parallax · twinkle & density controls · zen mode |
