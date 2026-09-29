@@ -1499,19 +1499,19 @@ body.zen .zen-hint:hover { color: var(--accent); border-color: var(--accent-dim)
 .export-pop .btn { margin-top: 8px; width: 100%; }
 
 /* ---- Attachment context controls (edit mode: eye + × overlay the chips) ---- */
-.eye-ico { width: 15px; height: 15px; display: inline-block; vertical-align: middle; }
+.eye-ico { width: 19px; height: 19px; display: inline-block; vertical-align: middle; }
 .attach-chip.editing { position: relative; }
 .attach-chip.editing .attach-eye,
 .attach-chip.editing .attach-x {
-  position: absolute; top: 4px; right: 4px;
-  width: 22px; height: 22px; border-radius: 50%;
+  position: absolute; top: 3px; right: 3px;
+  width: 28px; height: 28px; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
-  background: rgba(8, 10, 16, 0.82);
+  background: rgba(8, 10, 16, 0.85);
   border: 1px solid var(--panel-border);
   color: var(--text-dim); cursor: pointer; padding: 0; line-height: 1;
-  font-size: 14px; z-index: 2;
+  font-size: 18px; z-index: 2;
 }
-.attach-chip.editing .attach-eye { right: 30px; }
+.attach-chip.editing .attach-eye { right: 37px; }
 .attach-chip.editing .attach-eye:hover { color: var(--accent); border-color: var(--accent-dim); }
 .attach-chip.editing .attach-x:hover { color: var(--danger); border-color: var(--danger); }
 .attach-chip.excluded { opacity: 0.55; }

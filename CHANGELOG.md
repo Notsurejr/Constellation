@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.6.6 — Bigger Touches
+
+*Released: 2026-09-29*
+
+### Changed
+
+- **Attachment eye/× controls are ~25% larger** — easier to hit on image thumbnails.
+
 ## v0.6.5 — Quiet Fixes
 
 *Released: 2026-09-29*
