@@ -22,7 +22,7 @@ Constellation.chat = (function () {
   let bulkScroll = false;      // suppress per-message auto-scroll while bulk-rendering a chat
   let usage = { tokens: 0, requests: 0 };   // cumulative estimated tokens for the current chat
   let pendingFiles = [];   // [{ name, size, text }] queued attachments for the next send
-  let opts = { model: 'glm-5.2', temperature: 0.8, topP: 0.95, maxTokens: 0, thinking: false, reasoningEffort: 'max', streamCps: 0, contextWindow: 0, teachEdits: false, preservedThinking: true, immersion: false };
+  let opts = { model: 'glm-5.2', temperature: 0.8, topP: 0.95, maxTokens: 0, thinking: false, reasoningEffort: 'max', streamCps: 0, contextWindow: 0, teachEdits: false, preservedThinking: true, immersion: false, sendAttachments: true };
   let activeLore = [];   // lorebooks enabled for the current chat (each { entries, semantic }); sessions applies this
   let phraseBanRules = [];   // [{ re, replace }] tidied out of GLM's replies AFTER generation (the model never sees these)
   let systemFiles = [];   // [{name,text}] .md/.txt attached to this chat's system instructions (inlined into the system prompt)
@@ -99,12 +99,22 @@ Constellation.chat = (function () {
   }
 
   // Rough context-size estimate (chars/4 ≈ tokens) across the whole conversation.
+  // Follows the send rules: excluded files never count, and when "send attachments" is off
+  // only the newest user message's files do.
   function updateContextMeter() {
     if (!ctxMeter) return;
+    let lastUserIdx = -1;
+    if (opts.sendAttachments === false) {
+      for (let i = conversation.length - 1; i >= 0; i--) { if (conversation[i].role === 'user') { lastUserIdx = i; break; } }
+    }
     let chars = 0;
     for (const m of conversation) {
       chars += (m.content || '').length;   // includes the system message (your instructions)
-      if (m.files) for (const f of m.files) chars += (f.text || '').length;
+      if (m.files) {
+        const i = conversation.indexOf(m);
+        const suppressed = opts.sendAttachments === false && i !== lastUserIdx;
+        if (!suppressed) for (const f of m.files) { if (!f.excluded) chars += (f.text || '').length; }
+      }
       if (opts.thinking && m.reasoning) chars += (m.reasoning || '').length;   // preserved thinking
     }
     const total = Math.max(0, Math.round(chars / 4));
@@ -266,6 +276,7 @@ Constellation.chat = (function () {
     opts.teachEdits = cfg.teachEdits === true;   // off unless explicitly on — edits stay private by default
     opts.preservedThinking = cfg.preservedThinking !== false;   // GLM Preserved Thinking — on by default
     opts.immersion = cfg.immersion === true;   // immersion grammar — off until asked for
+    opts.sendAttachments = cfg.sendAttachments !== false;   // off = only the newest user message's files are sent
     opts.streamCps = cfg.streamCps ?? 0;
     opts.contextWindow = cfg.contextWindow ?? 0;
     setPhraseBans(cfg.phraseBans || '');
@@ -363,7 +374,8 @@ Constellation.chat = (function () {
     const chip = document.createElement('div');
     const isImg = f.kind === 'image' && f.dataUrl;
     const big = !isImg && f.text != null && f.text.length > 50000;
-    chip.className = 'attach-chip' + (big ? ' large' : '') + (isImg ? ' image' : '');
+    chip.className = 'attach-chip' + (big ? ' large' : '') + (isImg ? ' image' : '') + (f.excluded ? ' excluded' : '');
+    if (f.excluded) chip.title = 'Hidden from context — not sent to the model (eye in ✎ Edit)';
     if (isImg) {
       const thumb = document.createElement('img');
       thumb.className = 'attach-thumb'; thumb.src = f.dataUrl; thumb.alt = f.name || ''; thumb.title = f.name || '';
@@ -417,10 +429,12 @@ Constellation.chat = (function () {
   }
 
   // Expand a user message's typed text + any attached file contents for the API.
+  // Excluded files (the eye in edit mode) stay in the chat but never reach the model.
   function composeUserContent(m) {
     let out = m.content || '';
-    if (m.files && m.files.length) {
-      const blocks = m.files.map((f) =>
+    const files = (m.files || []).filter((f) => !f.excluded);
+    if (files.length) {
+      const blocks = files.map((f) =>
         '===== Attached file: ' + f.name + ' (' + (f.text || '').length + ' chars) =====\n' + (f.text || '')
       ).join('\n\n');
       out += (out ? '\n\n' : '') + blocks;
@@ -436,13 +450,22 @@ Constellation.chat = (function () {
   function toApiMessages(loreCtx, src) {
     const list = src || conversation;
     const preserve = !!opts.thinking && opts.preservedThinking !== false;   // GLM Preserved Thinking (user-adjustable)
-    const out = list.map((m) => {
+    // "Send attachments" off → only the NEWEST user message keeps its files/images; older ones are
+    // context ballast that can trip moderation, but the fresh attachment is the one being asked about.
+    let lastUserIdx = -1;
+    if (opts.sendAttachments === false) {
+      for (let i = list.length - 1; i >= 0; i--) { if (list[i].role === 'user') { lastUserIdx = i; break; } }
+    }
+    const out = list.map((m, i) => {
       if (m.role === 'user' && m.files && m.files.length) {
-        const imgs = m.files.filter((f) => f.kind === 'image' && f.dataUrl);
+        const suppressed = opts.sendAttachments === false && i !== lastUserIdx;
+        const files = suppressed ? [] : m.files.filter((f) => !f.excluded);
+        if (!files.length) return { role: 'user', content: m.content };   // nothing sendable left
+        const imgs = files.filter((f) => f.kind === 'image' && f.dataUrl);
         if (imgs.length) {
           // Multimodal content array: the typed text (+ any text files) then each image, for a vision model.
           const textParts = [m.content || ''].concat(
-            m.files.filter((f) => f.kind !== 'image').map((f) => '===== ' + f.name + ' =====\n' + (f.text || ''))
+            files.filter((f) => f.kind !== 'image').map((f) => '===== ' + f.name + ' =====\n' + (f.text || ''))
           );
           const textJoin = textParts.filter(Boolean).join('\n\n');
           const arr = [];
@@ -1089,6 +1112,79 @@ Constellation.chat = (function () {
     conversation.length = idx + 2;   // keep through conversation[idx+1] (= msgs[idx] = el)
   }
 
+  // A thin-stroke SVG eye (slash when hidden) — the context-visibility toggle for attachments.
+  function eyeSvg(off) {
+    const NS = 'http://www.w3.org/2000/svg';
+    const s = document.createElementNS(NS, 'svg');
+    s.setAttribute('viewBox', '0 0 24 24');
+    s.classList.add('eye-ico');
+    const almond = document.createElementNS(NS, 'path');
+    almond.setAttribute('d', 'M2.5 12 C5.5 6.9 9 5 12 5 S18.5 6.9 21.5 12 C18.5 17.1 15 19 12 19 S5.5 17.1 2.5 12 Z');
+    almond.setAttribute('fill', 'none'); almond.setAttribute('stroke', 'currentColor'); almond.setAttribute('stroke-width', '1.5');
+    const iris = document.createElementNS(NS, 'circle');
+    iris.setAttribute('cx', '12'); iris.setAttribute('cy', '12'); iris.setAttribute('r', '3.1');
+    iris.setAttribute('fill', 'none'); iris.setAttribute('stroke', 'currentColor'); iris.setAttribute('stroke-width', '1.5');
+    s.appendChild(almond); s.appendChild(iris);
+    if (off) {
+      const slash = document.createElementNS(NS, 'line');
+      slash.setAttribute('x1', '4.5'); slash.setAttribute('y1', '19.5'); slash.setAttribute('x2', '19.5'); slash.setAttribute('y2', '4.5');
+      slash.setAttribute('stroke', 'currentColor'); slash.setAttribute('stroke-width', '1.5');
+      s.appendChild(slash);
+    }
+    return s;
+  }
+
+  // Re-render a sent message's passive attachment chips (after eye/X changes in edit mode).
+  function refreshMsgFileChips(el) {
+    const fc = el.querySelector('.msg-files');
+    if (!fc) return;
+    fc.replaceChildren();
+    for (const f of (el.__files || [])) fc.appendChild(fileChipEl(f, false));
+  }
+
+  // Attachment controls shown ONLY while editing a user prompt: eye = hide from context (stays in
+  // chat, stops being sent), × = delete from the chat entirely. Both take effect immediately.
+  function attachEditStrip(el, ta) {
+    const files = el.__files;
+    if (!files || !files.length) return null;
+    const strip = document.createElement('div');
+    strip.className = 'attach-edit-strip';
+    const head = document.createElement('div'); head.className = 'attach-edit-head';
+    head.textContent = 'Attachments — 👁 hide from context · × delete';
+    strip.appendChild(head);
+    const rows = document.createElement('div'); rows.className = 'attach-edit-rows';
+    strip.appendChild(rows);
+    const draw = () => {
+      rows.replaceChildren();
+      for (const f of files) {
+        const row = document.createElement('div');
+        row.className = 'attach-edit-row' + (f.excluded ? ' excluded' : '');
+        const eye = document.createElement('button');
+        eye.type = 'button'; eye.className = 'attach-eye';
+        eye.title = f.excluded ? 'Hidden from context — click to send with future calls' : 'Sent with every call — click to hide from context (stays in chat)';
+        eye.appendChild(eyeSvg(!!f.excluded));
+        eye.addEventListener('click', () => { f.excluded = !f.excluded; persist(); draw(); refreshMsgFileChips(el); updateContextMeter(); });
+        const nm = document.createElement('span'); nm.className = 'attach-edit-name';
+        nm.textContent = (f.kind === 'image' ? '🖼 ' : '') + f.name;
+        const tag = document.createElement('span'); tag.className = 'attach-edit-tag';
+        tag.textContent = f.excluded ? 'not sent' : '';
+        const x = document.createElement('button');
+        x.type = 'button'; x.className = 'attach-x'; x.title = 'Delete from this chat'; x.textContent = '×';
+        x.addEventListener('click', () => {
+          const i = files.indexOf(f);
+          if (i !== -1) files.splice(i, 1);
+          persist(); draw(); refreshMsgFileChips(el); updateContextMeter();
+          if (!files.length) strip.remove();
+        });
+        row.appendChild(eye); row.appendChild(nm); row.appendChild(tag); row.appendChild(x);
+        rows.appendChild(row);
+      }
+    };
+    draw();
+    ta.insertAdjacentElement('afterend', strip);
+    return strip;
+  }
+
   function startEdit(el) {
     const body = el.querySelector('.body');
     if (!body || el.dataset.editing === '1') return;
@@ -1100,6 +1196,7 @@ Constellation.chat = (function () {
     ta.className = 'edit-area';
     ta.value = original;
     body.replaceChildren(ta);
+    attachEditStrip(el, ta);   // eye/X per attachment — only exists in edit mode
 
     // Size the edit box to fit its contents and keep growing as you type.
     const growEdit = () => {
@@ -1456,5 +1553,5 @@ Constellation.chat = (function () {
     }
   }
 
-  return { init, setPrompts, getPrompts, getOptions, persist, setOptions, setActiveLore, setPhraseBans, setDraft, scrollToMatch, scrollToMessage, refreshBookmarkGlyphs, reset, loadSession, getUserWriting, recentMessages, getState, testRetrieve, testBans, dryRun };
+  return { init, setPrompts, getPrompts, getOptions, persist, setOptions, setActiveLore, setPhraseBans, setDraft, scrollToMatch, scrollToMessage, refreshBookmarkGlyphs, reset, loadSession, getUserWriting, recentMessages, getState, testRetrieve, testBans, dryRun, testCompose: (list) => toApiMessages(null, list) };
 })();

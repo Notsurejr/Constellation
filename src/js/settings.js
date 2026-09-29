@@ -72,6 +72,7 @@ Constellation.settings = (function () {
       if ($('teachEditsInput')) $('teachEditsInput').checked = cfg.teachEdits === true;
       if ($('preservedThinkingInput')) $('preservedThinkingInput').checked = cfg.preservedThinking !== false;
       if ($('immersionInput')) $('immersionInput').checked = cfg.immersion === true;
+      if ($('sendAttachmentsInput')) $('sendAttachmentsInput').checked = cfg.sendAttachments !== false;
       if ($('mdThinkingInput')) $('mdThinkingInput').checked = cfg.mdThinking !== false;
       if ($('backupDate')) {
         const t = cfg.lastBackup || 0;
@@ -219,13 +220,14 @@ Constellation.settings = (function () {
     const teachEdits = $('teachEditsInput') ? $('teachEditsInput').checked : false;
     const preservedThinking = $('preservedThinkingInput') ? $('preservedThinkingInput').checked : true;
     const immersion = $('immersionInput') ? $('immersionInput').checked : false;
+    const sendAttachments = $('sendAttachmentsInput') ? $('sendAttachmentsInput').checked : true;
     const streamCps = sliderToCps($('streamInput').value);
     const contextWindow = parseInt($('contextWindowInput').value, 10) || 0;
     // Per-chat: apply to this chat and persist with it.
-    Constellation.chat.setOptions({ model, temperature, topP, maxTokens, thinking, reasoningEffort, streamCps, contextWindow, teachEdits, preservedThinking, immersion });
+    Constellation.chat.setOptions({ model, temperature, topP, maxTokens, thinking, reasoningEffort, streamCps, contextWindow, teachEdits, preservedThinking, immersion, sendAttachments });
     Constellation.chat.persist();
     // Also update the global default so new chats inherit these preferences.
-    await window.api.saveConfig({ model, temperature, top_p: topP, max_tokens: maxTokens, thinking, reasoning_effort: reasoningEffort, stream_cps: streamCps, context_window: contextWindow, teach_edits: teachEdits ? 'on' : 'off', preserved_thinking: preservedThinking ? 'on' : 'off', immersion: immersion ? 'on' : 'off' });
+    await window.api.saveConfig({ model, temperature, top_p: topP, max_tokens: maxTokens, thinking, reasoning_effort: reasoningEffort, stream_cps: streamCps, context_window: contextWindow, teach_edits: teachEdits ? 'on' : 'off', preserved_thinking: preservedThinking ? 'on' : 'off', immersion: immersion ? 'on' : 'off', send_attachments: sendAttachments ? 'on' : 'off' });
     flash('genSaved');
   }
 

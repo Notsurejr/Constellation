@@ -173,6 +173,7 @@ function getSettings() {
     immersion: /^(on|true|1)$/i.test(s.immersion || ''),
     lastBackup: parseInt(s.last_backup || '0', 10) || 0,
     mdThinking: s.md_thinking === undefined ? true : /^(on|true|1)$/i.test(s.md_thinking || ''),
+    sendAttachments: s.send_attachments === undefined ? true : /^(on|true|1)$/i.test(s.send_attachments || ''),
     sidebarSort: ['recent','name','size'].includes(s.sidebar_sort) ? s.sidebar_sort : 'recent',
     flareIntensity: clamp(parseFloat(s.flare_intensity || '0.5') || 0.5, 0, 1),
     flareRange: clamp(parseInt(s.flare_range || '140', 10) || 140, 50, 400),
@@ -207,7 +208,7 @@ ipcMain.handle('config:load', () => {
     cliServer: s.cliServer,
     flareIntensity: s.flareIntensity, flareRange: s.flareRange, flareSize: s.flareSize, flareBlend: s.flareBlend,
     fxEvents: s.fxEvents, fxSize: s.fxSize,
-    colorWords: s.colorWords, moodSky: s.moodSky, teachEdits: s.teachEdits, preservedThinking: s.preservedThinking, immersion: s.immersion, lastBackup: s.lastBackup, sidebarSort: s.sidebarSort, mdThinking: s.mdThinking,
+    colorWords: s.colorWords, moodSky: s.moodSky, teachEdits: s.teachEdits, preservedThinking: s.preservedThinking, immersion: s.immersion, lastBackup: s.lastBackup, sidebarSort: s.sidebarSort, mdThinking: s.mdThinking, sendAttachments: s.sendAttachments,
     phraseBans: readTextSafe(PHRASE_BANS_FILE) || '',
     hasKey: !!s.apiKey,
   };
@@ -259,6 +260,7 @@ ipcMain.handle('config:save', (_e, patch) => {
   if (patch.last_backup !== undefined) setLine('last_backup', patch.last_backup);
   if (patch.sidebar_sort !== undefined) setLine('sidebar_sort', patch.sidebar_sort);
   if (patch.md_thinking !== undefined) setLine('md_thinking', patch.md_thinking);
+  if (patch.send_attachments !== undefined) setLine('send_attachments', patch.send_attachments);
   if (patch.fx_size !== undefined) setLine('fx_size', patch.fx_size);
   fs.writeFileSync(SETTINGS_FILE, lines.join('\n'), 'utf8');
   return getSettings();

@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.6.3 — Context You Control
+
+*Released: 2026-09-19*
+
+### New
+
+- **Attachment context controls** — editing a user prompt now shows each attached file and
+  image with two controls: an **eye** to hide it from context (it stays in the chat, dimmed
+  and marked "not sent", but stops going to the model) and an **×** to delete it from the
+  chat entirely. Exclusions persist and apply to every future call — the fastest way to
+  isolate which attachment is tripping the provider's moderation.
+- **Send attachments — newest only** — a Generation toggle. Off means older messages' files
+  and images are kept out of the API call while the newest message's attachments still go
+  through, so one old file can't block the whole conversation.
+
 ## v0.6.2 — Human-Readable Archives
 
 *Released: 2026-09-19*
