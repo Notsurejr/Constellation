@@ -361,9 +361,17 @@ Constellation.chat = (function () {
   function autoGrow() {
     // Giant pastes: the height is already at its cap, and forcing a reflow on a huge textarea is
     // what made the composer lag after repeated long pastes — skip the re-measure for big values.
-    if (inputEl.value.length > 4000) { inputEl.style.height = '160px'; return; }
+    const wasAtBottom = atBottom();
+    if (inputEl.value.length > 4000) { inputEl.style.height = '160px'; keepTail(wasAtBottom); return; }
     inputEl.style.height = 'auto';
     inputEl.style.height = Math.min(160, inputEl.scrollHeight) + 'px';
+    keepTail(wasAtBottom);
+  }
+  // A growing composer shrinks the reading pane from below — if the reader was at the bottom,
+  // follow it so the reply's ending stays visible instead of being swallowed.
+  function keepTail(wasAtBottom) {
+    if (!wasAtBottom) return;
+    setTimeout(scrollToBottom, 0);   // setTimeout: rAF never fires when occluded
   }
 
   // ---- File attachments: text (.md/.txt) read as context, images read as base64 for vision ----

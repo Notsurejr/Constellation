@@ -39,7 +39,7 @@ Constellation is a desktop home for long-form AI-assisted writing. Bring your ow
 
 **🔒 Private and portable.** No cloud, no accounts, no telemetry. Chats, lorebooks, chronicles, presets and journals are plain JSON/text in `%AppData%\constellation` — back up and restore the whole app to one file. The renderer is sandboxed and every IPC surface is validated.
 
-**🖼️ And the practical bits.** Image input (vision models), collapsible preserved thinking, folders, pinned and *hidden* chats, full-text search, drafts, export to Markdown, a writing **coach** with a craft journal, zen mode, and a token meter.
+**🖼️ And the practical bits.** Image input (vision models), collapsible preserved thinking, folders, pinned and *hidden* chats, full-text search, drafts, export to Markdown, a writing **coach** with a craft journal, and a token meter.
 
 ---
 
@@ -83,8 +83,8 @@ You need two things: the installer and an API key.
 | **Exports** | Obsidian-friendly Markdown per chat (callout turns, folded thinking blocks, ✎ sculpted marks) · Markdown backup: one dated .md per chat · JSON backup/restore for everything |
 | **Connection** | GLM (Coding plan / General) · OpenRouter · any OpenAI-compatible base URL + custom model ID · thinking effort mapped for non-GLM providers |
 | **Organize** | Folders · pinned chats · hidden chats · full-text search with jump-to-match · drafts per chat · usage/token tracking per chat |
-| **The sky** | Color-word tints in prose (223 names) + margin glows + cosmic events (toggleable, size/blend/reach controls) · mood-weather starfield · parallax · twinkle & density controls · zen mode |
-| **Data** | One-file backup & restore · everything in plain files under `%AppData%\constellation` |
+| **The sky** | Color-word tints in prose (223 names) + margin glows + cosmic events (toggleable, size/blend/reach controls) · mood-weather starfield · parallax · twinkle & density controls · selectable reading fonts (Literata, Newsreader, Lora, Atkinson) |
+| **Data** | One-file backup & restore · Obsidian-friendly Markdown exports · everything in plain files under `%AppData%\constellation` |
 | **For tinkerers** | Opt-in localhost test server + read-only `cli.js` for headless poking · tweak theme/star colors in plain CSS |
 
 **Keyboard:** `Enter` send · `Shift+Enter` newline · `Esc` close panel / exit Zen · `?` cheat sheet.

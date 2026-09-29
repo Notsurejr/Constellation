@@ -70,6 +70,11 @@ Constellation.settings = (function () {
       if ($('fxEventsInput')) $('fxEventsInput').checked = cfg.fxEvents !== false;
       if ($('colorWordsInput')) $('colorWordsInput').checked = cfg.colorWords !== false;
       if ($('moodSkyInput')) $('moodSkyInput').checked = cfg.moodSky !== false;
+      if ($('fontFamilyInput')) $('fontFamilyInput').value = cfg.fontFamily || 'Literata';
+      const lh = cfg.lineHeight != null ? cfg.lineHeight : 1.65;
+      if ($('lineHeightInput')) { $('lineHeightInput').value = lh; $('lineHeightVal').textContent = Number(lh).toFixed(2); }
+      if ($('measureInput')) $('measureInput').value = cfg.proseMeasure || 'off';
+      applyTypography(cfg.fontFamily || 'Literata', lh, cfg.proseMeasure || 'off');
       if ($('teachEditsInput')) $('teachEditsInput').checked = cfg.teachEdits === true;
       if ($('preservedThinkingInput')) $('preservedThinkingInput').checked = cfg.preservedThinking !== false;
       if ($('immersionInput')) $('immersionInput').checked = cfg.immersion === true;
@@ -232,6 +237,14 @@ Constellation.settings = (function () {
     flash('genSaved');
   }
 
+  // Reading typography: font family, line height, prose measure — live-applied CSS vars.
+  function applyTypography(family, lineH, measure) {
+    const root = document.documentElement;
+    root.style.setProperty('--font-prose-live', "'" + String(family || 'Literata').replace(/'/g, '') + "'");
+    root.style.setProperty('--line-height-live', String(lineH || 1.65));
+    root.style.setProperty('--prose-measure-live', (!measure || measure === 'off') ? '100%' : measure);
+  }
+
   function applyAppearanceVars(fontScale, chatWidth) {
     document.documentElement.style.setProperty('--font-scale', fontScale);
     document.documentElement.style.setProperty('--chat-col', chatWidth + 'px');
@@ -266,12 +279,13 @@ Constellation.settings = (function () {
   }
 
   async function saveAppearance() {
+    applyTypography($('fontFamilyInput') ? $('fontFamilyInput').value : 'Literata', parseFloat($('lineHeightInput') ? $('lineHeightInput').value : 1.65), $('measureInput') ? $('measureInput').value : 'off');
     const fontScale = parseFloat($('fontInput').value);
     const chatWidth = parseInt($('widthInput').value, 10);
     const accent = $('accentInput').value;
     const starDensity = Number($('starDensityInput').value) / 100;
     const twinkleSpeed = Number($('twinkleInput').value) / 100;
-    await window.api.saveConfig({ font_scale: fontScale, chat_width: chatWidth, accent, star_density: starDensity, twinkle_speed: twinkleSpeed });
+    await window.api.saveConfig({ font_scale: fontScale, chat_width: chatWidth, accent, star_density: starDensity, twinkle_speed: twinkleSpeed , font_family: ($('fontFamilyInput') ? $('fontFamilyInput').value : 'Literata'), line_height: parseFloat(($('lineHeightInput') ? $('lineHeightInput').value : 1.65)), prose_measure: ($('measureInput') ? $('measureInput').value : 'off') });
     applyAppearanceVars(fontScale, chatWidth);
     applyAccent(accent);
     applyStarfield(starDensity, twinkleSpeed);
@@ -480,6 +494,21 @@ Constellation.settings = (function () {
     $('streamInput').addEventListener('input', () => {
       $('streamVal').textContent = cpsLabel(sliderToCps($('streamInput').value));
     });
+    if ($('fontFamilyInput')) $('fontFamilyInput').addEventListener('change', () => { applyTypography($('fontFamilyInput').value, parseFloat($('lineHeightInput').value), $('measureInput').value); });
+    if ($('lineHeightInput')) $('lineHeightInput').addEventListener('input', () => { $('lineHeightVal').textContent = Number($('lineHeightInput').value).toFixed(2); applyTypography($('fontFamilyInput').value, parseFloat($('lineHeightInput').value), $('measureInput').value); });
+    if ($('measureInput')) $('measureInput').addEventListener('change', () => { applyTypography($('fontFamilyInput').value, parseFloat($('lineHeightInput').value), $('measureInput').value); });
+    const tabsRail = $('settingsTabs');
+    if (tabsRail) {
+      const activate = (name) => {
+        tabsRail.querySelectorAll('.settings-tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
+        document.querySelectorAll('.settings-pane').forEach((pn) => pn.classList.toggle('active', pn.dataset.pane === name));
+        try { localStorage.setItem('settings_tab', name); } catch (e) { console.warn('[constellation]', e && e.message || e); }
+      };
+      tabsRail.addEventListener('click', (e) => { const b = e.target.closest('.settings-tab'); if (b) activate(b.dataset.tab); });
+      let remembered = 'writing';
+      try { remembered = localStorage.getItem('settings_tab') || 'writing'; } catch (e) { console.warn('[constellation]', e && e.message || e); }
+      activate(remembered);
+    }
     $('fontInput').addEventListener('input', () => {
       $('fontVal').textContent = Number($('fontInput').value).toFixed(2) + '×';
       applyAppearanceVars(Number($('fontInput').value), Number($('widthInput').value));   // live preview

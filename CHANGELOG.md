@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.8.0 — A Room to Read
+
+*Released: 2026-09-29*
+
+### New
+
+- **Settings, in four tabs** — ✍ Writing · ⚙ Generation · 🎨 Appearance · 🗄 System. The same
+  sections in the same order as always, each with its own home; the panel remembers your tab.
+- **Reading fonts** — Literata (default), Newsreader, Lora, and Atkinson Hyperlegible, all
+  bundled. Switch in Appearance; the prose changes, the UI stays itself.
+- **Line height & prose measure** — set the leading you read best at, and optionally cap lines
+  at ~75 or ~90 characters so prose holds a bookish measure no matter your window width.
+- **Turn headers** — speakers now read as small-caps letterspaced headers (YOU / GLM) with a
+  hairline running off to the edge — a cleaner manuscript rhythm than the old corner glyphs.
+
+### Changed
+
+- **Markdown that articulates** — bold, headings, lists, blockquotes, inline code, and links
+  each carry their own structural styling (accent-barred quotes, chip code, accent markers),
+  not just brightness.
+- **The composer no longer swallows the reply's ending** — typing a long prompt keeps the
+  last line of the model's response in view instead of covering it.
+- Quieter lore constellations in the margins until they light; brighter hint/secondary text;
+  the first message clears the topbar; dossier blocks get proper chrome.
+- Zen mode removed — it didn't earn its button.
+
 ## v0.7.0 — The Cast
 
 *Released: 2026-09-29*

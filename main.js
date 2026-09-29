@@ -187,6 +187,9 @@ const SETTINGS_SPEC = [
   ['fx_size', 'fxSize', 'clampedFloat', 1, 0.4, 2.5],
   ['color_words', 'colorWords', 'onoff', true],
   ['mood_sky', 'moodSky', 'onoff', true],
+  ['font_family', 'fontFamily', 'enum', 'Literata', ['Literata', 'Newsreader', 'Lora', 'Atkinson Hyperlegible']],
+  ['line_height', 'lineHeight', 'clampedFloat', 1.65, 1.3, 2.1],
+  ['prose_measure', 'proseMeasure', 'str', 'off'],
 ];
 
 function readSetting(row, raw) {

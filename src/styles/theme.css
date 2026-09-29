@@ -27,6 +27,20 @@
   src: url('../fonts/literata-600i.woff2') format('woff2');
 }
 
+/* Reading fonts (all SIL OFL) — selectable in Settings → Appearance. Literata stays the default. */
+@font-face { font-family: 'Newsreader'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/newsreader-400.woff2') format('woff2'); }
+@font-face { font-family: 'Newsreader'; font-style: normal; font-weight: 600; font-display: swap; src: url('../fonts/newsreader-600.woff2') format('woff2'); }
+@font-face { font-family: 'Newsreader'; font-style: italic; font-weight: 400; font-display: swap; src: url('../fonts/newsreader-400i.woff2') format('woff2'); }
+@font-face { font-family: 'Newsreader'; font-style: italic; font-weight: 600; font-display: swap; src: url('../fonts/newsreader-600i.woff2') format('woff2'); }
+@font-face { font-family: 'Lora'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/lora-400.woff2') format('woff2'); }
+@font-face { font-family: 'Lora'; font-style: normal; font-weight: 600; font-display: swap; src: url('../fonts/lora-600.woff2') format('woff2'); }
+@font-face { font-family: 'Lora'; font-style: italic; font-weight: 400; font-display: swap; src: url('../fonts/lora-400i.woff2') format('woff2'); }
+@font-face { font-family: 'Lora'; font-style: italic; font-weight: 600; font-display: swap; src: url('../fonts/lora-600i.woff2') format('woff2'); }
+@font-face { font-family: 'Atkinson Hyperlegible'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/atkinson-400.woff2') format('woff2'); }
+@font-face { font-family: 'Atkinson Hyperlegible'; font-style: normal; font-weight: 700; font-display: swap; src: url('../fonts/atkinson-700.woff2') format('woff2'); }
+@font-face { font-family: 'Atkinson Hyperlegible'; font-style: italic; font-weight: 400; font-display: swap; src: url('../fonts/atkinson-400i.woff2') format('woff2'); }
+@font-face { font-family: 'Atkinson Hyperlegible'; font-style: italic; font-weight: 700; font-display: swap; src: url('../fonts/atkinson-700i.woff2') format('woff2'); }
+
 :root {
   --bg: #000000;                       /* deep-space black */
   --star-rgb: 255, 255, 255;           /* main star color */
@@ -52,4 +66,7 @@
 
   --font-scale: 1;       /* text-size preference (set by Settings → Appearance) */
   --chat-col: 880px;     /* width of the centered chat column (set by Settings → Appearance) */
+  --font-prose-live: 'Literata';   /* selected reading font (set live by Settings → Appearance) */
+  --line-height-live: 1.65;        /* selected prose line height */
+  --prose-measure-live: 100%;      /* selected prose measure cap (off = fill the column) */
 }

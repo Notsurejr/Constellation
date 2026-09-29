@@ -112,18 +112,6 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
   document.getElementById('input').focus();
 
-  // Zen mode: fade the chrome so the conversation can breathe full-width. Esc (or the ☾ button) exits.
-  const zenBtn = document.getElementById('zenBtn');
-  const setZen = (on) => document.body.classList.toggle('zen', on);
-  if (zenBtn) zenBtn.addEventListener('click', () => setZen(!document.body.classList.contains('zen')));
-  const zenHint = document.getElementById('zenHint');
-  if (zenHint) zenHint.addEventListener('click', () => setZen(false));
-  document.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
-    if (document.querySelector('.settings-overlay.open')) return;   // let overlays close first
-    if (document.body.classList.contains('zen')) setZen(false);
-  });
-
   // Shortcuts overlay — toggle with ? or the ? button.
   const sc = document.getElementById('shortcutsOverlay');
   const toggleShortcuts = () => { if (sc) sc.classList.toggle('open'); };

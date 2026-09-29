@@ -1332,7 +1332,7 @@ input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
 .chat { view-transition-name: thread; }
 .sidebar.has-items .sidebar-empty { display: none; }
 
-/* ---------- Visual polish: read progress, role glyphs, status breathe, zen ---------- */
+/* ---------- Visual polish: read progress, role glyphs, status breathe ---------- */
 .read-progress {
   position: fixed; top: 0; right: 0;
   width: 2px; height: 100vh;
@@ -1356,28 +1356,8 @@ input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
 
 /* Zen mode — distraction-free: stars dim, chrome recedes, conversation breathes. Hover the top
    edge to recall the bar; the floating hint (or Esc) exits. */
-body.zen #starfield { opacity: 0.4; transition: opacity .45s ease; }
-body.zen .topbar { position: absolute; top: 0; left: 0; right: 0; opacity: 0; z-index: 40; transition: opacity .3s ease; }
-body.zen .topbar:hover { opacity: 1; }
-body.zen .sidebar.open { transform: translateX(-100%); }   /* keep the drawer closed in zen */
-body.zen .read-progress { opacity: 0; }
-body.zen .composer {
-  background: transparent; border-top: none;
-  -webkit-backdrop-filter: none; backdrop-filter: none;
-}
-body.zen { --chat-col: min(100vw - 60px, 1280px); }
 
 /* Floating "Zen" pill — the explicit signal that Zen is on; click it to exit. */
-.zen-hint {
-  position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%);
-  z-index: 40; padding: 5px 14px; border-radius: 999px;
-  border: 1px solid var(--panel-border); background: rgba(8,10,18,0.7);
-  color: var(--text-dim); font-family: var(--font-ui); font-size: 11px; letter-spacing: 0.4px;
-  cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .3s ease;
-  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
-}
-body.zen .zen-hint { opacity: 1; pointer-events: auto; }
-body.zen .zen-hint:hover { color: var(--accent); border-color: var(--accent-dim); }
 
 /* ---------- Craft (writing coach) ---------- */
 .topbar-right { display: flex; align-items: center; gap: 12px; }
@@ -1601,3 +1581,94 @@ input.num::-webkit-outer-spin-button, input.num::-webkit-inner-spin-button { opa
 }
 .session-title .session-char img { width: 100%; height: 100%; object-fit: cover; }
 .session-item.char-chat .session-title { color: var(--accent-dim); }
+
+/* ============================================================
+   v0.8 — READING EXPERIENCE: tabs, typography, turn headers,
+   markdown articulation, quieter rails, composer clearance
+   ============================================================ */
+
+/* Settings tab rail — same sections as always, four homes */
+.settings-tabwrap { display: flex; gap: 16px; min-height: 0; flex: 1; }
+.settings-tabs { display: flex; flex-direction: column; gap: 4px; flex: none; width: 132px; }
+.settings-tab {
+  text-align: left; padding: 8px 10px; font: inherit; font-size: 13px;
+  background: none; border: 1px solid transparent; border-radius: 9px;
+  color: var(--text-dim); cursor: pointer;
+}
+.settings-tab:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+.settings-tab.active { color: var(--accent); border-color: var(--panel-border); background: rgba(159,184,255,0.06); }
+.settings-pane { display: none; flex: 1; min-width: 0; overflow-y: auto; padding-right: 4px; }
+.settings-pane.active { display: block; }
+#settingsOverlay .settings-panel { display: flex; flex-direction: column; max-height: 86vh; }
+
+/* Prose typography — font, line height, and measure live here (Settings → Appearance) */
+.msg .body {
+  font-family: var(--font-prose-live), Georgia, 'Times New Roman', serif;
+  line-height: var(--line-height-live, 1.65);
+  max-width: var(--prose-measure-live, 100%);
+}
+.msg .body p { margin: 0 0 0.9em; }
+.msg .body p:last-child { margin-bottom: 0; }
+
+/* Turn headers — small-caps speakers with a hairline running off to the right */
+.msg .role {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--text-dim); margin-bottom: 6px;
+}
+.msg .role::after {
+  content: ''; flex: 1; height: 1px;
+  background: linear-gradient(90deg, var(--panel-border), transparent);
+}
+.msg .role .role-glyph { font-size: 11px; color: var(--accent-dim); }
+
+/* Markdown articulation — structural distinction, not just brightness */
+.msg .body strong { font-weight: 650; color: #f4f7ff; }
+.msg .body em { font-style: italic; }
+.msg .body h1, .msg .body h2, .msg .body h3, .msg .body h4 { color: var(--text); letter-spacing: 0.02em; }
+.msg .body h1 { font-size: 1.5em; margin: 1.1em 0 0.5em; }
+.msg .body h2 { font-size: 1.28em; margin: 1.05em 0 0.45em; }
+.msg .body h3 { font-size: 1.12em; margin: 1em 0 0.4em; }
+.msg .body h4 { font-size: 1em; margin: 0.95em 0 0.35em; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); }
+.msg .body h1:first-child, .msg .body h2:first-child, .msg .body h3:first-child { margin-top: 0; }
+.msg .body ul, .msg .body ol { margin: 0.4em 0 1em; padding-left: 1.5em; }
+.msg .body li { margin: 0.3em 0; }
+.msg .body li::marker { color: var(--accent-dim); }
+.msg .body blockquote {
+  border-left: 2px solid var(--accent-dim); border-radius: 0 8px 8px 0;
+  background: rgba(159,184,255,0.045);
+  padding: 0.55em 1em; margin: 0.9em 0; color: var(--text);
+}
+.msg .body blockquote p { margin: 0 0 0.5em; }
+.msg .body blockquote p:last-child { margin: 0; }
+.msg .body :not(pre) > code {
+  font-family: ui-monospace, Consolas, monospace; font-size: 0.88em;
+  background: rgba(159,184,255,0.08); border: 1px solid var(--panel-border);
+  border-radius: 5px; padding: 0.1em 0.4em; color: #c9d8ff;
+}
+.msg .body a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--accent-dim); }
+.msg .body a:hover { text-shadow: var(--glow); }
+.msg .body hr { margin: 1.6em auto; }
+
+/* Dossier blocks — chrome header line, quiet mono body */
+.msg .body pre:has(code.language-file) { border: 1px solid var(--panel-border); border-radius: 10px; background: rgba(8,10,16,0.55); }
+.msg .body code.language-file { display: block; padding: 10px 14px; }
+.msg .body code.language-file::first-line { color: var(--accent-dim); font-weight: 600; letter-spacing: 0.08em; }
+
+/* Contrast lifts — dim text a notch brighter where reading matters */
+.hint { color: #97a0b4; }
+.settings-panel .hint { color: #97a0b4; }
+.session-usage { color: rgba(200,210,232,0.75); }
+
+/* Breathing room: first message clears the topbar; last clears the composer */
+.chat { padding-top: 46px; padding-bottom: 30px; }
+
+/* Quieter left rail — lore constellations murmur until summoned */
+.lore-star { opacity: 0.45; }
+.lore-star.lit { opacity: 1; }
+
+/* Composer: its growth no longer swallows the reply's ending (autoGrow rescrolls) */
+.composer { padding-bottom: 14px; }
+
+/* Settings internals — calmer save rows */
+.settings-actions { margin-top: 10px; }
