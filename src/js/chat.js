@@ -402,6 +402,25 @@ Constellation.chat = (function () {
     const nm = document.createElement('span'); nm.className = 'attach-name'; nm.textContent = f.name;
     const sz = document.createElement('span'); sz.className = 'attach-size'; sz.textContent = fileSizeLabel(f);
     chip.appendChild(nm); chip.appendChild(sz);
+    if (!removable) {
+      // Sent-message chips carry a hover eye: hide/unhide from context in place — no edit mode,
+      // no resend, the forward conversation is untouched. (Edit mode's larger eye overlays this.)
+      const eye = document.createElement('button');
+      eye.type = 'button'; eye.className = 'attach-eye-inline';
+      const setTitle = () => { eye.title = f.excluded ? 'Hidden from context — click to send with future calls' : 'Sent with every call — click to hide from context (the conversation stays)'; };
+      setTitle();
+      eye.appendChild(eyeSvg(!!f.excluded));
+      eye.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        f.excluded = !f.excluded;
+        persist();
+        chip.classList.toggle('excluded', !!f.excluded);
+        eye.replaceChildren(eyeSvg(!!f.excluded));
+        setTitle();
+        updateContextMeter();
+      });
+      chip.appendChild(eye);
+    }
     if (removable) {
       const x = document.createElement('button');
       x.className = 'attach-x'; x.type = 'button'; x.title = 'Remove'; x.textContent = '×';

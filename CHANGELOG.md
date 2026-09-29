@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.8.2 — The Eye Without the Resend
+
+*Released: 2026-09-29*
+
+### New
+
+- **Hover eye on sent attachments** — every attachment chip in a sent message now reveals a
+  small eye on hover: click to hide or unhide it from context in place. No edit mode, no
+  resend, no regeneration — the conversation after that point stays exactly as it was.
+  (Editing a prompt still resends and cuts below, as before, for when you want that.)
+
+### Changed
+
+- **Settings panel widened and retuned** — the tabbed panel breathes again (1060px), and the
+  tab icons join the app’s glyph family: ✎ Writing · ✦ Generation · ◈ Appearance · ☰ System.
+
 ## v0.8.1 — Aligned With the API
 
 *Released: 2026-09-29*

@@ -1588,16 +1588,17 @@ input.num::-webkit-outer-spin-button, input.num::-webkit-inner-spin-button { opa
    ============================================================ */
 
 /* Settings tab rail — same sections as always, four homes */
-.settings-tabwrap { display: flex; gap: 16px; min-height: 0; flex: 1; }
-.settings-tabs { display: flex; flex-direction: column; gap: 4px; flex: none; width: 132px; }
+#settingsOverlay .settings-panel { width: min(1060px, 96vw); }
+.settings-tabwrap { display: flex; gap: 20px; min-height: 0; flex: 1; }
+.settings-tabs { display: flex; flex-direction: column; gap: 5px; flex: none; width: 124px; padding-top: 2px; }
 .settings-tab {
-  text-align: left; padding: 8px 10px; font: inherit; font-size: 13px;
+  text-align: left; padding: 9px 12px; font: inherit; font-size: 13px; letter-spacing: 0.02em;
   background: none; border: 1px solid transparent; border-radius: 9px;
   color: var(--text-dim); cursor: pointer;
 }
 .settings-tab:hover { color: var(--text); background: rgba(255,255,255,0.03); }
 .settings-tab.active { color: var(--accent); border-color: var(--panel-border); background: rgba(159,184,255,0.06); }
-.settings-pane { display: none; flex: 1; min-width: 0; overflow-y: auto; padding-right: 4px; }
+.settings-pane { display: none; flex: 1; min-width: 0; overflow-y: auto; padding: 2px 14px 0 2px; }
 .settings-pane.active { display: block; }
 #settingsOverlay .settings-panel { display: flex; flex-direction: column; max-height: 86vh; }
 
@@ -1672,3 +1673,17 @@ input.num::-webkit-outer-spin-button, input.num::-webkit-inner-spin-button { opa
 
 /* Settings internals — calmer save rows */
 .settings-actions { margin-top: 10px; }
+
+/* Hover eye on sent attachment chips — hide from context WITHOUT edit/resend */
+.attach-chip { position: relative; }
+.attach-eye-inline {
+  position: absolute; top: 4px; right: 4px;
+  width: 22px; height: 22px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(8, 10, 16, 0.85); border: 1px solid var(--panel-border);
+  color: var(--text-dim); cursor: pointer; padding: 0; line-height: 0;
+  opacity: 0; transition: opacity .12s ease; z-index: 2;
+}
+.attach-chip:hover .attach-eye-inline { opacity: 1; }
+.attach-eye-inline:hover { color: var(--accent); border-color: var(--accent-dim); }
+.attach-chip.editing .attach-eye-inline { display: none; }   /* edit mode uses its own larger overlay */
