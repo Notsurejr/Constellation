@@ -165,19 +165,31 @@
         </label>
         <label class="field">
           <span>Creativity <em id="tempVal">0.80</em></span>
-          <input type="range" id="tempInput" min="0" max="1" step="0.01" value="0.8" />
+          <div class="slider-row">
+            <input type="range" id="tempInput" min="0" max="1" step="0.01" value="0.8" />
+            <input type="number" id="tempNum" class="num" min="0" max="1" step="0.01" value="0.8" title="Type an exact value" />
+          </div>
         </label>
         <label class="field">
           <span>Nucleus sampling <em id="topPVal">0.95</em></span>
-          <input type="range" id="topPInput" min="0" max="1" step="0.01" value="0.95" />
+          <div class="slider-row">
+            <input type="range" id="topPInput" min="0" max="1" step="0.01" value="0.95" />
+            <input type="number" id="topPNum" class="num" min="0" max="1" step="0.01" value="0.95" title="Type an exact value" />
+          </div>
         </label>
         <label class="field">
           <span>Max reply length <em id="maxVal">4096</em></span>
-          <input type="range" id="maxInput" min="0" max="700" step="5" value="300" />
+          <div class="slider-row">
+            <input type="range" id="maxInput" min="0" max="700" step="5" value="300" />
+            <input type="number" id="maxNum" class="num" min="512" max="65536" step="256" value="4096" title="Type an exact value (512–65,536)" />
+          </div>
         </label>
         <label class="field">
           <span>Context window <em class="hint-inline">cap sent history; 0 = all</em> <em id="contextWindowVal">Off</em></span>
-          <input type="range" id="contextWindowInput" min="0" max="131072" step="1024" value="0" />
+          <div class="slider-row">
+            <input type="range" id="contextWindowInput" min="0" max="131072" step="1024" value="0" />
+            <input type="number" id="cwNum" class="num" min="0" max="1000000" step="1024" value="0" title="Type an exact value (0 = send all)" />
+          </div>
         </label>
         <label class="field checkbox">
           <input type="checkbox" id="thinkingInput" />

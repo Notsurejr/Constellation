@@ -26,15 +26,16 @@ Constellation.settings = (function () {
       if (Array.from(msel.options).some((op) => op.value === cur)) { msel.value = cur; $('customModelField').hidden = true; }
       else { msel.value = '__custom__'; $('customModelField').hidden = false; $('customModelInput').value = cur; }
     }
-    if ($('tempInput')) { const tv = o.temperature != null ? o.temperature : 0.8; $('tempInput').value = tv; $('tempVal').textContent = Number(tv).toFixed(2); }
-    if ($('topPInput')) { const tpv = o.topP != null ? o.topP : 0.95; $('topPInput').value = tpv; $('topPVal').textContent = Number(tpv).toFixed(2); }
-    if ($('maxInput')) { $('maxInput').value = maxTokensToPos(o.maxTokens || 4096); $('maxVal').textContent = posToMaxTokens($('maxInput').value); }
+    if ($('tempInput')) { const tv = o.temperature != null ? o.temperature : 0.8; $('tempInput').value = tv; $('tempVal').textContent = Number(tv).toFixed(2); if ($('tempNum')) $('tempNum').value = Number(tv).toFixed(2); }
+    if ($('topPInput')) { const tpv = o.topP != null ? o.topP : 0.95; $('topPInput').value = tpv; $('topPVal').textContent = Number(tpv).toFixed(2); if ($('topPNum')) $('topPNum').value = Number(tpv).toFixed(2); }
+    if ($('maxInput')) { $('maxInput').value = maxTokensToPos(o.maxTokens || 4096); $('maxVal').textContent = posToMaxTokens($('maxInput').value); if ($('maxNum')) $('maxNum').value = posToMaxTokens($('maxInput').value); }
     if ($('thinkingInput')) $('thinkingInput').checked = !!o.thinking;
     if ($('effortInput')) $('effortInput').value = o.reasoningEffort || 'max';
     const cps = o.streamCps != null ? o.streamCps : 0;
     if ($('streamInput')) { $('streamInput').value = cpsToSlider(cps); $('streamVal').textContent = cpsLabel(cps); }
     const cwin = o.contextWindow != null ? o.contextWindow : 0;
     if ($('contextWindowInput')) { $('contextWindowInput').value = cwin; $('contextWindowVal').textContent = cwLabel(cwin); }
+    if ($('cwNum')) $('cwNum').value = cwin;
     // Connection (key/endpoint) + Appearance are global.
     try {
       const cfg = await window.api.loadConfig();
@@ -454,10 +455,28 @@ Constellation.settings = (function () {
       if (e.target.closest('.preset-del')) deletePreset(id);
       else loadPreset(id);
     });
-    $('tempInput').addEventListener('input', () => { $('tempVal').textContent = Number($('tempInput').value).toFixed(2); });
-    $('topPInput').addEventListener('input', () => { $('topPVal').textContent = Number($('topPInput').value).toFixed(2); });
-    $('maxInput').addEventListener('input', () => { $('maxVal').textContent = posToMaxTokens($('maxInput').value); });
-    $('contextWindowInput').addEventListener('input', () => { $('contextWindowVal').textContent = cwLabel($('contextWindowInput').value); });
+    // Slider ↔ exact-value number pairs: dragging updates the box, typing moves the slider.
+    // Values pass through one canonical side (the slider) so saving reads a single source.
+    $('tempInput').addEventListener('input', () => { $('tempVal').textContent = Number($('tempInput').value).toFixed(2); if ($('tempNum')) $('tempNum').value = Number($('tempInput').value).toFixed(2); });
+    $('topPInput').addEventListener('input', () => { $('topPVal').textContent = Number($('topPInput').value).toFixed(2); if ($('topPNum')) $('topPNum').value = Number($('topPInput').value).toFixed(2); });
+    $('maxInput').addEventListener('input', () => { const t = posToMaxTokens($('maxInput').value); $('maxVal').textContent = t; if ($('maxNum')) $('maxNum').value = t; });
+    $('contextWindowInput').addEventListener('input', () => { $('contextWindowVal').textContent = cwLabel($('contextWindowInput').value); if ($('cwNum')) $('cwNum').value = parseInt($('contextWindowInput').value, 10) || 0; });
+    const bindNum = (numId, sliderId, apply) => {
+      const n = $(numId); if (!n) return;
+      n.addEventListener('input', () => {
+        if (n.value === '' || isNaN(parseFloat(n.value))) return;   // half-typed — wait for more
+        apply(parseFloat(n.value));
+      });
+      n.addEventListener('change', () => {   // blur/Enter: clamp what was typed into the legal range
+        if (n.value === '' || isNaN(parseFloat(n.value))) { n.dispatchEvent(new Event('input')); return; }
+        apply(parseFloat(n.value));
+      });
+    };
+    bindNum('tempNum', 'tempInput', (v) => { v = Math.max(0, Math.min(1, v)); $('tempInput').value = v; $('tempVal').textContent = v.toFixed(2); $('tempNum').value = v.toFixed(2); });
+    bindNum('topPNum', 'topPInput', (v) => { v = Math.max(0, Math.min(1, v)); $('topPInput').value = v; $('topPVal').textContent = v.toFixed(2); $('topPNum').value = v.toFixed(2); });
+    bindNum('maxNum', 'maxInput', (v) => { v = Math.max(512, Math.min(65536, Math.round(v / 256) * 256)); $('maxInput').value = maxTokensToPos(v); $('maxVal').textContent = v; $('maxNum').value = v; });
+    bindNum('cwNum', 'contextWindowInput', (v) => { v = Math.max(0, Math.min(1000000, Math.round(v / 1024) * 1024)); const s = $('contextWindowInput'); s.value = v; const eff = parseInt(s.value, 10) || 0;   // the slider clamps to its own max — adopt whatever it kept
+      $('contextWindowVal').textContent = cwLabel(eff); $('cwNum').value = eff; });
     $('streamInput').addEventListener('input', () => {
       $('streamVal').textContent = cpsLabel(sliderToCps($('streamInput').value));
     });

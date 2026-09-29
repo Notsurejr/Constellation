@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.6.7 — Exact Values
+
+*Released: 2026-09-29*
+
+### Changed
+
+- **Type exact values next to the Generation sliders** — Creativity, Nucleus sampling, Max
+  reply length, and Context window each have a small number box beside the slider; drag or
+  type, they stay in sync, and out-of-range entries clamp to the legal range on Enter.
+- **Edit mode reads as a focused input, not an alarm** — the edit box now sits on a neutral
+  border with your accent color arriving only as a focus glow; the Save/Cancel buttons no
+  longer carry a hardcoded starlight tint that ignored custom accents.
+
 ## v0.6.6 — Bigger Touches
 
 *Released: 2026-09-29*

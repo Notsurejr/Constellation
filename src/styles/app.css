@@ -551,16 +551,18 @@ html, body {
   padding: 8px 10px;
   margin-top: 4px;
   border-radius: 8px;
-  border: 1px solid var(--accent-dim);
+  border: 1px solid var(--panel-border);
   background: rgba(0,0,0,0.4);
   color: var(--text);
   font-family: var(--font-ui);
   font-size: 15px;
   line-height: 1.5;
   outline: none;
+  transition: border-color .15s ease, box-shadow .15s ease;
 }
+.edit-area:focus { border-color: var(--accent-dim); box-shadow: var(--glow); }
 .edit-bar { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
-.edit-bar .msg-action { font-size: 12px; padding: 5px 11px; background: rgba(159,184,255,0.08); border: 1px solid var(--panel-border); }
+.edit-bar .msg-action { font-size: 12px; padding: 5px 11px; background: rgba(255,255,255,0.04); border: 1px solid var(--panel-border); }
 .edit-bar .msg-action:hover { border-color: var(--accent-dim); }
 
 /* ---------- Collapsible "thinking" block ---------- */
@@ -1516,3 +1518,16 @@ body.zen .zen-hint:hover { color: var(--accent); border-color: var(--accent-dim)
 .attach-chip.editing .attach-x:hover { color: var(--danger); border-color: var(--danger); }
 .attach-chip.excluded { opacity: 0.55; }
 .attach-chip.excluded .attach-name { text-decoration: line-through; text-decoration-color: var(--text-dim); }
+
+/* ---- Slider + exact-value number pairs (Generation) ---- */
+.slider-row { display: flex; align-items: center; gap: 10px; }
+.slider-row input[type="range"] { flex: 1; }
+input.num {
+  width: 86px; padding: 3px 6px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid var(--panel-border); border-radius: 6px;
+  color: var(--text); font-family: var(--font-ui); font-size: 12.5px;
+  color-scheme: dark; text-align: right;
+}
+input.num:focus { border-color: var(--accent-dim); outline: none; box-shadow: var(--glow); }
+input.num::-webkit-outer-spin-button, input.num::-webkit-inner-spin-button { opacity: .45; }
