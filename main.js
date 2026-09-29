@@ -45,7 +45,7 @@ const DEFAULT_SETTINGS = [
   'base_url: https://api.z.ai/api/coding/paas/v4',
   'temperature: 0.8',
   'top_p: 0.95',
-  'max_tokens: 4096',
+  'max_tokens: 65536',
   'thinking: off',
   '',
 ].join('\n');
@@ -161,7 +161,7 @@ const SETTINGS_SPEC = [
   ['base_url', 'baseUrl', 'str', 'https://open.bigmodel.cn/api/paas/v4/'],
   ['temperature', 'temperature', 'float', 0.8],
   ['top_p', 'topP', 'float', 0.95],
-  ['max_tokens', 'maxTokens', 'int', 0],                                   // 0 = provider default
+  ['max_tokens', 'maxTokens', 'int', 65536],                                 // GLM-5.x provider default
   ['thinking', 'thinking', 'onoff', false],
   ['reasoning_effort', 'reasoningEffort', 'enum', 'max', ['max', 'xhigh', 'high', 'medium', 'low', 'minimal', 'none']],
   ['font_scale', 'fontScale', 'clampedFloat', 1, 0.8, 1.6],
@@ -1036,6 +1036,7 @@ ipcMain.handle('chat:stream', async (event, payload) => {
     if (!s.apiKey) throw new Error('No API key set. Add your GLM key in Settings (or config/settings.txt).');
     const client = new OpenAI({ apiKey: s.apiKey, baseURL: s.baseUrl, maxRetries: 0 });
     const supportsEffort = /^glm-5\.[2-9]/i.test(String(opts.model || s.model));   // reasoning_effort is GLM-5.2+
+    const is53Family = /^glm-5\.[3-9]/i.test(String(opts.model || s.model));   // 5.3+ accepts only max/high/low
     const isGlmEndpoint = /z\.ai|bigmodel/i.test(String(s.baseUrl || ''));   // GLM-specific params (thinking) only go to GLM
     // Preserved thinking (reasoning_content echo-back) is a GLM capability — never send the field
     // to other providers, where it's noise at best and a schema error at worst.
@@ -1062,7 +1063,9 @@ ipcMain.handle('chat:stream', async (event, payload) => {
               // reasoning in context across turns; the user can turn it off to save tokens.
               thinking: { type: 'enabled', clear_thinking: opts.preservedThinking === false },
               ...(supportsEffort && opts.reasoningEffort && opts.reasoningEffort !== 'max'
-                ? { reasoning_effort: opts.reasoningEffort } : {}),
+                ? { reasoning_effort: is53Family
+                    ? ({ xhigh: 'high', high: 'high', medium: 'low', low: 'low', minimal: 'low' })[opts.reasoningEffort] || 'high'
+                    : opts.reasoningEffort } : {}),
             } : {}),
           // Non-GLM providers (OpenRouter & friends): pass the standard OpenAI-style effort knob,
           // mapped from our options. 'none' means don't send it.

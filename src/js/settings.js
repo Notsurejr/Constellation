@@ -28,9 +28,10 @@ Constellation.settings = (function () {
     }
     if ($('tempInput')) { const tv = o.temperature != null ? o.temperature : 0.8; $('tempInput').value = tv; $('tempVal').textContent = Number(tv).toFixed(2); if ($('tempNum')) $('tempNum').value = Number(tv).toFixed(2); }
     if ($('topPInput')) { const tpv = o.topP != null ? o.topP : 0.95; $('topPInput').value = tpv; $('topPVal').textContent = Number(tpv).toFixed(2); if ($('topPNum')) $('topPNum').value = Number(tpv).toFixed(2); }
-    if ($('maxInput')) { $('maxInput').value = maxTokensToPos(o.maxTokens || 4096); $('maxVal').textContent = posToMaxTokens($('maxInput').value); if ($('maxNum')) $('maxNum').value = posToMaxTokens($('maxInput').value); }
+    if ($('maxInput')) { $('maxInput').value = maxTokensToPos(o.maxTokens || 65536); $('maxVal').textContent = posToMaxTokens($('maxInput').value); if ($('maxNum')) $('maxNum').value = posToMaxTokens($('maxInput').value); }
     if ($('thinkingInput')) $('thinkingInput').checked = !!o.thinking;
     if ($('effortInput')) $('effortInput').value = o.reasoningEffort || 'max';
+    syncEffortOptions();
     const cps = o.streamCps != null ? o.streamCps : 0;
     if ($('streamInput')) { $('streamInput').value = cpsToSlider(cps); $('streamVal').textContent = cpsLabel(cps); }
     const cwin = o.contextWindow != null ? o.contextWindow : 0;
@@ -235,6 +236,16 @@ Constellation.settings = (function () {
     // Also update the global default so new chats inherit these preferences.
     await window.api.saveConfig({ model, temperature, top_p: topP, max_tokens: maxTokens, thinking, reasoning_effort: reasoningEffort, stream_cps: streamCps, context_window: contextWindow, teach_edits: teachEdits ? 'on' : 'off', preserved_thinking: preservedThinking ? 'on' : 'off', immersion: immersion ? 'on' : 'off', send_attachments: sendAttachments ? 'on' : 'off' });
     flash('genSaved');
+  }
+
+  // GLM-5.3+ accepts only max/high/low — hide Minimal there and fall back to Low if it was set.
+  function syncEffortOptions() {
+    const msel = $('modelInput'), e = $('effortInput');
+    if (!msel || !e) return;
+    const mv = msel.value === '__custom__' ? (($('customModelInput') && $('customModelInput').value) || '') : msel.value;
+    const restricted = /^glm-5\.[3-9]/i.test(String(mv));
+    Array.from(e.options).forEach((o) => { if (o.value === 'minimal') o.hidden = restricted; });
+    if (restricted && e.value === 'minimal') e.value = 'low';
   }
 
   // Reading typography: font family, line height, prose measure — live-applied CSS vars.
@@ -458,6 +469,7 @@ Constellation.settings = (function () {
       const custom = mSel2.value === '__custom__';
       $('customModelField').hidden = !custom;
       if (custom) { $('customModelInput').focus(); }
+      syncEffortOptions();   // 5.3+ models accept only max/high/low
     });
     $('saveGeneration').addEventListener('click', saveGeneration);
     $('savePreset').addEventListener('click', savePreset);

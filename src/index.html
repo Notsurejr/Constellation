@@ -187,10 +187,10 @@
           </div>
         </label>
         <label class="field">
-          <span>Max reply length <em id="maxVal">4096</em></span>
+          <span>Max reply length <em id="maxVal">65536</em></span>
           <div class="slider-row">
-            <input type="range" id="maxInput" min="0" max="700" step="5" value="300" />
-            <input type="number" id="maxNum" class="num" min="512" max="65536" step="256" value="4096" title="Type an exact value (512–65,536)" />
+            <input type="range" id="maxInput" min="0" max="700" step="5" value="700" />
+            <input type="number" id="maxNum" class="num" min="512" max="65536" step="256" value="65536" title="Type an exact value (512–65,536)" />
           </div>
         </label>
         <label class="field">
@@ -209,6 +209,7 @@
           <select id="effortInput">
             <option value="max">Max — deepest (slowest)</option>
             <option value="high">High — strong</option>
+            <option value="low">Low — light</option>
             <option value="minimal">Minimal — skip thinking (fastest)</option>
           </select>
         </label>

@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.8.1 — Aligned With the API
+
+*Released: 2026-09-29*
+
+### Changed
+
+- **Max reply length now defaults to 65,536** — the GLM-5.x provider default, per the docs.
+  Previously the app shipped 4,096, which silently capped replies at a fraction of the
+  model’s headroom. Existing saved settings are untouched.
+- **Thinking effort matches the model** — GLM-5.3+ accepts only max / high / low, so Minimal
+  hides for those models (Low joins the list) and any saved Minimal maps to Low when sent.
+  GLM-5.2 keeps the full range. Confirmed in audit: stream is always true; do_sample is never
+  sent and rides its default true.
+
 ## v0.8.0 — A Room to Read
 
 *Released: 2026-09-29*
