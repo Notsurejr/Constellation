@@ -328,6 +328,7 @@ Constellation.chat = (function () {
       persist();   // model is per-chat -> save it with this chat
     });
     autoGrow();
+    watchComposerGrowth();   // composer resizing follows the reader without flicker
     messagesEl.addEventListener('click', onMessageClick);
     messagesEl.addEventListener('scroll', () => { updateJumpBtn(); updateReadProgress(); if (window.Constellation && window.Constellation.colorfx) window.Constellation.colorfx.scan(messagesEl); }, { passive: true });
     window.addEventListener('resize', updateReadProgress);
@@ -361,17 +362,29 @@ Constellation.chat = (function () {
   function autoGrow() {
     // Giant pastes: the height is already at its cap, and forcing a reflow on a huge textarea is
     // what made the composer lag after repeated long pastes — skip the re-measure for big values.
-    const wasAtBottom = atBottom();
-    if (inputEl.value.length > 4000) { inputEl.style.height = '160px'; keepTail(wasAtBottom); return; }
+    if (inputEl.value.length > 4000) { inputEl.style.height = '160px'; return; }
     inputEl.style.height = 'auto';
     inputEl.style.height = Math.min(160, inputEl.scrollHeight) + 'px';
-    keepTail(wasAtBottom);
   }
-  // A growing composer shrinks the reading pane from below — if the reader was at the bottom,
-  // follow it so the reply's ending stays visible instead of being swallowed.
-  function keepTail(wasAtBottom) {
-    if (!wasAtBottom) return;
-    setTimeout(scrollToBottom, 0);   // setTimeout: rAF never fires when occluded
+  // A growing composer shrinks the reading pane from below. Follow it with a ResizeObserver:
+  // its callback runs AFTER layout but BEFORE paint, so the height change and the scroll
+  // correction reach the screen in the same frame — no flicker, no deferred double-paint.
+  // (Scrolling from inside autoGrow itself raced the layout: the assignment clamped against
+  // the stale scroll range and landed short; a setTimeout correction then painted twice.)
+  let composerPinned = true;   // was the reader at the bottom at their last scroll position?
+  function watchComposerGrowth() {
+    if (!inputEl) return;
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(() => { if (composerPinned) scrollToBottom(); }).observe(inputEl);
+    }
+    messagesEl.addEventListener('scroll', () => { composerPinned = atBottom(); }, { passive: true });
+    // Chromium quirk: typing into the composer while the chat is scrolled to EXACT max makes the
+    // browser nudge the scroll container up ~one line, every keystroke. Correct it inside a rAF —
+    // rAF runs before the next paint, so the nudge and the correction share one frame (a setTimeout
+    // landed between paints and flickered). Occluded windows stall rAF, but nothing is visible then.
+    inputEl.addEventListener('input', () => {
+      if (composerPinned) requestAnimationFrame(() => { if (composerPinned) scrollToBottom(); });
+    });
   }
 
   // ---- File attachments: text (.md/.txt) read as context, images read as base64 for vision ----

@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.8.3 — Steady Hands
+
+*Released: 2026-09-29*
+
+### Fixed
+
+- **No more flicker while drafting multi-line prompts** — typing on the second line of the
+  prompt box no longer bumps the chat up and down. Root cause was twofold: a Chromium scroll
+  adjustment that nudges the conversation up ~one line on every keystroke while it sits at the
+  very bottom, and our correction landing a paint too late, so both positions flashed. The
+  composer’s growth is now followed via a ResizeObserver (fires between layout and paint), and
+  the native nudge is cancelled inside a requestAnimationFrame — nudges and corrections share
+  a single frame, so only the settled position ever reaches the screen.
+
 ## v0.8.2 — The Eye Without the Resend
 
 *Released: 2026-09-29*
