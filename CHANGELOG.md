@@ -6,7 +6,7 @@
 
 ### Fixed
 
-- **The “lead its thinking” drawer now actually hides** — a CSS  on the drawer
+- **The “lead its thinking” drawer now actually hides** — a CSS `display: flex` rule on the drawer
   was overriding the hidden attribute, leaving it permanently visible from launch. It now opens
   on », hides on second click or Esc, and clears on send, as intended.
 
