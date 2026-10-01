@@ -31,7 +31,9 @@ function findLorebook(map, key) {
 }
 
 function help() {
-  console.log(`Constellation CLI  (read-only / test — nothing is written or sent)
+  console.log(`Constellation CLI
+
+OFFLINE (reads your data files directly — no app running, nothing sent):
 
   node cli.js lorebooks                         list lorebooks (id, name, entries, ~chars)
   node cli.js entries <name|id>                 list entries in a lorebook
@@ -42,12 +44,91 @@ function help() {
   node cli.js bans "<text>"                     apply your saved phrase bans to <text>; show before/after
   node cli.js inspect                           overall data summary
 
+PROMPT LAB (needs the app running with the CLI server on — Settings → Advanced; makes real
+GLM calls on /dry, but persists NOTHING and changes nothing on disk):
+
+  node cli.js ping                              liveness + auth check
+  node cli.js state                             what chat/conversation is loaded
+  node cli.js dry --probe scene.txt --system-file candidate-v7.txt
+                                                one iteration: fixed probe + CANDIDATE system
+                                                prompt (replaces the session's for this call only)
+       options:  --msg "text"      inline message (alternative to --probe)
+                 --system-file F   candidate prompt (the prompt-lab primitive)
+                 --max-reason N    digest the thinking to ~N chars head+tail (default 1500)
+                 --full            full thinking, no digest
+                 --json            raw JSON only (for scripting)
+                 --out FILE        also save the raw result (for the lab notebook rounds/)
+                 --profile DIR     app user-data dir holding cli-server.json
+                                   (default: the installed app; pass a sandbox profile for labs)
+
   data dir: ${DATA}`);
+}
+
+// ---- prompt-lab (server) mode ----
+function flag(name, def) {
+  const i = process.argv.indexOf('--' + name);
+  if (i === -1) return def;
+  const v = process.argv[i + 1];
+  return v && !String(v).startsWith('--') ? v : true;
+}
+async function serverCall(profileDir, route, body) {
+  const fs2 = require('fs'), path2 = require('path');
+  const credPath = path2.join(String(profileDir), 'cli-server.json');
+  let cred;
+  try { cred = JSON.parse(fs2.readFileSync(credPath, 'utf8')); }
+  catch (e) { console.error('No cli-server.json at ' + credPath); console.error('Is the app running with the CLI server enabled?'); process.exit(1); }
+  const res = await fetch('http://127.0.0.1:' + cred.port + route, {
+    method: body ? 'POST' : 'GET',
+    headers: { Authorization: 'Bearer ' + cred.token, 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) { console.error('HTTP ' + res.status + ' on ' + route + ' — ' + (await res.text()).slice(0, 200)); process.exit(1); }
+  return res.json();
+}
+// Head+tail with a marked gap: enough to judge HOW it approached the scene without context death.
+function digestReason(text, n) {
+  text = String(text || '');
+  if (!n || n >= text.length) return text;
+  const half = Math.floor(n / 2);
+  return text.slice(0, half) + '\n[… ' + (text.length - n) + ' chars truncated — rerun with --full or a larger --max-reason …]\n' + text.slice(text.length - half);
+}
+async function labMain(cmd) {
+  const profile = flag('profile', ROOT);
+  if (cmd === 'ping') { console.log(JSON.stringify(await serverCall(profile, '/ping'), null, 2)); return; }
+  if (cmd === 'state') { console.log(JSON.stringify(await serverCall(profile, '/state'), null, 2)); return; }
+  if (cmd === 'dry') {
+    let msg = flag('msg', '');
+    const probe = flag('probe', '');
+    if (probe && probe !== true) msg = fs.readFileSync(probe, 'utf8');
+    if (!msg || msg === true) { console.error('dry needs --msg "text" or --probe FILE'); process.exit(1); }
+    const body = { msg: String(msg).trim() };
+    const sysFile = flag('system-file', '');
+    if (sysFile && sysFile !== true) body.system = fs.readFileSync(sysFile, 'utf8');
+    const r = await serverCall(profile, '/dry-send', body);
+
+    const outFile = flag('out', '');
+    if (outFile && outFile !== true) {
+      fs.mkdirSync(path.dirname(outFile), { recursive: true });
+      fs.writeFileSync(outFile, JSON.stringify({ probe: body.msg, system: body.system || null, result: r, at: new Date().toISOString() }, null, 2));
+    }
+    if (flag('json', false)) { console.log(JSON.stringify(r)); return; }
+    console.log('=== REPLY ===');
+    console.log(r.reply || '(empty)');
+    const rn = String(r.reasoning || '').length;
+    console.log('=== REASONING (' + (flag('full', false) ? 'full, ' + rn + ' chars' : 'digest of ' + rn + ' chars') + ') ===');
+    console.log(flag('full', false) ? (r.reasoning || '(none)') : digestReason(r.reasoning, Number(flag('max-reason', 1500))));
+    console.log('=== META ===');
+    console.log('system overridden: ' + (r.systemOverridden ? 'yes' : 'no') + ' · phrase bans applied: ' + (r.bansApplied ? 'yes' : 'no') + ' · lore fired: ' + (r.lore ? r.lore.length : 0) + ((outFile && outFile !== true) ? ' · saved: ' + outFile : ''));
+    return;
+  }
+  console.error('lab commands: ping | state | dry');
+  process.exit(1);
 }
 
 (async () => {
   const cmd = process.argv[2], arg = process.argv[3];
   if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h') return help();
+  if (cmd === 'ping' || cmd === 'state' || cmd === 'dry') return labMain(cmd);
 
   if (cmd === 'lorebooks' || cmd === 'lb') {
     const map = loadLorebooks(), ids = Object.keys(map);

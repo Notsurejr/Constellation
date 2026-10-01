@@ -616,14 +616,24 @@ Constellation.chat = (function () {
   }
   // Run the full send→GLM→phrase-ban pipeline for a HYPOTHETICAL message WITHOUT touching the real
   // conversation or saving — a non-destructive test of what GLM would reply (uses one API call).
-  async function dryRun(msg) {
+  // dryRun: a hypothetical send that persists nothing. `system` (optional) REPLACES the system
+  // prompt for this one call — the prompt-lab primitive: iterate candidate instructions against
+  // a fixed conversation without touching the session on disk.
+  async function dryRun(msg, system) {
     const conv = conversation.concat([{ role: 'user', content: String(msg || '') }]);
     const recentText = conv.filter((m) => m.role !== 'system').slice(-4).map((m) => m.content || '').join('\n');
     const lc = await Constellation.engines.lore.buildLoreContext(activeLore, recentText, loreEmbedFn());
-    const reqMsgs = trimForApi(toApiMessages(lc, conv));
+    let reqMsgs = trimForApi(toApiMessages(lc, conv));
+    if (system != null && String(system).length) {
+      const stripped = reqMsgs.filter((m) => m.role !== 'system');
+      const sysMsg = { role: 'system', content: String(system) };
+      // keep any project-instruction suffix the normal system message carries? No — an override
+      // is a full replacement; the lab owns exactly what it sends.
+      reqMsgs = [sysMsg].concat(stripped);
+    }
     const { full, reasoning } = await completeGlm(reqMsgs);
     const cleaned = applyPhraseBans(full);
-    return { reply: cleaned, reasoning: reasoning || undefined, bansApplied: cleaned !== full, lore: lc.items.map((it) => ({ label: it.label, text: it.text })) };
+    return { reply: cleaned, reasoning: reasoning || undefined, bansApplied: cleaned !== full, lore: lc.items.map((it) => ({ label: it.label, text: it.text })), systemOverridden: !!(system != null && String(system).length) };
   }
   // ---- CLI bridge handlers (Shape A) — non-destructive inspection/tests ----
   function getState() {

@@ -10,7 +10,7 @@ Constellation.cliBridge = (function () {
     if (cmd === 'state') return chat.getState();
     if (cmd === 'retrieve') return await chat.testRetrieve(String(args.q || ''));
     if (cmd === 'bans') return chat.testBans(String(args.text || ''));
-    if (cmd === 'dry-send') return await chat.dryRun(String(args.msg || ''));
+    if (cmd === 'dry-send') return await chat.dryRun(String(args.msg || ''), args.system != null ? String(args.system) : undefined);   // system override = prompt-lab mode
     return { error: 'unknown command: ' + cmd };
   }
   function init() {

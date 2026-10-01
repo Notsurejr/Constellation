@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.9.2 — The Prompt Lab
+
+*Released: 2026-10-01*
+
+### New
+
+- **Stateless prompt testing** — /dry-send accepts a system override: the candidate system
+  prompt rides the request itself, replacing the session’s for that one call. Nothing on disk
+  changes. Iterating on instructions is now a single command per round.
+- **cli.js grows a prompt-lab mode** — ping / state / dry with --probe, --system-file,
+  --max-reason (head+tail thinking digest), --full, --json, and --out (writes the round’s raw
+  JSON for the lab notebook). The offline inspectors (lorebooks/sessions/retrieve/bans/inspect)
+  are unchanged. --profile aims the CLI at a sandbox instead of the live app.
+- Verified live: a BANANA-seeded candidate provably reached the model statelessly.
+
 ## v0.9.1
 
 *Released: 2026-10-01*
