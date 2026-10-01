@@ -754,6 +754,27 @@ ipcMain.handle('clipboard:write', (_e, text) => {
   try { clipboard.writeText(String(text || '')); return true; } catch (e) { return false; }
 });
 
+// Exact token counting via GLM's tokenizer (general endpoint). Independent of the chat's model —
+// any z.ai key works; counts are that tokenizer family's reckoning for 5.x/non-GLM. Every caller
+// must treat failure as "keep the estimate" — never a dead end.
+ipcMain.handle('tokenizer:count', async (_e, messages) => {
+  try {
+    const s = getSettings();
+    if (!s.apiKey || !Array.isArray(messages) || !messages.length) return { ok: false };
+    const general = String(s.baseUrl || 'https://api.z.ai/api/coding/paas/v4').replace('/coding/paas/v4', '/paas/v4').replace(/\/$/, '');
+    const res = await fetch(general + '/tokenizer', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + s.apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'glm-4.6', messages: messages }),
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!res.ok) return { ok: false, status: res.status };
+    const j = await res.json();
+    const t = j && j.usage && (j.usage.total_tokens != null ? j.usage.total_tokens : j.usage.prompt_tokens);
+    return typeof t === 'number' ? { ok: true, tokens: t } : { ok: false };
+  } catch (e) { console.warn('[constellation]', e && e.message || e); return { ok: false, error: String((e && e.message) || e) }; }
+});
+
 // ---------- IPC: characters (imported cards) + personas ----------
 function cardId(name) {
   const base = String(name || 'character').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'character';
@@ -1043,7 +1064,7 @@ ipcMain.handle('chat:stream', async (event, payload) => {
     const apiMessages = isGlmEndpoint ? messages : messages.map((m) => {
       if (m && m.reasoning_content != null) { const c = Object.assign({}, m); delete c.reasoning_content; return c; }
       return m;
-    });
+    }).filter((m, i, arr) => !(m.role === 'assistant' && !m.content && i === arr.length - 1));   // the prefill's trailing turn is GLM-only; other providers get it dropped
 
     // Retry the initial request on transient failures (rate limits, network blips),
     // but give up immediately on billing errors (e.g. out-of-credits 429).

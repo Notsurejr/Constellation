@@ -1687,3 +1687,38 @@ input.num::-webkit-outer-spin-button, input.num::-webkit-inner-spin-button { opa
 .attach-chip:hover .attach-eye-inline { opacity: 1; }
 .attach-eye-inline:hover { color: var(--accent); border-color: var(--accent-dim); }
 .attach-chip.editing .attach-eye-inline { display: none; }   /* edit mode uses its own larger overlay */
+
+/* ---- v0.9: reasoning steering + prefill drawer ---- */
+.think-block summary { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.think-lbl { flex: 1; }
+.think-edit-btn {
+  background: none; border: none; color: var(--text-dim); font-size: 12px;
+  cursor: pointer; opacity: 0; transition: opacity .12s ease; padding: 2px 4px;
+}
+.think-block:hover .think-edit-btn { opacity: 1; }
+.think-edit-btn:hover { color: var(--accent); }
+.think-edit {
+  width: 100%; min-height: 90px; resize: vertical;
+  background: rgba(0,0,0,0.35); border: 1px solid var(--panel-border); border-radius: 8px;
+  color: var(--text); font-family: var(--font-ui); font-size: 13px; line-height: 1.5;
+  padding: 8px 10px; outline: none;
+}
+.think-edit:focus { border-color: var(--accent-dim); box-shadow: var(--glow); }
+.think-body .edit-bar { margin-top: 6px; }
+
+/* Prefill drawer ("lead its thinking") */
+.prefill {
+  display: flex; align-items: flex-start; gap: 8px;
+  border: 1px dashed var(--accent-dim); border-radius: 10px;
+  padding: 8px 10px; background: rgba(159,184,255,0.04);
+}
+.prefill-tag {
+  flex: none; font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--accent-dim); padding-top: 6px; white-space: nowrap;
+}
+.prefill textarea {
+  flex: 1; background: rgba(0,0,0,0.3); border: 1px solid var(--panel-border); border-radius: 8px;
+  color: var(--text); font-family: var(--font-ui); font-size: 13px; line-height: 1.45;
+  padding: 6px 8px; resize: none; outline: none; min-height: 32px; max-height: 120px;
+}
+.prefill textarea:focus { border-color: var(--accent-dim); box-shadow: var(--glow); }

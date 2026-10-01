@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.9.0 — The Thinking Hand
+
+*Released: 2026-10-01*
+
+### New
+
+- **Edit the model’s reasoning** — every thinking block now carries a ✎ in its header. Edit
+  what the model “remembers having thought”: the changed reasoning rides Preserved Thinking
+  into every future send, durably steering how it approaches the next reply. The model’s own
+  original words are kept beneath (·✎ marks the edit), for fidelity and for reverting.
+- **“Lead its thinking” (» in the composer)** — a one-shot reasoning seed for the next send:
+  the outgoing request ends with a partial assistant turn carrying your seed as in-progress
+  thinking, visible in the ◐ inspector. Honest note: our testing shows GLM currently accepts
+  but ignores reasoning seeds — kept deliberately as an experiment bench. The seed is stored
+  with the reply’s reasoning, so even an ignored prefill steers future turns.
+- **Exact token counts (where available)** — after each send, the app asks GLM’s tokenizer
+  for the true context size; the ◐ meter switches from “~estimate” to the exact figure.
+  Non-GLM providers, missing keys, and failures keep the estimate forever — never a dead end.
+  (Coding-plan keys currently get 429 from the tokenizer — it’s billed under the general API —
+  so estimates remain the norm until that changes.)
+
 ## v0.8.3 — Steady Hands
 
 *Released: 2026-09-29*

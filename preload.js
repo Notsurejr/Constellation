@@ -61,6 +61,7 @@ contextBridge.exposeInMainWorld('api', {
   appendCraftJournal: (line) => ipcRenderer.invoke('craft:journal:append', line),
 
   exportChatMarkdown: (payload) => ipcRenderer.invoke('export:chatMarkdown', payload),
+  tokenizerCount: (messages) => ipcRenderer.invoke('tokenizer:count', messages),
 
   writeClipboard: (text) => ipcRenderer.invoke('clipboard:write', text),
 

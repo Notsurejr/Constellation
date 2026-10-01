@@ -43,10 +43,15 @@
 
 
     <footer class="composer">
+      <div class="prefill" id="prefillRow" hidden>
+        <span class="prefill-tag">» lead its thinking</span>
+        <textarea id="prefillInput" rows="1" placeholder="A reasoning seed for THIS send only — rides the request as the model's in-progress thinking. Experimental: GLM currently ignores reasoning seeds; the seed is kept in the reply's stored reasoning, so it still steers future turns. Esc closes."></textarea>
+      </div>
       <div class="attachments" id="attachments" hidden></div>
       <div class="composer-row">
         <textarea id="input" placeholder="Write here…  (Enter to send, Shift+Enter for a new line)" rows="1"></textarea>
         <button id="sigilBtn" class="btn-sigil" type="button" title="Sigils — typography, scene breaks, stamps (Esc closes)">✦</button>
+        <button id="prefillBtn" class="btn-attach" type="button" title="Lead its thinking — author a reasoning seed for the next send (experimental)">»</button>
         <button id="attachBtn" class="btn-attach" type="button" title="Attach files (markdown, text, or images) for context">📎</button>
         <button id="send" class="btn-send" title="Send (Enter)">➤</button>
       </div>

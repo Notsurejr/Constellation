@@ -19,6 +19,8 @@ Constellation.chat = (function () {
   let busy = false;
   let currentRequest = null;   // active stream id, so the Stop button can cancel it
   let lastRequest = null;      // the exact payload of the most recent send (for the ◐ inspector)
+  let activePrefill = '';      // reasoning seed for THIS send only ("lead its thinking" drawer)
+  let contextExact = null;     // exact token count from the GLM tokenizer (null = estimate shown)
   let bulkScroll = false;      // suppress per-message auto-scroll while bulk-rendering a chat
   let usage = { tokens: 0, requests: 0 };   // cumulative estimated tokens for the current chat
   let pendingFiles = [];   // [{ name, size, text }] queued attachments for the next send
@@ -135,8 +137,13 @@ Constellation.chat = (function () {
     if (total >= hotAt) ctxMeter.classList.add('hot');
     else if (total >= warmAt) ctxMeter.classList.add('warm');
     const fmt = (t) => t >= 1000 ? (t / 1000).toFixed(1) + 'k' : String(t);
-    ctxMeter.textContent = trimming ? ('◐ ' + fmt(sent) + ' / ' + fmt(total)) : ('◐ ' + fmt(total));
-    ctxMeter.title = (trimming ? ('Sending last ~' + fmt(sent) + ' of ' + fmt(total) + ' tokens (context window on)') : ('Estimated conversation size'))
+    if (contextExact != null) {
+      ctxMeter.textContent = '◐ ' + contextExact.toLocaleString();
+      ctxMeter.title = 'Exact context size (GLM tokenizer) — click to see exactly what was sent';
+      return;
+    }
+    ctxMeter.textContent = trimming ? ('◐ ~' + fmt(sent) + ' / ~' + fmt(total)) : ('◐ ~' + fmt(total));
+    ctxMeter.title = (trimming ? ('Sending last ~' + fmt(sent) + ' of ~' + fmt(total) + ' tokens (context window on)') : ('Estimated conversation size (~ until the tokenizer answers after a send)'))
                    + ' — click to see exactly what was sent';
   }
 
@@ -329,6 +336,23 @@ Constellation.chat = (function () {
     });
     autoGrow();
     watchComposerGrowth();   // composer resizing follows the reader without flicker
+    // "Lead its thinking" drawer — a one-shot reasoning seed for the next send.
+    const pfBtn = document.getElementById('prefillBtn');
+    const pfRow = document.getElementById('prefillRow');
+    const pfInput = document.getElementById('prefillInput');
+    window.autoGrowPrefill = () => {
+      if (!pfInput) return;
+      pfInput.style.height = 'auto';
+      pfInput.style.height = Math.min(120, pfInput.scrollHeight) + 'px';
+    };
+    if (pfBtn && pfRow) pfBtn.addEventListener('click', () => {
+      pfRow.hidden = !pfRow.hidden;
+      if (!pfRow.hidden && pfInput) { pfInput.focus(); autoGrowPrefill(); }
+    });
+    if (pfInput) {
+      pfInput.addEventListener('input', window.autoGrowPrefill);
+      pfInput.addEventListener('keydown', (e) => { if (e.key === 'Escape') { pfRow.hidden = true; inputEl.focus(); } });
+    }
     messagesEl.addEventListener('click', onMessageClick);
     messagesEl.addEventListener('scroll', () => { updateJumpBtn(); updateReadProgress(); if (window.Constellation && window.Constellation.colorfx) window.Constellation.colorfx.scan(messagesEl); }, { passive: true });
     window.addEventListener('resize', updateReadProgress);
@@ -721,14 +745,23 @@ Constellation.chat = (function () {
     el.appendChild(label);
 
     // Collapsible "thinking" block (assistant only). Hidden unless the model emits reasoning,
-    // or a saved reasoning block is being restored from disk.
+    // or a saved reasoning block is being restored from disk. The ✎ in the header opens the
+    // reasoning editor — editing what the model will "remember having thought" next send.
     let thinkDetails = null, thinkBody = null;
     if (role === 'assistant') {
       thinkDetails = document.createElement('details');
       thinkDetails.className = 'think-block';
       thinkDetails.hidden = true;
       const sum = document.createElement('summary');
-      sum.textContent = '✦ Thinking';
+      const sumLbl = document.createElement('span');
+      sumLbl.className = 'think-lbl';
+      sumLbl.textContent = '✦ Thinking';
+      sum.appendChild(sumLbl);
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button'; editBtn.className = 'think-edit-btn'; editBtn.textContent = '✎';
+      editBtn.title = 'Edit this reasoning — the model treats it as its own prior thinking (steers the next reply)';
+      editBtn.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); startThinkEdit(el, thinkDetails); });
+      sum.appendChild(editBtn);
       thinkDetails.appendChild(sum);
       thinkBody = document.createElement('div');
       thinkBody.className = 'think-body';
@@ -737,6 +770,7 @@ Constellation.chat = (function () {
       if (reasoning) {            // restore a saved thinking block (closed by default)
         thinkDetails.hidden = false;
         thinkBody.textContent = reasoning;
+        syncThinkEditedMark(el, reasoning);
       }
     }
 
@@ -897,6 +931,15 @@ Constellation.chat = (function () {
     // For a variant regen, the request excludes the message being re-answered (it's the last turn).
     const reqSrc = variantTarget ? conversation.slice(0, variantCi) : conversation;
     const reqMsgs = trimForApi(toApiMessages(loreCtx, reqSrc));
+    const seed = activePrefill;   // capture + clear: the drawer is strictly one-shot
+    activePrefill = '';
+    if (seed) {
+      // "Lead its thinking": the array ends with a partial assistant turn carrying OUR reasoning
+      // seed and no prose — the model is invited to continue a thought we chose. (Tested verdict:
+      // GLM currently accepts but ignores reasoning seeds; kept for the user's own experiments.
+      // The seed is also prepended to the stored reasoning, so a prefill becomes tomorrow's steer.)
+      reqMsgs.push({ role: 'assistant', content: '', reasoning_content: seed });
+    }
     usage.tokens += estTokens(reqMsgs);   // count this request's tokens (context actually sent)
     usage.requests++;
     // Watchdog: a request that silently hangs (no tokens, no error) would leave busy=true forever —
@@ -950,6 +993,7 @@ Constellation.chat = (function () {
         streaming = false;
         if (full) bodyBuf = full;
         bodyBuf = applyPhraseBans(bodyBuf);   // tidy banned phrases out of the final reply (model never sees the list)
+        if (seed && thinkBuf) thinkBuf = seed + '\n' + thinkBuf;   // a prefill today steers tomorrow
         el.__raw = bodyBuf;   // the streamed reply's raw source was never set (placeholder was '') — copy/edit need it
         if (window.Constellation.mood) window.Constellation.mood.assess(bodyBuf || thinkBuf);   // the sky weathers the story
         const vLore = loreCtx && loreCtx.items.length ? loreCtx.items.map((it) => ({ label: it.label, text: String(it.text || '').slice(0, 300) })) : undefined;
@@ -979,6 +1023,14 @@ Constellation.chat = (function () {
         usage.tokens += Math.round(((full || bodyBuf).length + (thinkBuf || '').length) / 4);   // count the reply's tokens too
         if (window.Constellation && window.Constellation.sessions) {
           window.Constellation.sessions.saveCurrent(conversation.slice(1), roleplayPrompt, projectInstructions, genSnapshot(), usage, systemFiles, projectFiles);   // persist the chat + instructions + settings + usage + files
+        }
+        syncThinkEditedMark(el, thinkBuf || '');
+        // Exact context size: ask GLM's tokenizer what this conversation actually costs. Estimate
+        // (chars÷4) stays the display until this returns; non-GLM/no-key/failure keeps it forever.
+        if (window.api && window.api.tokenizerCount) {
+          window.api.tokenizerCount(reqMsgs).then((r) => {
+            if (r && r.ok && typeof r.tokens === 'number') { contextExact = r.tokens; updateContextMeter(); }
+          }).catch(() => {});
         }
         if (variantTarget) renderVariantNav(el);
         if (finishAnchor) { restoreScrollAnchor(finishAnchor); requestAnimationFrame(() => restoreScrollAnchor(finishAnchor)); }
@@ -1010,6 +1062,12 @@ Constellation.chat = (function () {
     const text = inputEl.value.trim();
     const files = pendingFiles.slice();
     if ((!text && !files.length) || busy) return;
+    const pf = document.getElementById('prefillInput');
+    activePrefill = (pf && pf.value.trim()) || '';
+    if (pf) { pf.value = ''; autoGrowPrefill(); }
+    const pfRow = document.getElementById('prefillRow');
+    if (pfRow) pfRow.hidden = true;
+    contextExact = null;   // new content — the exact count is stale until the next tokenizer pass
     pendingFiles = [];
     renderChips();
     addMessage('user', text, files);
@@ -1134,7 +1192,7 @@ Constellation.chat = (function () {
     if (idx === -1) return;
     // conversation[0] is the system message (no DOM element), so DOM idx -> conversation[idx+1].
     const prefix = conversation.slice(1, idx + 2)
-      .map((m) => ({ role: m.role, content: m.content, files: m.files, reasoning: m.reasoning, edited: !!m.edited, orig: m.orig, variants: m.variants, vActive: m.vActive, lore: m.lore }));
+      .map((m) => ({ role: m.role, content: m.content, files: m.files, reasoning: m.reasoning, edited: !!m.edited, orig: m.orig, rOrig: m.rOrig, variants: m.variants, vActive: m.vActive, lore: m.lore }));
     if (window.Constellation && window.Constellation.sessions && window.Constellation.sessions.forkFrom) {
       window.Constellation.sessions.forkFrom({ messages: prefix, system: roleplayPrompt, project: projectInstructions, gen: genSnapshot() });
     }
@@ -1309,8 +1367,55 @@ Constellation.chat = (function () {
   // conversation (and the model's future context) simply carries your wording from here on.
   // The model's original is kept on the message (m.orig) so the edit can be studied, and so an
   // optional "teach from edits" mode can show the model how you bend its voice.
-  function startSculpt(el) {
-    const body = el.querySelector('.body');
+  // ---- reasoning editor (steering) ----
+  // The model treats history's reasoning_content as its own prior thinking. Editing it in place
+  // changes what it "remembers having thought" — a durable steer on every future reply. The
+  // original is kept (m.rOrig) for fidelity and restore, exactly like sculpt keeps m.orig.
+  function syncThinkEditedMark(el, current) {
+    const m = conversation[convIndexForEl(el)];
+    const lbl = el.querySelector('.think-lbl');
+    if (!lbl) return;
+    const edited = !!(m && m.rOrig && m.rOrig !== current);
+    lbl.textContent = edited ? '✦ Thinking ·✎' : '✦ Thinking';
+  }
+
+  function startThinkEdit(el, thinkDetails) {
+    const m = conversation[convIndexForEl(el)];
+    const thinkBody = thinkDetails.querySelector('.think-body');
+    if (!m || !m.reasoning || !thinkBody || thinkDetails.dataset.editing === '1') return;
+    thinkDetails.dataset.editing = '1';
+    const original = m.reasoning;
+    const ta = document.createElement('textarea');
+    ta.className = 'think-edit';
+    ta.value = original;
+    thinkBody.replaceChildren(ta);
+    const bar = document.createElement('div');
+    bar.className = 'edit-bar';
+    const save = actionBtn('commit', 'Save reasoning');
+    const cancel = actionBtn('cancel', 'Cancel');
+    bar.appendChild(save); bar.appendChild(cancel);
+    thinkBody.appendChild(bar);
+    ta.focus();
+    const finish = () => { thinkDetails.dataset.editing = ''; };
+    save.addEventListener('click', () => {
+      m.rOrig = m.rOrig || original;   // first edit keeps the model's own words
+      m.reasoning = ta.value;
+      persist();
+      thinkBody.replaceChildren();
+      thinkBody.textContent = ta.value;
+      syncThinkEditedMark(el, ta.value);
+      updateContextMeter();
+      finish();
+      if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Reasoning steered — the model remembers this version');
+    });
+    cancel.addEventListener('click', () => {
+      thinkBody.replaceChildren();
+      thinkBody.textContent = original;
+      finish();
+    });
+  }
+
+  function startSculpt(el) {    const body = el.querySelector('.body');
     if (!body || el.dataset.editing === '1') return;
     const original = (el.__raw != null ? el.__raw : body.textContent);
     el.dataset.editing = '1';
@@ -1540,7 +1645,7 @@ Constellation.chat = (function () {
       usage = incomingUsage || { tokens: 0, requests: 0 };   // restore this chat's cumulative usage
       bulkScroll = true;
       const turns = (msgs || []).filter((m) => m.role === 'user' || m.role === 'assistant')
-        .map((m) => ({ role: m.role, content: m.content, files: m.files, reasoning: m.reasoning, lore: m.lore, edited: m.edited, orig: m.orig, variants: m.variants, vActive: m.vActive }));
+        .map((m) => ({ role: m.role, content: m.content, files: m.files, reasoning: m.reasoning, lore: m.lore, edited: m.edited, orig: m.orig, rOrig: m.rOrig, variants: m.variants, vActive: m.vActive }));
       conversation = [{ role: 'system', content: buildSystem() }].concat(turns);
       for (const m of turns) {
         const r = addMessage(m.role, m.content, m.files, m.reasoning, m.lore, { edited: m.edited });
