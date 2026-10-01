@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.9.1
+
+*Released: 2026-10-01*
+
+### Fixed
+
+- **The “lead its thinking” drawer now actually hides** — a CSS  on the drawer
+  was overriding the hidden attribute, leaving it permanently visible from launch. It now opens
+  on », hides on second click or Esc, and clears on send, as intended.
+
 ## v0.9.0 — The Thinking Hand
 
 *Released: 2026-10-01*

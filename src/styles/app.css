@@ -1707,7 +1707,8 @@ input.num::-webkit-outer-spin-button, input.num::-webkit-inner-spin-button { opa
 .think-body .edit-bar { margin-top: 6px; }
 
 /* Prefill drawer ("lead its thinking") */
-.prefill {
+.prefill { display: none; }
+.prefill:not([hidden]) {   /* hidden must win — the attachments tray uses the same pattern */
   display: flex; align-items: flex-start; gap: 8px;
   border: 1px dashed var(--accent-dim); border-radius: 10px;
   padding: 8px 10px; background: rgba(159,184,255,0.04);
