@@ -54,7 +54,12 @@ GLM calls on /dry, but persists NOTHING and changes nothing on disk):
                                                 prompt (replaces the session's for this call only)
        options:  --msg "text"      inline message (alternative to --probe)
                  --system-file F   candidate prompt (the prompt-lab primitive)
-                 --max-reason N    digest the thinking to ~N chars head+tail (default 1500)
+                 --history-file F  JSON array of {role, content} — REPLACES the conversation
+                                   for this call (multi-turn labs: own the history like a probe,
+                                   no restarts, no app patches)
+                 --max-reason N    digest the thinking to ~N chars head+tail (default 1500;
+                                   for reasoning-steering work prefer --full — the signal is
+                                   often mid-deliberation)
                  --full            full thinking, no digest
                  --json            raw JSON only (for scripting)
                  --out FILE        also save the raw result (for the lab notebook rounds/)
@@ -71,6 +76,15 @@ function flag(name, def) {
   const v = process.argv[i + 1];
   return v && !String(v).startsWith('--') ? v : true;
 }
+// Git Bash passes MSYS paths (/c/Users/...) verbatim to Node, where they resolve as C:\c\... —
+// normalize them so both path styles work.
+function normPath(p) {
+  if (typeof p !== 'string') return p;
+  const m = p.match(/^\/([a-zA-Z])\/(.*)$/);
+  if (m) return m[1].toUpperCase() + ':\\' + m[2].replace(/\//g, '\\');
+  return p;
+}
+function readArgFile(p) { return fs.readFileSync(normPath(String(p)), 'utf8'); }
 async function serverCall(profileDir, route, body) {
   const fs2 = require('fs'), path2 = require('path');
   const credPath = path2.join(String(profileDir), 'cli-server.json');
@@ -86,6 +100,7 @@ async function serverCall(profileDir, route, body) {
   return res.json();
 }
 // Head+tail with a marked gap: enough to judge HOW it approached the scene without context death.
+// (Lab finding: mid-reasoning deliberation is often the signal — for steering work prefer --full.)
 function digestReason(text, n) {
   text = String(text || '');
   if (!n || n >= text.length) return text;
@@ -99,17 +114,27 @@ async function labMain(cmd) {
   if (cmd === 'dry') {
     let msg = flag('msg', '');
     const probe = flag('probe', '');
-    if (probe && probe !== true) msg = fs.readFileSync(probe, 'utf8');
+    if (probe && probe !== true) msg = readArgFile(probe);
     if (!msg || msg === true) { console.error('dry needs --msg "text" or --probe FILE'); process.exit(1); }
     const body = { msg: String(msg).trim() };
     const sysFile = flag('system-file', '');
-    if (sysFile && sysFile !== true) body.system = fs.readFileSync(sysFile, 'utf8');
+    if (sysFile && sysFile !== true) body.system = readArgFile(sysFile);
+    const histFile = flag('history-file', '');
+    if (histFile && histFile !== true) {
+      try { body.history = JSON.parse(readArgFile(histFile)); }
+      catch (e) { console.error('--history-file must be a JSON array of {role, content} messages: ' + e.message); process.exit(1); }
+    }
     const r = await serverCall(profile, '/dry-send', body);
+
+    // Errors surface LOUDLY — an empty reply with a buried 429 was a real misdiagnosis trap.
+    if (r && r.error) { console.error('DRY FAILED: ' + r.error); process.exit(1); }
+    if (r && !r.reply) console.error('NOTE: empty reply — most likely the reasoning consumed the max_tokens budget; raise it and retry.');
 
     const outFile = flag('out', '');
     if (outFile && outFile !== true) {
-      fs.mkdirSync(path.dirname(outFile), { recursive: true });
-      fs.writeFileSync(outFile, JSON.stringify({ probe: body.msg, system: body.system || null, result: r, at: new Date().toISOString() }, null, 2));
+      const outP = normPath(String(outFile));
+      fs.mkdirSync(path.dirname(outP), { recursive: true });
+      fs.writeFileSync(outP, JSON.stringify({ probe: body.msg, system: body.system || null, history: body.history || null, result: r, at: new Date().toISOString() }, null, 2));
     }
     if (flag('json', false)) { console.log(JSON.stringify(r)); return; }
     console.log('=== REPLY ===');
@@ -118,7 +143,7 @@ async function labMain(cmd) {
     console.log('=== REASONING (' + (flag('full', false) ? 'full, ' + rn + ' chars' : 'digest of ' + rn + ' chars') + ') ===');
     console.log(flag('full', false) ? (r.reasoning || '(none)') : digestReason(r.reasoning, Number(flag('max-reason', 1500))));
     console.log('=== META ===');
-    console.log('system overridden: ' + (r.systemOverridden ? 'yes' : 'no') + ' · phrase bans applied: ' + (r.bansApplied ? 'yes' : 'no') + ' · lore fired: ' + (r.lore ? r.lore.length : 0) + ((outFile && outFile !== true) ? ' · saved: ' + outFile : ''));
+    console.log('system overridden: ' + (r.systemOverridden ? 'yes' : 'no') + ' · history overridden: ' + (r.historyOverridden ? 'yes' : 'no') + ' · phrase bans applied: ' + (r.bansApplied ? 'yes' : 'no') + ' · lore fired: ' + (r.lore ? r.lore.length : 0) + ((outFile && outFile !== true) ? ' · saved: ' + outFile : ''));
     return;
   }
   console.error('lab commands: ping | state | dry');

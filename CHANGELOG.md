@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.9.3 — Field Report Release
+
+*Released: 2026-10-02*
+
+### New
+
+- **Multi-turn prompt labs — dry --history-file** — a JSON array of messages replaces the
+  conversation for that call, statelessly. Seeded-turn continuity without restarts or app
+  patches; the history file is an owned input artifact, symmetrical with probes and candidates.
+  (Designed from an agent lab operator’s field report after 21 rounds.)
+
+### Fixed / improved (all from the same report)
+
+- **Errors surface loudly** — a buried 429 inside an empty reply was a real misdiagnosis trap;
+  dry now prints DRY FAILED and exits nonzero. Empty replies with no error get a budget hint.
+- **state shows the full generation config** — temperature, samplers, max tokens, effort —
+  closing the reproducibility gap for cross-round comparison.
+- **Git-Bash paths work everywhere** — /c/... style paths in --probe/--system-file/
+  --history-file/--out are normalized instead of resolving as C:c... .
+- Reasoning-digest guidance baked into help: for steering work prefer --full (the signal is
+  often mid-deliberation, which a digest cuts).
+
 ## v0.9.2 — The Prompt Lab
 
 *Released: 2026-10-01*
