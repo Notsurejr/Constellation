@@ -85,7 +85,7 @@ contextBridge.exposeInMainWorld('api', {
       else { if (onChunk) onChunk(d.delta); }
     };
     const retryListener = (_e, d) => { if (d.requestId === requestId && onRetry) onRetry(d.attempt); };
-    const doneListener = (_e, d) => { if (d.requestId === requestId) { cleanup(); onDone && onDone(d.full, d.finishReason); } };
+    const doneListener = (_e, d) => { if (d.requestId === requestId) { cleanup(); onDone && onDone(d.full, d.finishReason, d.usage); } };
     const errListener = (_e, d) => { if (d.requestId === requestId) { cleanup(); onError && onError(d.message); } };
 
     function cleanup() {

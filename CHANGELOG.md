@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.9.4 — Wishlist Granted
+
+*Released: 2026-10-02*
+
+### New (from the lab operator’s second report)
+
+- **Self-chaining rounds** — --history-file now accepts a saved round file directly: its probe
+  + reply become the next history. Multi-turn is one command, no glue scripts, rounds chain
+  themselves (round002 feeds round003).
+- **First-class teardown — cli.js teardown --profile** — kills only processes whose command
+  line names the sandbox (never by image name), spares its own ancestor chain, unlinks the
+  node_modules junction, deletes, verifies — and exits 0 on real success. The old hand-typed
+  PowerShell lied (nonzero exit while succeeding); the safe path is now the trustworthy one.
+- **Per-round usage** — prompt/completion token accounting from the API in every dry result.
+- **Trim visibility** — trimmed: N messages appears in META whenever context trimming cut
+  history (silent trimming misattributed to prompts was the lab’s worst false positive), plus
+  a request-size estimate.
+- **--draws N** — N independent draws of the same probe+system in one command (0NN-a/b/c.json):
+  variance as a first-class measurement.
+- **--effort low|max per call** — cheap smoke draws without touching profile settings.
+- **Full reasoning is now the default** — the digest is opt-in via --max-reason (steering signal
+  lives mid-deliberation). META gains elapsed seconds; failures print a class tag
+  ([QUOTA]/[AUTH]/[TIMEOUT]/[NETWORK]/[MODERATION]).
+
 ## v0.9.3 — Field Report Release
 
 *Released: 2026-10-02*

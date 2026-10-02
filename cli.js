@@ -107,10 +107,74 @@ function digestReason(text, n) {
   const half = Math.floor(n / 2);
   return text.slice(0, half) + '\n[… ' + (text.length - n) + ' chars truncated — rerun with --full or a larger --max-reason …]\n' + text.slice(text.length - half);
 }
+// Classify a failure at first glance — quota vs budget vs refusal vs network vs timeout.
+function errorClass(msg) {
+  const m = String(msg || '');
+  if (/429|balance|quota|resource pack/i.test(m)) return 'QUOTA';
+  if (/401|unauthorized|invalid.*key/i.test(m)) return 'AUTH';
+  if (/timeout/i.test(m)) return 'TIMEOUT';
+  if (/fetch|network|ECONN/i.test(m)) return 'NETWORK';
+  if (/unsafe|sensitive/i.test(m)) return 'MODERATION';
+  return 'OTHER';
+}
+// A round file (--out output) chains directly: its probe+reply become the next history.
+function parseHistoryInput(raw) {
+  const j = JSON.parse(raw);
+  if (Array.isArray(j)) return j;
+  if (j && typeof j === 'object' && j.result && typeof j.result.reply === 'string') {
+    const prev = Array.isArray(j.history) ? j.history : [];
+    return prev.concat([{ role: 'user', content: j.probe || '' }, { role: 'assistant', content: j.result.reply }]);
+  }
+  throw new Error('history file must be a {role, content}[] array or a saved round file');
+}
 async function labMain(cmd) {
   const profile = flag('profile', ROOT);
   if (cmd === 'ping') { console.log(JSON.stringify(await serverCall(profile, '/ping'), null, 2)); return; }
   if (cmd === 'state') { console.log(JSON.stringify(await serverCall(profile, '/state'), null, 2)); return; }
+
+  // First-class teardown: kill ONLY processes whose command line names THIS profile's sandbox,
+  // never by image name (the owner's live app is electron.exe too), then delete and verify.
+  // Exit 0 on real success — a safe path that lies about failure trains operators toward
+  // blunt instruments.
+  if (cmd === 'teardown') {
+    const { execFileSync } = require('child_process');
+    const profStr = String(profile);
+    const sbName = path.basename(path.dirname(profStr));   // e.g. constellation-promptlab
+    // Refuse to kill anything unless the target positively looks like a sandbox profile: a real
+    // dir containing cli-server.json (a running lab), with a non-empty, path-like name to match.
+    if (!sbName || sbName === '/' || sbName === '\\' || !/^[a-z0-9_.-]+$/i.test(sbName) || !fs.existsSync(path.join(profStr, 'cli-server.json'))) {
+      console.error('TEARDOWN REFUSED: ' + profStr + ' is not a recognizable sandbox profile (need <dir>/profile/cli-server.json). No processes were touched.');
+      process.exit(1);
+    }
+    // Exclusion by ancestry, computed INSIDE PowerShell: walk $PID's parent chain to the root and
+    // spare every shell layer that merely carries the sandbox name in its command text. The
+    // owner's live app never matches sbName, so excluding ancestors costs nothing.
+    const ps = [
+      '$ErrorActionPreference = "SilentlyContinue"',
+      '$anc = @(); $p = $PID; while ($p) { $anc += $p; $p = (Get-CimInstance Win32_Process -Filter "ProcessId=$p").ParentProcessId }',
+      'Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like "*' + sbName + '*" -and $_.ProcessId -notin $anc } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }',
+      'Start-Sleep -Seconds 2',
+      'exit 0',
+    ].join('\n');
+    try { execFileSync('powershell.exe', ['-NoProfile', '-Command', ps], { stdio: 'ignore' }); } catch (e) { /* kills may race; verify below is the truth */ }
+    let gone = false;
+    try { process.chdir(process.env.TEMP || process.cwd()); } catch (e) { console.warn('[constellation]', e && e.message || e); }   // a CWD inside the sandbox blocks root deletion on Windows
+    for (let i = 0; i < 3 && !gone; i++) {
+      gone = !fs.existsSync(String(profile));
+      if (!gone) {
+        // The sandbox's app/node_modules is a JUNCTION into the real repo — unlink the link
+        // itself first (rmdir on a junction never follows it) or rmSync dies on EPERM.
+        const root = path.dirname(String(profile));
+        try { fs.rmdirSync(path.join(root, 'app', 'node_modules')); } catch (e) {}
+        try { fs.rmSync(root, { recursive: true, force: true }); } catch (e) { console.warn('[constellation]', e && e.message || e); }
+      }
+      if (!gone) await new Promise(r => setTimeout(r, 1500));
+    }
+    if (fs.existsSync(String(profile))) { console.error('TEARDOWN FAILED: ' + profile + ' still exists. Most likely a shell is still cd-ed into the sandbox (Windows refuses to delete a process\u2019s working directory) — cd out and re-run.'); process.exit(1); }
+    console.log('teardown complete: ' + path.dirname(String(profile)) + ' removed');
+    return;
+  }
+
   if (cmd === 'dry') {
     let msg = flag('msg', '');
     const probe = flag('probe', '');
@@ -121,39 +185,51 @@ async function labMain(cmd) {
     if (sysFile && sysFile !== true) body.system = readArgFile(sysFile);
     const histFile = flag('history-file', '');
     if (histFile && histFile !== true) {
-      try { body.history = JSON.parse(readArgFile(histFile)); }
-      catch (e) { console.error('--history-file must be a JSON array of {role, content} messages: ' + e.message); process.exit(1); }
+      try { body.history = parseHistoryInput(readArgFile(histFile)); }
+      catch (e) { console.error('--history-file: ' + e.message); process.exit(1); }
     }
-    const r = await serverCall(profile, '/dry-send', body);
+    const effort = flag('effort', '');
+    if (effort && effort !== true) body.effort = String(effort);
 
-    // Errors surface LOUDLY — an empty reply with a buried 429 was a real misdiagnosis trap.
-    if (r && r.error) { console.error('DRY FAILED: ' + r.error); process.exit(1); }
-    if (r && !r.reply) console.error('NOTE: empty reply — most likely the reasoning consumed the max_tokens budget; raise it and retry.');
-
+    const draws = Math.max(1, parseInt(flag('draws', '1'), 10) || 1);
     const outFile = flag('out', '');
-    if (outFile && outFile !== true) {
-      const outP = normPath(String(outFile));
-      fs.mkdirSync(path.dirname(outP), { recursive: true });
-      fs.writeFileSync(outP, JSON.stringify({ probe: body.msg, system: body.system || null, history: body.history || null, result: r, at: new Date().toISOString() }, null, 2));
+    const results = [];
+    const t0 = Date.now();
+    for (let d = 0; d < draws; d++) {
+      const r = await serverCall(profile, '/dry-send', body);
+      if (r && r.error) { console.error('DRY FAILED [' + errorClass(r.error) + ']: ' + r.error); process.exit(1); }
+      if (r && !r.reply) console.error('NOTE: empty reply — most likely the reasoning consumed the max_tokens budget; raise it and retry.');
+      results.push(r);
+      let outP = null;
+      if (outFile && outFile !== true) {
+        outP = normPath(String(outFile));
+        if (draws > 1) outP = outP.replace(/(\.[^.]+)?$/, (d ? '-'.concat(String.fromCharCode(97 + d)) : '-a') + '$1');
+        fs.mkdirSync(path.dirname(outP), { recursive: true });
+        fs.writeFileSync(outP, JSON.stringify({ probe: body.msg, system: body.system || null, history: body.history || null, result: r, at: new Date().toISOString() }, null, 2));
+      }
+      const secs = Math.round((Date.now() - t0) / 1000);
+      if (flag('json', false)) { console.log(JSON.stringify(r)); continue; }
+      if (draws > 1) console.log('--- draw ' + (d + 1) + '/' + draws + ' ---');
+      console.log('=== REPLY ===');
+      console.log(r.reply || '(empty)');
+      const rn = String(r.reasoning || '').length;
+      const mr = flag('max-reason', '');   // digest is OPT-IN: full reasoning is the default (steering signal lives mid-deliberation)
+      console.log('=== REASONING (' + (mr && mr !== true ? 'digest of ' + rn : 'full, ' + rn) + ' chars) ===');
+      console.log(mr && mr !== true ? digestReason(r.reasoning, Number(mr)) : (r.reasoning || '(none)'));
+      console.log('=== META ===');
+      const u = r.usage ? (' · usage: prompt ' + (r.usage.prompt_tokens ?? '?') + ' / completion ' + (r.usage.completion_tokens ?? '?')) : '';
+      console.log('system overridden: ' + (r.systemOverridden ? 'yes' : 'no') + ' · history overridden: ' + (r.historyOverridden ? 'yes' : 'no') + ' · trimmed: ' + (r.trimmedMessages || 0) + ' msg(s) · ~' + (r.estReqTokens || 0) + ' req tokens' + u + ' · ' + secs + 's' + ' · phrase bans: ' + (r.bansApplied ? 'yes' : 'no') + ' · lore: ' + (r.lore ? r.lore.length : 0) + (outP ? ' · saved: ' + outP : ''));
     }
-    if (flag('json', false)) { console.log(JSON.stringify(r)); return; }
-    console.log('=== REPLY ===');
-    console.log(r.reply || '(empty)');
-    const rn = String(r.reasoning || '').length;
-    console.log('=== REASONING (' + (flag('full', false) ? 'full, ' + rn + ' chars' : 'digest of ' + rn + ' chars') + ') ===');
-    console.log(flag('full', false) ? (r.reasoning || '(none)') : digestReason(r.reasoning, Number(flag('max-reason', 1500))));
-    console.log('=== META ===');
-    console.log('system overridden: ' + (r.systemOverridden ? 'yes' : 'no') + ' · history overridden: ' + (r.historyOverridden ? 'yes' : 'no') + ' · phrase bans applied: ' + (r.bansApplied ? 'yes' : 'no') + ' · lore fired: ' + (r.lore ? r.lore.length : 0) + ((outFile && outFile !== true) ? ' · saved: ' + outFile : ''));
     return;
   }
-  console.error('lab commands: ping | state | dry');
+  console.error('lab commands: ping | state | teardown | dry');
   process.exit(1);
 }
 
 (async () => {
   const cmd = process.argv[2], arg = process.argv[3];
   if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h') return help();
-  if (cmd === 'ping' || cmd === 'state' || cmd === 'dry') return labMain(cmd);
+  if (cmd === 'ping' || cmd === 'state' || cmd === 'dry' || cmd === 'teardown') return labMain(cmd);
 
   if (cmd === 'lorebooks' || cmd === 'lb') {
     const map = loadLorebooks(), ids = Object.keys(map);

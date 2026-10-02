@@ -1109,9 +1109,11 @@ ipcMain.handle('chat:stream', async (event, payload) => {
 
     let full = '';
     let finishReason = null;
+    let usage = null;   // final-chunk accounting (when the endpoint sends it) — surfaced for the prompt lab
     if (!aborted) {
       try {
         for await (const chunk of stream) {
+          if (chunk.usage) usage = chunk.usage;   // OpenAI-compat streams carry usage on the last chunk
           const choice = chunk.choices && chunk.choices[0];
           if (!choice) continue;
           if (choice.finish_reason) finishReason = choice.finish_reason;   // 'length' = cut off by max_tokens
@@ -1128,7 +1130,7 @@ ipcMain.handle('chat:stream', async (event, payload) => {
         if (!isAbort(err)) throw err;   // a real mid-stream error -> chat:error; an abort just ends it
       }
     }
-    event.sender.send('chat:done', { requestId, full, finishReason });   // finishReason lets the UI offer "Continue"
+    event.sender.send('chat:done', { requestId, full, finishReason, usage });   // finishReason lets the UI offer "Continue"
     return { ok: true };
   } catch (err) {
     const message = err && err.message ? err.message : String(err);

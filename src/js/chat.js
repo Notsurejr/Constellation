@@ -603,13 +603,13 @@ Constellation.chat = (function () {
     return Constellation.engines.lore.buildLoreContext(activeLore, loreQuery(), loreEmbedFn());
   }
   // Collect a streamed GLM reply into a string (no typewriter/DOM) — used by the dry-run test.
-  function completeGlm(reqMsgs) {
+  function completeGlm(reqMsgs, optOverride) {
     return new Promise((resolve, reject) => {
       let full = '', reasoning = '';
-      window.api.chatStream(reqMsgs, opts, {
+      window.api.chatStream(reqMsgs, optOverride ? Object.assign({}, opts, optOverride) : opts, {
         onThink: (d) => { reasoning += d; },
         onChunk: (d) => { full += d; },
-        onDone: (f) => { resolve({ full: f || full, reasoning }); },
+        onDone: (f, fin, usage) => { resolve({ full: f || full, reasoning, usage: usage || undefined }); },
         onError: (m) => { reject(new Error(m)); },
       });
     });
@@ -619,7 +619,7 @@ Constellation.chat = (function () {
   // dryRun: a hypothetical send that persists nothing. `system` REPLACES the system prompt and
   // `history` REPLACES the conversation for this one call — the prompt-lab primitives: iterate
   // candidate instructions AND multi-turn scenarios without touching the session on disk.
-  async function dryRun(msg, system, history) {
+  async function dryRun(msg, system, history, callOpts) {
     let base = conversation;
     if (Array.isArray(history) && history.length) {
       base = history.map((m) => ({ role: m && m.role === 'assistant' ? 'assistant' : (m && m.role === 'system' ? 'system' : 'user'), content: String((m && m.content) || ''), reasoning: m && m.reasoning ? String(m.reasoning) : undefined }));
@@ -628,14 +628,16 @@ Constellation.chat = (function () {
     const recentText = conv.filter((m) => m.role !== 'system').slice(-4).map((m) => m.content || '').join('\n');
     const lc = await Constellation.engines.lore.buildLoreContext(activeLore, recentText, loreEmbedFn());
     let reqMsgs = trimForApi(toApiMessages(lc, conv));
+    const trimmedMessages = Math.max(0, conv.length - reqMsgs.filter((m) => m.role !== 'system').length);   // silent trimming misattributed to prompts is a lab's worst false positive
     if (system != null && String(system).length) {
       const stripped = reqMsgs.filter((m) => m.role !== 'system');
       // an override is a full replacement; the lab owns exactly what it sends
       reqMsgs = [{ role: 'system', content: String(system) }].concat(stripped);
     }
-    const { full, reasoning } = await completeGlm(reqMsgs);
+    const estReqTokens = Math.ceil(reqMsgs.reduce((n, m) => n + (typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content || '').length) + (m.reasoning_content ? m.reasoning_content.length : 0), 0) / 4);
+    const { full, reasoning, usage } = await completeGlm(reqMsgs, callOpts && callOpts.effort ? { reasoningEffort: String(callOpts.effort) } : undefined);
     const cleaned = applyPhraseBans(full);
-    return { reply: cleaned, reasoning: reasoning || undefined, bansApplied: cleaned !== full, lore: lc.items.map((it) => ({ label: it.label, text: it.text })), systemOverridden: !!(system != null && String(system).length), historyOverridden: !!(Array.isArray(history) && history.length) };
+    return { reply: cleaned, reasoning: reasoning || undefined, usage: usage || undefined, estReqTokens: estReqTokens, trimmedMessages: trimmedMessages, bansApplied: cleaned !== full, lore: lc.items.map((it) => ({ label: it.label, text: it.text })), systemOverridden: !!(system != null && String(system).length), historyOverridden: !!(Array.isArray(history) && history.length) };
   }
   // ---- CLI bridge handlers (Shape A) — non-destructive inspection/tests ----
   function getState() {
