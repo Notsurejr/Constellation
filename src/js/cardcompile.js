@@ -1,8 +1,9 @@
 // Character-card compile engine — pure text assembly, no DOM. Runs ONCE at "Start chat":
 // the card's fields become a headed block, {{char}}/{{user}} resolve to real names, and the
 // result is baked into the chat's system prompt beneath the chosen base instructions.
-// Deliberately dropped from the prompt: creator_notes (author storefront), extensions,
-// and the card's own system_prompt / post_history_instructions (ST injection points).
+// The card's own system_prompt / post_history_instructions are opt-in via the "Card
+// directives" base (system_prompt as base, PHI as the final Reminder block). Still dropped:
+// creator_notes (author storefront) and extensions.
 var Constellation = window.Constellation || (window.Constellation = {});
 
 Constellation.cardcompile = (function () {
@@ -33,19 +34,30 @@ Constellation.cardcompile = (function () {
   }
 
   // Base instructions first (the HOW — the user's honed writing rules), then the character
-  // (the WHO), then the persona. Each layer is independent; absence just skips it.
-  function assemble(base, card, persona, userName) {
+  // (the WHO), then the persona, then an optional tail (the card's post-history directives —
+  // last words, closest to generation). Each layer is independent; absence just skips it.
+  function assemble(base, card, persona, userName, tail) {
     const layers = [];
     if (base && String(base).trim()) layers.push(String(base).trim());
     if (card) layers.push(characterBlock(card, userName));
     if (persona) layers.push(personaBlock(persona));
+    if (tail && String(tail).trim()) layers.push(String(tail).trim());
     return layers.join('\n\n');
   }
 
+  // V3 decorators (@@...) are app-activation machinery, not prose — the spec's own rule for
+  // apps that don't implement them is to trim them from content before prompting.
+  function stripDecorators(text) {
+    const lines = String(text || '').split('\n');
+    let i = 0;
+    while (i < lines.length && /^\s*@@/.test(lines[i])) i++;
+    return lines.slice(i).join('\n').trim();
+  }
+
   // chara_card_v2 character_book -> Constellation lorebook shape.
-  // keys -> trigger words, content -> entry text, constant -> always-include; ST-only
-  // machinery (depth/position/probability/selective logic) is ignored — our retrieval
-  // engine has its own ranking.
+  // keys -> trigger words, content -> entry text (decorators stripped), constant ->
+  // always-include; ST-only machinery (depth/position/probability/selective logic) is
+  // ignored — our retrieval engine has its own ranking.
   function bookToLore(card) {
     const book = card && card.characterBook;
     if (!book || !Array.isArray(book.entries) || !book.entries.length) return null;
@@ -55,9 +67,10 @@ Constellation.cardcompile = (function () {
         id: 'e' + (i + 1),
         enabled: e.enabled !== false,
         keys: Array.isArray(e.keys) ? e.keys.filter((k) => k && String(k).trim()).map(String) : [],
-        content: String(e.content),
+        content: stripDecorators(e.content),
         constant: !!e.constant,
-      }));
+      }))
+      .filter((e) => e.content);
     if (!entries.length) return null;
     return { name: String(book.name || (card.name + ' — card book')), entries: entries };
   }

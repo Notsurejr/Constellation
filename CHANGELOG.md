@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.9.6 — The Card's Own Voice
+
+### New
+
+- **"Card's directives" base option at Start chat** — a card's `system_prompt` and
+  `post_history_instructions` (the steering fields spec-built cards put their best material
+  in) are now kept at import and offered as a fourth base choice, next to your own
+  instructions, presets, and none. The system prompt becomes the base; the post-history
+  instructions ride at the very end as a "Reminder" block — the card author's last words.
+  Everything lands in the editable compile preview as usual. Cards imported before this
+  change show "card directives — re-import to load"; re-importing heals them in place.
+
+### Fixed
+
+- **V3 lorebook decorators no longer leak into the prompt** — entry content prefixed with
+  `@@…` activation lines (e.g. `@@keep_activate_after_match`) had those lines sent to the
+  model verbatim. Decorator lines are now stripped per the spec's own rule for apps that
+  don't implement them; entries that are nothing but decorators are dropped.
+
 ## v0.9.5 — Cards in Pictures
 
 *Released: 2026-10-02*

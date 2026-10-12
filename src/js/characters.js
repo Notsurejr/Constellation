@@ -82,7 +82,8 @@ Constellation.cast = (function () {
     if (c.creator) bits.push('by ' + esc(c.creator));
     bits.push(greetingCount(c) + (greetingCount(c) === 1 ? ' greeting' : ' greetings'));
     if (c.characterBook) bits.push('embedded lorebook');
-    if (c.hasSystemPrompt || c.hasPhi) bits.push('card system directives — ignored');
+    if (c.systemPrompt || c.postHistory) bits.push('card directives available');
+    else if (c.hasSystemPrompt || c.hasPhi) bits.push('card directives — re-import to load');
     sub.textContent = bits.join(' · ');
     meta.appendChild(sub);
     if (c.tags && c.tags.length) meta.appendChild(el('div', 'cast-card-tags', c.tags.slice(0, 6).join(' · ')));
@@ -191,6 +192,11 @@ Constellation.cast = (function () {
     presets.forEach((p) => { const o = document.createElement('option'); o.value = p.id; o.textContent = p.name || p.id; pSel.appendChild(o); });
     if (!presets.length) { const o = document.createElement('option'); o.textContent = '(no presets saved)'; o.disabled = true; pSel.appendChild(o); }
     baseWrap.appendChild(pSel);
+    // The card's own system_prompt / post_history_instructions, when it carries them —
+    // the steering a spec-built card puts in its best fields.
+    const cardDirectives = String(card.systemPrompt || '').trim();
+    const cardPhi = String(card.postHistory || '').trim();
+    if (cardDirectives || cardPhi) mkRadio('card', "Card's directives");
     mkRadio('none', 'None — card only');
     bRow.appendChild(baseWrap);
     box.appendChild(bRow);
@@ -215,7 +221,7 @@ Constellation.cast = (function () {
     box.appendChild(pv);
 
     let userEdited = false;
-    const currentBase = () => {
+    const currentBase = (userName) => {
       const v = baseWrap.querySelector('input[name="cast-base"]:checked');
       if (!v) return '';
       if (v.value === 'default') return defaultRp;
@@ -223,11 +229,16 @@ Constellation.cast = (function () {
         const p = presets.find((x) => String(x.id) === pSel.value);
         return p ? String(p.system || p.roleplay || '') : '';
       }
+      if (v.value === 'card') return cardDirectives ? cc.substitute(cardDirectives, card.name, userName) : '';
       return '';
     };
     const recompile = () => {
       const persona = personas.find((p) => p.id === perSel.value) || personas[0];
-      const text = cc.assemble(currentBase(), card, persona, persona ? persona.name : 'You');
+      const userName = persona ? persona.name : 'You';
+      // PHI rides at the very end of the system message — the card author's "last words".
+      const sel = baseWrap.querySelector('input[name="cast-base"]:checked');
+      const tail = (sel && sel.value === 'card' && cardPhi) ? '## Reminder\n' + cc.substitute(cardPhi, card.name, userName) : '';
+      const text = cc.assemble(currentBase(userName), card, persona, userName, tail);
       pv.value = text;
       userEdited = false;
       tok.textContent = '~' + cc.estimateTokens(text) + ' tokens';

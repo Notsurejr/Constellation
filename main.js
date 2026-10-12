@@ -838,6 +838,8 @@ function normalizeCard(raw) {
   // root. Accept both, prefer the wrapper when present.
   const d = (raw && raw.data && (raw.data.name || raw.data.description)) ? raw.data : raw;
   if (!d || !d.name) return null;
+  const sysPrompt = String(d.system_prompt || '');
+  const phi = String(d.post_history_instructions || '');
   return {
     name: String(d.name).slice(0, 80),
     description: String(d.description || ''),
@@ -850,8 +852,12 @@ function normalizeCard(raw) {
     creator: String(d.creator || ''),
     avatarUrl: String(d.avatar || ''),
     characterBook: d.character_book && Array.isArray(d.character_book.entries) && d.character_book.entries.length ? d.character_book : null,
-    hasSystemPrompt: !!(d.system_prompt && String(d.system_prompt).trim()),
-    hasPhi: !!(d.post_history_instructions && String(d.post_history_instructions).trim()),
+    // The card's own steering (system_prompt / post_history_instructions) — kept as TEXT now
+    // so start-chat can offer them as a base; the yes/no flags stay for pre-0.9.6 records.
+    systemPrompt: sysPrompt.trim() ? sysPrompt : '',
+    postHistory: phi.trim() ? phi : '',
+    hasSystemPrompt: !!sysPrompt.trim(),
+    hasPhi: !!phi.trim(),
     spec: String(raw && raw.spec || 'chara_card_v2'),
   };
 }
