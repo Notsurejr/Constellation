@@ -90,7 +90,12 @@ Constellation.cast = (function () {
     card.appendChild(head);
 
     const body = el('div', 'cast-card-desc');
-    body.textContent = esc(c.description).replace(/\s+/g, ' ').slice(0, 220) + (esc(c.description).length > 220 ? '…' : '');
+    const parts = [esc(c.description).replace(/\s+/g, ' ').slice(0, 220) + (esc(c.description).length > 220 ? '…' : '')];
+    if (c.scenario && String(c.scenario).trim()) parts.push('Scenario: ' + esc(c.scenario).replace(/\s+/g, ' ').slice(0, 160));
+    const greets = [c.firstMes].concat(c.altGreetings || []).filter((g) => g && String(g).trim());
+    greets.slice(0, 2).forEach((g, i) => parts.push('Greeting ' + (i + 1) + ': ' + esc(g).replace(/\s+/g, ' ').slice(0, 140) + (esc(g).length > 140 ? '…' : '')));
+    body.textContent = parts.join('\n');
+    body.style.whiteSpace = 'pre-line';
     body.hidden = true;
     card.appendChild(body);
 
@@ -124,9 +129,10 @@ Constellation.cast = (function () {
       try {
         const r = await window.api.importCharacters();
         if (r && r.ok && r.results) {
-          const n = r.results.filter((x) => x.ok).length;
-          const bad = r.results.filter((x) => !x.ok);
-          if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Imported ' + n + ' character' + (n === 1 ? '' : 's') + (bad.length ? ' — ' + bad.length + ' failed' : ''));
+          const ok = r.results.filter((x) => x.ok);
+          const upd = ok.filter((x) => x.updated).length;
+          const bad = r.results.length - ok.length;
+          if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Imported ' + (ok.length - upd) + ' character' + ((ok.length - upd) === 1 ? '' : 's') + (upd ? ', updated ' + upd : '') + (bad ? ' — ' + bad + ' failed' : ''));
         }
         await loadAll(); render();
       } catch (e) { console.warn('[constellation]', e && e.message || e); }

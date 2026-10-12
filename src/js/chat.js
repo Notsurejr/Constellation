@@ -142,8 +142,8 @@ Constellation.chat = (function () {
       ctxMeter.title = 'Exact context size (GLM tokenizer) — click to see exactly what was sent';
       return;
     }
-    ctxMeter.textContent = trimming ? ('◐ ~' + fmt(sent) + ' / ~' + fmt(total)) : ('◐ ~' + fmt(total));
-    ctxMeter.title = (trimming ? ('Sending last ~' + fmt(sent) + ' of ~' + fmt(total) + ' tokens (context window on)') : ('Estimated conversation size (~ until the tokenizer answers after a send)'))
+    ctxMeter.textContent = trimming ? ('◐ ≈' + fmt(sent) + ' / ≈' + fmt(total)) : ('◐ ≈' + fmt(total));
+    ctxMeter.title = (trimming ? ('Sending last ≈' + fmt(sent) + ' of ≈' + fmt(total) + ' tokens (context window on)') : ('Estimated conversation size (≈ until the tokenizer answers after a send)'))
                    + ' — click to see exactly what was sent';
   }
 

@@ -795,6 +795,44 @@ async function fetchAvatarDataUrl(url) {
   } catch (e) { console.warn('[constellation]', e && e.message || e); return ''; }
 }
 
+// PNG character cards: the spec embeds the card JSON in a PNG text chunk, base64-encoded —
+// keyword 'chara' (v2) or 'ccv3' (v3). Supports tEXt (plain) and zTXt (zlib-compressed).
+function extractCardFromPng(buf) {
+  if (!buf || buf.length < 8 || buf.readUInt32BE(0) !== 0x89504e47) return null;   // PNG signature
+  const zlib = require('zlib');
+  const out = {};
+  let off = 8;
+  while (off + 12 <= buf.length) {
+    const len = buf.readUInt32BE(off);
+    const type = buf.toString('ascii', off + 4, off + 8);
+    if (type === 'tEXt') {
+      const data = buf.slice(off + 8, off + 8 + len);
+      const nul = data.indexOf(0);
+      if (nul > 0) {
+        const key = data.toString('latin1', 0, nul);
+        out[key] = data.slice(nul + 1).toString('latin1');
+      }
+    } else if (type === 'zTXt') {
+      const data = buf.slice(off + 8, off + 8 + len);
+      const nul = data.indexOf(0);
+      if (nul > 0) {
+        const key = data.toString('latin1', 0, nul);
+        if (data[nul + 1] === 0) {   // compression method 0 = zlib
+          try { out[key] = zlib.inflateSync(data.slice(nul + 2)).toString('latin1'); } catch (e) { console.warn('[constellation]', e && e.message || e); }
+        }
+      }
+    } else if (type === 'IEND') break;
+    off += 12 + len;
+  }
+  for (const key of ['ccv3', 'chara']) {   // v3 first when both exist
+    if (out[key]) {
+      try { return JSON.parse(Buffer.from(out[key], 'base64').toString('utf8')); }
+      catch (e) { console.warn('[constellation]', e && e.message || e); }
+    }
+  }
+  return null;
+}
+
 function normalizeCard(raw) {
   // chara_card_v2 wraps fields in `data`; JanitorAI/Chub exports sometimes carry them at the
   // root. Accept both, prefer the wrapper when present.
@@ -820,17 +858,29 @@ function normalizeCard(raw) {
 
 async function importCharacterFiles(paths) {
   fs.mkdirSync(CHARACTERS_DIR, { recursive: true });
+  const existing = {};   // name|creator -> existing id: re-importing a card UPDATES it in place
+  try { for (const f of fs.readdirSync(CHARACTERS_DIR)) { if (!f.endsWith('.json')) continue; try { const c = JSON.parse(fs.readFileSync(path.join(CHARACTERS_DIR, f), 'utf8')); existing[(c.name || '').toLowerCase() + '|' + (c.creator || '').toLowerCase()] = c; } catch (e) {} } } catch (e) {}
   const out = [];
   for (const p of paths) {
     try {
-      const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+      let raw;
+      if (/\.png$/i.test(p)) {
+        raw = extractCardFromPng(fs.readFileSync(p));   // the image IS the card (tEXt/zTXt chunk)
+        if (!raw) { out.push({ ok: false, error: 'No character data chunk in ' + path.basename(p) + ' (not a chara card PNG?)' }); continue; }
+      } else {
+        raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+      }
       const norm = normalizeCard(raw);
       if (!norm) { out.push({ ok: false, error: 'No character name found in ' + path.basename(p) }); continue; }
+      const dupeKey = norm.name.toLowerCase() + '|' + (norm.creator || '').toLowerCase();
+      const prior = existing[dupeKey];
       const avatar = norm.avatarUrl ? await fetchAvatarDataUrl(norm.avatarUrl) : '';
-      const rec = Object.assign({ id: cardId(norm.name), avatar: avatar, importedAt: Date.now(), source: path.basename(p) }, norm);
+      // Same name+creator -> keep the OLD id (existing chats' badges stay linked) and refresh the card.
+      const rec = Object.assign({ id: prior ? prior.id : cardId(norm.name), avatar: avatar || (prior ? prior.avatar : ''), importedAt: prior ? prior.importedAt : Date.now(), source: path.basename(p) }, norm);
       delete rec.avatarUrl;
       fs.writeFileSync(path.join(CHARACTERS_DIR, rec.id + '.json'), JSON.stringify(rec, null, 2), 'utf8');
-      out.push({ ok: true, character: rec });
+      existing[dupeKey] = rec;
+      out.push({ ok: true, character: rec, updated: !!prior });
     } catch (e) { out.push({ ok: false, error: String((e && e.message) || e) }); }
   }
   return out;
@@ -840,7 +890,7 @@ ipcMain.handle('characters:import', async () => {
   try {
     const res = await dialog.showOpenDialog({
       title: 'Import character cards', properties: ['openFile', 'multiSelections'],
-      filters: [{ name: 'Character cards', extensions: ['json'] }],
+      filters: [{ name: 'Character cards', extensions: ['json', 'png'] }],
     });
     if (res.canceled || !res.filePaths || !res.filePaths.length) return { ok: false, canceled: true };
     const results = await importCharacterFiles(res.filePaths);

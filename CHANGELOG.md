@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.9.5 — Cards in Pictures
+
+*Released: 2026-10-02*
+
+### New
+
+- **PNG character cards** — the image IS the card: chara_card_v2 (“chara”) and v3 (“cccv3”)
+  data embedded in PNG text chunks now import directly, both plain (tEXt) and zlib-compressed
+  (zTXt). Drop the PNGs you exported from JanitorAI/Chub/SillyTavern into Import cards…
+  A PNG without card data is rejected with a clear reason.
+
+### Improved
+
+- **Re-importing a card updates it in place** — same name + creator keeps the existing
+  character’s identity, so badges on your existing chats stay linked; the toast reports
+  what was imported vs updated. Kept avatars survive a re-import that lacks one.
+- **Card details now show the scenario and greeting previews** alongside the description.
+- **The context meter’s approximation mark is ≈, not ~** — the tilde read like a minus sign;
+  the almost-equal sign is unambiguous.
+
 ## v0.9.4 — Wishlist Granted
 
 *Released: 2026-10-02*
