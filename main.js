@@ -1115,6 +1115,7 @@ ipcMain.handle('chat:stream', async (event, payload) => {
     const supportsEffort = /^glm-5\.[2-9]/i.test(String(opts.model || s.model));   // reasoning_effort is GLM-5.2+
     const is53Family = /^glm-5\.[3-9]/i.test(String(opts.model || s.model));   // 5.3+ accepts only max/high/low
     const isGlmEndpoint = /z\.ai|bigmodel/i.test(String(s.baseUrl || ''));   // GLM-specific params (thinking) only go to GLM
+    const isGeminiEndpoint = /googleapis\.com/i.test(String(s.baseUrl || ''));   // Gemini's OpenAI-compat door (AI Studio / Vertex)
     // Preserved thinking (reasoning_content echo-back) is a GLM capability — never send the field
     // to other providers, where it's noise at best and a schema error at worst.
     const apiMessages = isGlmEndpoint ? messages : messages.map((m) => {
@@ -1145,10 +1146,22 @@ ipcMain.handle('chat:stream', async (event, payload) => {
                     : opts.reasoningEffort } : {}),
             } : {}),
           // Non-GLM providers (OpenRouter & friends): pass the standard OpenAI-style effort knob,
-          // mapped from our options. 'none' means don't send it.
-          ...(opts.thinking && !isGlmEndpoint && opts.reasoningEffort && opts.reasoningEffort !== 'none'
+          // mapped from our options. 'none' means don't send it. (Gemini is handled below —
+          // its compat door REJECTS reasoning_effort alongside thinking_config.)
+          ...(opts.thinking && !isGlmEndpoint && !isGeminiEndpoint && opts.reasoningEffort && opts.reasoningEffort !== 'none'
             ? { reasoning_effort: ({ max: 'high', xhigh: 'high', high: 'high', medium: 'medium', low: 'low', minimal: 'minimal' })[opts.reasoningEffort] || 'high' }
             : {}),
+          // Gemini's OpenAI-compat door: the thinking level travels INSIDE thinking_config
+          // (mutually exclusive with reasoning_effort), and include_thoughts makes the model
+          // stream its thought summaries inline as a <thought>…</thought> head block inside
+          // content — peeled into the think channel by the splitter in the stream loop.
+          ...(isGeminiEndpoint ? {
+            extra_body: { google: { thinking_config: Object.assign(
+              { include_thoughts: opts.thinking !== false },
+              opts.thinking !== false && opts.reasoningEffort && opts.reasoningEffort !== 'none'
+                ? { thinking_level: ({ max: 'high', xhigh: 'high', high: 'high', medium: 'medium', low: 'low', minimal: 'low' })[opts.reasoningEffort] || 'high' }
+                : {}) } },
+          } : {}),
           stream: true,
         }, { signal: ac.signal });
         break;
@@ -1166,6 +1179,31 @@ ipcMain.handle('chat:stream', async (event, payload) => {
     let full = '';
     let finishReason = null;
     let usage = null;   // final-chunk accounting (when the endpoint sends it) — surfaced for the prompt lab
+    // Gemini thought summaries arrive INSIDE content as <thought>…</thought>; peel them into the
+    // think channel so the reply body stays clean prose. Stateful: markers can straddle chunks,
+    // so a short tail is held back until the marker is ruled out. GLM never emits this markup —
+    // the splitter runs on Gemini endpoints only.
+    let gInThought = false, gHold = '';
+    const geminiSplit = (piece) => {
+      let text = '', think = '';
+      gHold += piece;
+      for (;;) {
+        const marker = gInThought ? '</thought>' : '<thought>';
+        const at = gHold.indexOf(marker);
+        if (at === -1) {
+          const keep = Math.min(gHold.length, marker.length - 1);   // possible marker prefix — hold
+          const emit = gHold.slice(0, gHold.length - keep);
+          if (emit) { if (gInThought) think += emit; else text += emit; }
+          gHold = gHold.slice(gHold.length - keep);
+          break;
+        }
+        const before = gHold.slice(0, at);
+        if (before) { if (gInThought) think += before; else text += before; }
+        gHold = gHold.slice(at + marker.length);
+        gInThought = !gInThought;
+      }
+      return { text: text, think: think };
+    };
     if (!aborted) {
       try {
         for await (const chunk of stream) {
@@ -1174,8 +1212,9 @@ ipcMain.handle('chat:stream', async (event, payload) => {
           if (!choice) continue;
           if (choice.finish_reason) finishReason = choice.finish_reason;   // 'length' = cut off by max_tokens
           const delta = choice.delta || {};
-          const think = delta.reasoning_content || '';
-          const piece = delta.content || '';
+          let think = delta.reasoning_content || '';
+          let piece = delta.content || '';
+          if (piece && isGeminiEndpoint) { const s = geminiSplit(piece); think += s.think; piece = s.text; }
           if (think) event.sender.send('chat:chunk', { requestId, delta: think, kind: 'think' });
           if (piece) {
             full += piece;
@@ -1184,6 +1223,12 @@ ipcMain.handle('chat:stream', async (event, payload) => {
         }
       } catch (err) {
         if (!isAbort(err)) throw err;   // a real mid-stream error -> chat:error; an abort just ends it
+      }
+      // Flush any held-back tail (an unterminated marker prefix, or a thought the model never closed).
+      if (isGeminiEndpoint && gHold) {
+        if (gInThought) event.sender.send('chat:chunk', { requestId, delta: gHold, kind: 'think' });
+        else { full += gHold; event.sender.send('chat:chunk', { requestId, delta: gHold, kind: 'text' }); }
+        gHold = '';
       }
     }
     event.sender.send('chat:done', { requestId, full, finishReason, usage });   // finishReason lets the UI offer "Continue"
@@ -1274,7 +1319,7 @@ async function handleCliHttp(req, res, token) {
     let args = {};
     if (req.method === 'GET') u.searchParams.forEach((v, k) => { args[k] = v; });
     else { const body = await new Promise((r) => { let d = ''; req.on('data', (c) => (d += c)); req.on('end', () => r(d)); }); try { args = JSON.parse(body || '{}'); } catch (e) { console.warn('[constellation]', e && e.message || e); } }
-    const result = await rendererCmd(cmd, args, cmd === 'dry-send' ? 180000 : 30000);
+    const result = await rendererCmd(cmd, args, cmd === 'dry-send' ? 420000 : 30000);   // slow reasoners think silently for minutes (Gemini)
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify(result));
   } catch (e) {

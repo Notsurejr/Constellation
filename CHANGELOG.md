@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.9.7 — The Gemini Door
+
+### New
+
+- **Gemini through its OpenAI-compatible endpoint is now a first-class citizen.** Point
+  Constellation at Google's compat endpoint (Settings → Connection) and Gemini works with
+  thinking visible: requests carry Gemini's thinking configuration — your reasoning-effort
+  setting maps to its thinking level (max becomes high) — and thought summaries stream into
+  the thinking panel exactly like GLM's do. Gemini returns its thoughts inside the reply as
+  a `<thought>` block; Constellation peels that apart so the reply stays clean prose and the
+  thinking lands where thinking belongs. Trivial prompts can produce empty summaries at low
+  effort — that's the model summarizing sparingly, not a fault.
+- **The stream watchdog now tolerates silent thinkers.** Models served through compatibility
+  layers think server-side with no bytes flowing; the old 90-second total-silence cutoff
+  killed those requests mid-thought. The watchdog now waits up to 7 minutes for the first
+  byte of a reply, then still catches genuinely dead connections 90 seconds after streaming
+  has begun.
+- **CLI dry-send timeout raised to 7 minutes** to match — slow reasoning passes no longer die
+  at the old 3-minute mark.
+
 ## v0.9.6 — The Card's Own Voice
 
 ### New

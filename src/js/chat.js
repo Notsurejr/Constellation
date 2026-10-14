@@ -957,20 +957,24 @@ Constellation.chat = (function () {
     usage.tokens += estTokens(reqMsgs);   // count this request's tokens (context actually sent)
     usage.requests++;
     // Watchdog: a request that silently hangs (no tokens, no error) would leave busy=true forever —
-    // dots looping and every action locked. Any activity resets it; 90s of silence cancels.
+    // dots looping and every action locked. Any activity resets it. Slow reasoners (Gemini's
+    // compat door) think silently server-side before the FIRST byte, so the pre-first-byte
+    // allowance is long (420s); once anything flows, 90s between chunks still catches dead hangs.
     let watchdog = null;
+    let streamStarted = false;
     const kickWatchdog = () => {
       clearTimeout(watchdog);
+      const ms = streamStarted ? 90000 : 420000;
       watchdog = setTimeout(() => {
         cancelStream();
         streaming = false;
         busy = false;
         restoreSendBtn();
-        setStatus('error', 'err', 'Timed out after 90s with no data from the model — request cancelled.');
+        setStatus('error', 'err', 'Timed out after ' + Math.round(ms / 1000) + 's with no data from the model — request cancelled.');
         hideThinking(el);
         el.remove();
         if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Timed out waiting for the model — request cancelled', 9000);
-      }, 90000);
+      }, ms);
     };
     kickWatchdog();
     // Snapshot the exact payload for the "what was sent" inspector (click the ◐ meter). In-memory
@@ -984,6 +988,7 @@ Constellation.chat = (function () {
     currentRequest = window.api.chatStream(reqMsgs, opts, {
       onRetry: (attempt) => setStatus('retrying… (attempt ' + attempt + ')', 'ok'),
       onThink: (delta) => {
+        streamStarted = true;
         hideThinking(el);
         kickWatchdog();
         thinkBuf += delta;
@@ -994,6 +999,7 @@ Constellation.chat = (function () {
         }
       },
       onChunk: (delta) => {
+        streamStarted = true;
         hideThinking(el);
         kickWatchdog();
         if (!body.classList.contains('caret')) body.classList.add('caret');
