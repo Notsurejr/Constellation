@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const crypto = require('crypto');
+const os = require('os');
 
 // Defensive require: openai v4 exposes the class at .default under CommonJS.
 const _openai = require('openai');
@@ -907,6 +908,25 @@ ipcMain.handle('characters:import', async () => {
 // Headless-friendly entry (tests / future drag-drop): same parser, explicit paths.
 ipcMain.handle('characters:importFiles', (_e, paths) => importCharacterFiles(Array.isArray(paths) ? paths : []));
 
+// Drag-and-drop imports arrive as in-memory buffers (the renderer reads the dropped File
+// itself — no File.path dependency), land in temp files, and flow through the same import.
+ipcMain.handle('characters:importDrops', async (_e, files) => {
+  if (!Array.isArray(files)) return [];
+  const paths = [];
+  try {
+    for (const f of files) {
+      if (!f || typeof f.name !== 'string' || typeof f.b64 !== 'string') continue;
+      const safe = f.name.replace(/[^\w.-]+/g, '_').slice(-80) || 'card.png';
+      const p = path.join(os.tmpdir(), 'constellation-drop-' + Date.now() + '-' + Math.floor(Math.random() * 1e6) + '-' + safe);
+      fs.writeFileSync(p, Buffer.from(f.b64, 'base64'));
+      paths.push(p);
+    }
+    return await importCharacterFiles(paths);
+  } finally {
+    for (const p of paths) { try { fs.unlinkSync(p); } catch (e) {} }
+  }
+});
+
 ipcMain.handle('characters:list', () => {
   const out = [];
   try {
@@ -953,12 +973,26 @@ function clearJsonDir(dir) {
   try { for (const f of fs.readdirSync(dir)) if (f.endsWith('.json')) { try { fs.unlinkSync(path.join(dir, f)); } catch (e) { console.warn('[constellation]', e && e.message || e); } } } catch (e) { console.warn('[constellation]', e && e.message || e); }
 }
 
+// Backups are made to be shared and parked in cloud folders — the API key never leaves the
+// machine inside one. The key line is blanked on export; on restore, an empty incoming key
+// yields to the local one (restoring your own backup shouldn't log you out).
+function redactSettingsText(text) {
+  return String(text || '').replace(/^([ \t]*)api_key:.*$/m, '$1api_key: ');
+}
+function mergeKeyOnRestore(incomingText, currentText) {
+  const inKey = (String(incomingText || '').match(/^([ \t]*)api_key:[ \t]*(.*)$/m) || [])[2] || '';
+  if (inKey.trim()) return String(incomingText || '');
+  const curKey = (String(currentText || '').match(/^([ \t]*)api_key:[ \t]*(.*)$/m) || [])[2] || '';
+  if (!curKey.trim()) return String(incomingText || '');
+  return String(incomingText || '').replace(/^([ \t]*)api_key:.*$/m, '$1api_key: ' + curKey.trim());
+}
+
 ipcMain.handle('backup:export', async () => {
   try {
     const bundle = {
       app: 'constellation', version: 1, exportedAt: Date.now(),
       config: {
-        settings: readTextSafe(path.join(CONFIG_DIR, 'settings.txt')),
+        settings: redactSettingsText(readTextSafe(path.join(CONFIG_DIR, 'settings.txt'))),
         project: readTextSafe(path.join(CONFIG_DIR, 'project.txt')),
         modes: {
           roleplay: readTextSafe(path.join(MODES_DIR, 'roleplay.txt')),
@@ -1068,7 +1102,7 @@ ipcMain.handle('backup:import', async () => {
     if (confirm.response !== 0) return { ok: false, canceled: true };
     fs.mkdirSync(CONFIG_DIR, { recursive: true }); fs.mkdirSync(MODES_DIR, { recursive: true });
     if (bundle.config) {
-      if (bundle.config.settings != null) fs.writeFileSync(path.join(CONFIG_DIR, 'settings.txt'), bundle.config.settings, 'utf8');
+      if (bundle.config.settings != null) fs.writeFileSync(path.join(CONFIG_DIR, 'settings.txt'), mergeKeyOnRestore(bundle.config.settings, readTextSafe(SETTINGS_FILE)), 'utf8');
       if (bundle.config.project != null) fs.writeFileSync(path.join(CONFIG_DIR, 'project.txt'), bundle.config.project, 'utf8');
       if (bundle.config.modes) for (const k of ['roleplay', 'creative', 'craft']) if (bundle.config.modes[k] != null) fs.writeFileSync(path.join(MODES_DIR, k + '.txt'), bundle.config.modes[k], 'utf8');
       if (bundle.config.phraseBans != null) fs.writeFileSync(PHRASE_BANS_FILE, bundle.config.phraseBans, 'utf8');

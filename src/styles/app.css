@@ -1525,6 +1525,7 @@ input.num::-webkit-outer-spin-button, input.num::-webkit-inner-spin-button { opa
   box-shadow: 0 24px 70px rgba(0,0,0,0.65);
   display: flex; flex-direction: column; overflow: hidden;
 }
+.cast-panel.cast-dropping { border-color: rgba(159, 184, 255, 0.55); outline: 1px dashed rgba(159, 184, 255, 0.45); outline-offset: -10px; }
 .cast-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px 6px; }
 .cast-title { font-size: 15px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-dim); }
 .cast-close { background: none; border: none; color: var(--text-dim); font-size: 20px; cursor: pointer; }

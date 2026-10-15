@@ -21,6 +21,16 @@ Constellation is a desktop home for long-form AI-assisted writing. Bring your ow
 
 > It's a *client*: Constellation has no AI of its own and no accounts. Your key talks straight to the endpoint you configure; your writing never touches anyone else's server.
 
+<p align="center">
+  <img src="docs/screens/reading-view.png" width="100%" alt="A story in progress — the sidebar, the reading column on the night sky, a folded thinking block, the scene-break star, and the composer" />
+</p>
+<p align="center"><em>The reading view — chats in the sidebar, turn headers and folded thinking in the column, a scene-break star, the context meter at the edge of the sky.</em></p>
+
+<p align="center">
+  <img src="docs/screens/start-chat.png" width="72%" alt="The Start-chat screen — greeting picker, base instruction choice including the card's own directives, persona, and the editable compiled prompt preview" />
+</p>
+<p align="center"><em>Starting a chat from a character card — pick the greeting, the base instructions (yours, a preset, or the card's own), and your persona; the compiled prompt is editable before the first send.</em></p>
+
 ---
 
 ## Why you might want it

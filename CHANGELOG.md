@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.9.8 — Quiet Keys
+
+### New
+
+- **Drag-and-drop character cards.** PNG and JSON cards can be dropped straight onto the
+  Cast panel — the panel lights up while you hold the file, and drops behave exactly like
+  dialog imports (same parser, same in-place updates, same toast).
+- **The README now shows the app.** Real screenshots of the reading view and the
+  Start-chat screen — the layout, the sky, and the card flow at a glance.
+
+### Fixed
+
+- **Backups no longer carry your API key.** The JSON backup is made to be shared and
+  parked in cloud folders — the key line is blanked on export. Restoring keeps your
+  current key when the backup's is empty (restoring your own backup won't log you out);
+  older backups that still contain a key continue to restore it.
+
 ## v0.9.7 — The Gemini Door
 
 ### New

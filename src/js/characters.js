@@ -64,6 +64,13 @@ Constellation.cast = (function () {
 
   // ---- characters section ----
   function greetingCount(c) { return 1 + (c.altGreetings ? c.altGreetings.length : 0); }
+  function reportImport(results) {
+    if (!results || !results.length) return;
+    const ok = results.filter((x) => x.ok);
+    const upd = ok.filter((x) => x.updated).length;
+    const bad = results.length - ok.length;
+    if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Imported ' + (ok.length - upd) + ' character' + ((ok.length - upd) === 1 ? '' : 's') + (upd ? ', updated ' + upd : '') + (bad ? ' — ' + bad + ' failed' : ''));
+  }
 
   function characterCard(c) {
     const card = el('div', 'cast-card');
@@ -129,12 +136,7 @@ Constellation.cast = (function () {
     imp.addEventListener('click', async () => {
       try {
         const r = await window.api.importCharacters();
-        if (r && r.ok && r.results) {
-          const ok = r.results.filter((x) => x.ok);
-          const upd = ok.filter((x) => x.updated).length;
-          const bad = r.results.length - ok.length;
-          if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Imported ' + (ok.length - upd) + ' character' + ((ok.length - upd) === 1 ? '' : 's') + (upd ? ', updated ' + upd : '') + (bad ? ' — ' + bad + ' failed' : ''));
-        }
+        if (r && r.ok && r.results) reportImport(r.results);
         await loadAll(); render();
       } catch (e) { console.warn('[constellation]', e && e.message || e); }
     });
@@ -310,6 +312,33 @@ Constellation.cast = (function () {
     panel.appendChild(body);
     overlay.appendChild(panel);
     overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
+    // Drop character cards (PNG/JSON) straight onto the panel. The renderer reads each
+    // dropped File itself (no File.path dependency); main writes it to temp and runs the
+    // normal import path, so drops and dialog imports behave identically.
+    const hasFiles = (e) => !!(e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') !== -1);
+    overlay.addEventListener('dragover', (e) => { if (hasFiles(e)) { e.preventDefault(); panel.classList.add('cast-dropping'); } });
+    overlay.addEventListener('dragleave', (e) => { if (e.relatedTarget && overlay.contains(e.relatedTarget)) return; panel.classList.remove('cast-dropping'); });
+    overlay.addEventListener('drop', async (e) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      panel.classList.remove('cast-dropping');
+      const files = Array.prototype.filter.call(e.dataTransfer.files || [], (f) => /\.(png|json)$/i.test(f.name));
+      if (!files.length) return;
+      try {
+        const payload = [];
+        for (const f of files) {
+          const buf = new Uint8Array(await f.arrayBuffer());
+          let bin = '';
+          for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+          payload.push({ name: f.name, b64: btoa(bin) });
+        }
+        reportImport(await window.api.importCharacterDrops(payload));
+      } catch (err) {
+        console.warn('[constellation]', err && err.message || err);
+        if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Drop failed — ' + ((err && err.message) || err), 9000);
+      }
+      await loadAll(); render();
+    });
     document.body.appendChild(overlay);
     loadAll().then(render);
   }
