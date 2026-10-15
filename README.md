@@ -4,7 +4,7 @@
 
 <div align="center">
 
-[![version](https://img.shields.io/badge/version-0.9.2-9fb8ff?style=flat-square)](https://github.com/Notsurejr/Constellation/releases)
+[![version](https://img.shields.io/github/v/release/Notsurejr/Constellation?style=flat-square&color=9fb8ff)](https://github.com/Notsurejr/Constellation/releases)
 [![platform](https://img.shields.io/badge/platform-Windows-0078D6?style=flat-square)](https://github.com/Notsurejr/Constellation/releases)
 [![license](https://img.shields.io/badge/license-MIT-4a7a4a?style=flat-square)](LICENSE)
 [![engine](https://img.shields.io/badge/made%20with-Electron-9feaf9?style=flat-square)](https://www.electronjs.org/)
