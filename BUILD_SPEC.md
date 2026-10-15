@@ -1,11 +1,11 @@
 # Constellation — Build Specification
 
-**Version:** 0.1.0 · **Platform:** Windows (Electron) · **Target provider:** GLM (Zhipu AI / Z.ai), provider-agnostic by design
+**Version:** 0.9.7 · **Platform:** Windows (Electron) · **Providers:** GLM (Z.ai / Zhipu) first-class, any OpenAI-compatible endpoint, Gemini via its compatibility layer
 
-A desktop application that wraps a user-supplied LLM API key and *steers/formats* the model for three purposes:
+A desktop application that wraps a user-supplied LLM API key and *steers, renders, and remembers* the model for one reader:
 
-1. **Roleplay** — streamed chat sessions.
-2. **Creative writing** — prose generation/refinement.
+1. **Roleplay & creative writing** — streamed chat sessions with visible, editable reasoning; immersion-grammar prose rendering; character cards and personas.
+2. **A reading environment** — the chat is typeset like a manuscript on a living night sky.
 3. **Craft mode** — a writing coach that reviews the user's own writing and accumulates lessons in a journal.
 
 The app is a **client**, not a model: it holds no intelligence of its own. It packages, steers, and renders a model that runs on the provider's servers.
@@ -18,8 +18,9 @@ The app is a **client**, not a model: it holds no intelligence of its own. It pa
 |---|---|---|
 | Desktop runtime | **Electron 31** | Real installable app from web tech; full visual control; one language end-to-end. |
 | Renderer | **Vanilla JS** (no framework, no build step) | Readable; zero compilation; easy for a non-programmer to follow. |
-| LLM client | **`openai` SDK v4** (CommonJS) pointed at GLM's OpenAI-compatible endpoint | Standard, well-tested streaming. |
-| Markdown | **`marked`** (vendored UMD) + a small DOM sanitizer | Live formatting of model output. |
+| LLM client | **`openai` SDK v4** (CommonJS) against any OpenAI-compatible endpoint | Standard, well-tested streaming; forwards provider-specific extras. |
+| Markdown | **`marked`** (vendored UMD) + a DOM-tree sanitizer | Live formatting of model output. |
+| Local embeddings | **`@huggingface/transformers`** (lazy) — `nomic-ai/nomic-embed-text-v1.5`, Matryoshka-truncated to 256 dims | Semantic lorebook retrieval with zero cloud calls. |
 | Packaging | **electron-builder** (NSIS target) | Double-clickable Windows installer. |
 | Persistence | Plain text + JSON in the OS user-data folder | Survives reinstalls/updates; editable by hand. |
 
@@ -34,10 +35,10 @@ A strict three-layer split. This is the most important idea in the codebase — 
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │  MAIN PROCESS (main.js)            Node, full privileges      │
-│  • holds the API key                                          │
-│  • all network calls (openai SDK)                             │
-│  • file I/O (config, sessions, presets, journal)             │
-│  • native dialogs, window, spellcheck menu                   │
+│  • holds the API key; all network calls                       │
+│  • file I/O (config, sessions, lore, cards, exports, backups)│
+│  • stream loop: GLM / Gemini / generic provider shaping      │
+│  • CLI bridge server (localhost, opt-in), native dialogs     │
 └───────────────▲──────────────────────────────┬───────────────┘
                 │ IPC (ipcMain.handle)          │ contextBridge
 ┌───────────────┴──────────────────────────────▼───────────────┐
@@ -47,22 +48,24 @@ A strict three-layer split. This is the most important idea in the codebase — 
                 │ window.api.*
 ┌───────────────┴──────────────────────────────────────────────┐
 │  RENDERER (src/**)                untrusted, sandboxed UI     │
-│  • never sees the key                                         │
-│  • asks the main process to do anything privileged            │
+│  • never sees the key; asks main for anything privileged      │
+│  • UMD modules on a shared namespace, no bundler              │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 **Window settings:** `contextIsolation: true`, `nodeIntegration: false`, `sandbox: false`, plus a strict Content-Security-Policy:
 `default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self';`
 
-The renderer is structured as small modules that attach to a shared global namespace:
+Renderer modules attach to a shared global namespace:
 ```js
 var Constellation = window.Constellation || (window.Constellation = {});
 Constellation.chat = (function () { ... })();
 ```
-> ⚠️ The alias **must use `var`, not `const`**. A second `const Constellation` throws "Identifier has already been declared" and silently kills that script. (See §10 Gotchas.)
+> The alias **must use `var`, not `const`**. A second `const Constellation` throws "Identifier has already been declared" and silently kills that script (§10).
 
-**Boot order** (`app.js`, on `DOMContentLoaded`): apply saved appearance → `settings.init()` → `sessions.init()` → `craft.init()` → `chat.init()` → focus the input.
+**Boot order** (`app.js`, on `DOMContentLoaded`): apply saved appearance → `settings.init()` → `sessions.init()` → `craft.init()` → `bookmarks.init()` → `lorebook.init()` → `cast.init()` (characters/personas) → `cliBridge.init()` → `chat.init()` → focus the input.
+
+**Renderer modules** (`src/js/`): `app` (boot), `chat` (conversation, streaming, sculpt, attachments, reasoning), `settings`, `sessions` (sidebar), `craft`, `characters` (Cast panel + start-chat compile), `cardcompile` (pure card→prompt engine), `lorebook` (panel), `engines` (shared lore/ban engine: BM25 + cosine + budget), `md` (markdown + immersion grammar + sanitizer), `bookmarks` (Story Constellations), `constellations` + `story-sky` (sky map / mood weather), `chronicle`, `mood`, `sigils`, `colorfx` (color-word tinting), `starfield`, `cli-bridge` (lab relay).
 
 ---
 
@@ -71,206 +74,178 @@ Constellation.chat = (function () { ... })();
 ```
 Constellation/
 ├── package.json              # metadata, scripts (start/dist), build config
-├── main.js                   # Electron main: all IPC + API calls + window
-├── preload.js                # secure window.api bridge
-├── build/
-│   ├── icon.ico              # app icon (multi-size, embedded in .exe + window)
-│   └── icon-render.js        # pure-JS generator that produced icon.ico (re-runnable)
+├── main.js                   # Electron main: IPC surface, API calls, stream loop, CLI server
+├── preload.js                # secure window.api bridge (~48 methods)
+├── mdexport.js               # Obsidian-flavored Markdown export (main-process CommonJS)
+├── mdexport-test.js          # unit tests for the above — `node mdexport-test.js`
+├── cli.js                    # repo-root dev/lab tool: offline inspectors + prompt-lab commands
 ├── src/
-│   ├── index.html            # the app screen + Settings/Craft overlays
-│   ├── lib/
-│   │   └── marked.umd.js     # vendored markdown parser (loaded as a local <script>)
-│   ├── styles/
-│   │   ├── theme.css         # ★ tweakable look (CSS variables: colors, fonts, widths)
-│   │   └── app.css           # layout, bubbles, overlays, animations
-│   └── js/
-│       ├── starfield.js      # canvas starfield (parallax, cached glow, pauses when hidden)
-│       ├── md.js             # markdown render + sanitizer (stateless, shared)
-│       ├── chat.js           # conversation, streaming, edit/regen, attachments, usage
-│       ├── settings.js       # Settings overlay (presets, prompts, connection, generation, appearance)
-│       ├── sessions.js       # saved-chats sidebar (list/load/rename/delete)
-│       ├── craft.js          # writing-coach mode + journal
-│       └── app.js            # boots the renderer
-├── config/                   # shipped defaults (copied into userData on first run)
-│   ├── settings.txt
+│   ├── index.html            # the app screen + overlays (settings, craft, lorebook, cast…)
+│   ├── lib/marked.umd.js     # vendored markdown parser (local <script>)
+│   ├── fonts/                # bundled reading fonts (OFL): Literata, Newsreader, Lora, Atkinson
+│   ├── styles/{theme,app}.css
+│   └── js/                   # the 19 renderer modules listed in §2
+├── config/                   # shipped defaults (modes + project text are packaged)
+│   ├── modes/{roleplay,creative,craft}.txt
 │   ├── project.txt
-│   └── modes/{roleplay,creative,craft}.txt
-├── data/                     # shipped default data (sessions/presets/journal) — seeded on first run
+│   └── settings.example.txt  # reference copy only — never packaged, never read at runtime
+├── data/                     # default data seeds (first run only, never overwritten)
 └── dist/                     # build OUTPUT (disposable; regenerated by `npm run dist`)
-    ├── Constellation Setup 0.1.0.exe   # the NSIS installer
-    └── win-unpacked/                   # the packaged app as a folder
 ```
 
 ---
 
 ## 4. Runtime data & configuration
 
-At runtime, all writable state lives in the OS user-data folder — **never inside the read-only packaged `app.asar`**. On Windows that is `%AppData%\constellation\`:
+All writable state lives in the OS user-data folder — **never inside the read-only packaged `app.asar`**. On Windows: `%AppData%\constellation\`.
 
 ```
 %AppData%\constellation\
 ├── config\
-│   ├── settings.txt        # key/value (see below)
-│   ├── project.txt         # per-project instructions
-│   └── modes\              # system prompts per mode (roleplay/creative/craft)
+│   ├── settings.txt          # key/value, table-driven (see below)
+│   ├── project.txt           # per-project standing instructions
+│   ├── modes\*.txt           # system prompts per mode (roleplay/creative/craft)
+│   ├── personas.json         # Cast personas (name + description, one default)
+│   └── phrase_bans.txt       # find = replace rules applied post-generation
 ├── data\
-│   ├── sessions\*.json     # saved chats
-│   ├── presets\*.json      # saved system+project prompt sets
-│   └── craft_journal.txt   # accumulated craft takeaways
-└── window-state.json       # last window size
+│   ├── sessions\*.json       # saved chats (the user's library — sacred)
+│   ├── presets\*.json        # system+project prompt sets
+│   ├── characters\*.json     # imported character cards (v2/v3, JSON or PNG-extracted)
+│   ├── lorebooks.json        # lorebook collection { id: { name, semantic, entries[] } }
+│   ├── bookmarks.json        # Story Constellations (bookmark stars)
+│   ├── chronicle.json        # per-chat reader-reference facts
+│   ├── folders.json          # sidebar folders
+│   ├── craft_journal.txt     # accumulated craft takeaways
+│   └── drafts.json           # per-chat composer drafts
+├── window-state.json         # last window size
+├── cli-server.json           # per-launch CLI bridge token (when cli_server on)
+├── Custom Dictionary.txt     # Electron spellcheck additions (managed by Chromium)
+└── transformers-cache\       # local embedding model (semantic lorebooks; ~130 MB, lazy)
 ```
 
-On first launch, `copyTreeIfMissing()` seeds `config/` and `data/` from the shipped defaults, and writes a blank `settings.txt` if none exists. Existing files are never overwritten.
+On first launch, `copyTreeIfMissing()` seeds `config/` and `data/` from the shipped defaults. **Existing files are never overwritten** — which is also why updates never touch the user's library.
 
-### `settings.txt` keys
+**Legacy migration:** a pre-collection `data/lorebook.json` (single book) is folded into `lorebooks.json` as "Main" once, only if the collection file does not yet exist. The original is left in place afterward and is never read again.
 
-Parsed as `key: value` lines; `#` lines are comments.
+### Settings — the SETTINGS_SPEC table
 
-| Key | Meaning | Default |
-|---|---|---|
-| `api_key` | GLM API key (main-process only) | _(empty)_ |
-| `model` | Model id (e.g. `glm-5.2`) | `glm-5.2` |
-| `base_url` | Provider endpoint | coding endpoint |
-| `temperature` | Sampling temperature | `0.8` |
-| `top_p` | Nucleus sampling | `0.95` |
-| `max_tokens` | Max reply length (`0` = omit) | `4096` |
-| `thinking` | `on`/`off` — emit/forward reasoning | `off` |
-| `reasoning_effort` | Thinking depth on GLM-5.2+: `max`/`high`/`minimal` | `max` |
-| `context_window` | Max tokens of history sent (`0` = unlimited) | `0` |
-| `font_scale` | UI text scale (0.8–1.6) | `1` |
-| `chat_width` | Centered chat column width, px (600–1500) | `880` |
-| `accent` | Accent color, `#rrggbb` (empty = default blue) | _(empty)_ |
-| `stream_cps` | Text reveal rate, chars/sec (`0` = instant) | `0` |
-| `star_density` | Starfield density multiplier (0.2–2.5) | `1` |
-| `twinkle_speed` | Star twinkle multiplier (`0` = frozen) | `1` |
+`settings.txt` is parsed/written **table-driven** from `SETTINGS_SPEC` in main.js: one row per key, with a `kind` (`str`, `key`, `float`, `int`, `clampedInt`, `clampedFloat`, `onoff`, `enum`, `hex`) and default. The same table drives `config:load`, `config:save`, and the Settings UI wiring — **adding a setting is one row plus renderer plumbing.** Quirks preserved deliberately: a `0`, garbled, or absent value falls back to the row's default (so e.g. `chat_width: 0` → 880).
 
-### File formats
+Current keys (0.9.7): connection (`api_key`, `model`, `base_url`), generation (`temperature`, `top_p`, `max_tokens`, `context_window`, `thinking`, `reasoning_effort`, `preserved_thinking`, `stream_cps`, `send_attachments`, `md_thinking`, `immersion`, `teach_edits`), appearance (`font_scale`, `font_family`, `line_height`, `prose_measure`, `chat_width`, `accent`, `star_density`, `twinkle_speed`, `color_words`, `mood_sky`, `fx_events`, `fx_size`, `flare_*`), system (`sidebar_sort`, `cli_server`, `last_backup`).
 
-**Session** (`data/sessions/<id>.json`)
+### Session format (`data/sessions/<id>.json`)
+
 ```json
-{ "id": "s_...", "title": "...", "updatedAt": 0,
-  "gen"?: { "model","temperature","topP","maxTokens","thinking","reasoningEffort","streamCps","contextWindow" },
-  "system"?: "...", "project"?: "...",
-  "messages": [ { "role": "user|assistant", "content": "...", "reasoning"?: "...", "files"?: [{"name","size","text"}] } ] }
+{ "id": "s_...", "title": "...", "updatedAt": 0, "pinned"?: true, "parentId"?: "...",
+  "folder"?: "...", "hidden"?: true, "lore"?: ["lb_..."], "character"?: { "id", "name" },
+  "gen"?: { "model","temperature","topP","maxTokens","thinking","reasoningEffort",
+             "streamCps","contextWindow","preservedThinking","sendAttachments" },
+  "system"?: "...", "project"?: "...", "usage": { "tokens", "requests" },
+  "messages": [ { "role": "user|assistant", "content": "...",
+    "reasoning"?: "...", "rOrig"?: "...", "edited"?: true, "orig"?: "...",
+    "variants"?: [...], "files"?: [ { "name", "size", "text", "excluded"? } ] } ] }
 ```
-Each chat carries its own `gen` (generation settings), `system`, and `project` — all restored on load and edited per-chat in Settings; new chats start from global defaults, older chats without them fall back to those defaults. The optional `reasoning` (assistant only) holds the model's `reasoning_content` so the ✦ Thinking block survives a restart; with thinking on it's also returned to the API for Preserved Thinking (see §6).
-**Preset** (`data/presets/<id>.json`): `{ "id", "name", "system", "project" }`
+
+Each chat carries its own `gen`, `system`, `project`, lore attachments, and character link — restored on load. `reasoning` holds the model's thinking (GLM `reasoning_content` or Gemini thought summaries) so the ✦ Thinking block survives restarts and can be edited (with `rOrig` preserving the original). `usage.tokens` is a lifetime **spent** odometer (every request's full context + reply), distinct from the ◐ context meter's current-size reading.
 
 ---
 
 ## 5. The `window.api` surface (preload bridge)
 
-The renderer can call **only** these; nothing else is exposed.
+Grouped; the renderer can call **only** these:
 
-| Method | Purpose |
-|---|---|
-| `loadConfig()` / `saveConfig(patch)` | read/write `settings.txt` |
-| `loadModes()` / `saveMode(name, content)` | system-prompt files |
-| `loadProject()` / `saveProject(content)` | project instructions |
-| `listSessions` / `loadSession(id)` / `saveSession(data)` / `deleteSession(id)` / `renameSession(id, title)` | saved chats |
-| `listPresets` / `loadPreset(id)` / `savePreset(data)` / `deletePreset(id)` | prompt presets |
-| `loadCraftJournal()` / `appendCraftJournal(line)` | craft journal |
-| `exportMarkdown(defaultName, content)` | save chat → `.md`/`.txt` via native dialog |
-| `chatStream(messages, opts, {onChunk, onDone, onError, onRetry, onThink})` | streamed completion |
+- **Config/modes:** `loadConfig` `saveConfig` `loadModes` `saveMode` `loadProject` `saveProject` `savePhraseBans`
+- **Sessions:** `listSessions` `loadSession` `saveSession` `deleteSession` `renameSession` `setPinned` `setSessionHidden` `setSessionFolder` `setSessionLore` `searchSessions` `loadDrafts` `saveDraft`
+- **Lore:** `loadLorebooks` `saveLorebooks` `embedTexts`
+- **Cast:** `importCharacters` `importCharacterFiles` `listCharacters` `deleteCharacter` `loadPersonas` `savePersonas`
+- **Reading layer:** `loadBookmarks` `addBookmark` `removeBookmark` `loadChronicle` `saveChronicle` `captureChronicle` `cancelChronicle` `onChronicleProgress` `loadFolders` `saveFolder` `deleteFolder` `toggleFolder`
+- **Presets/craft:** `listPresets` `loadPreset` `savePreset` `deletePreset` `loadCraftJournal` `appendCraftJournal`
+- **I/O:** `exportChatMarkdown` `tokenizerCount` `writeClipboard` `backupExport` `backupExportMarkdown` `backupRestore`
+- **Streaming/CLI:** `chatStream(messages, opts, {onChunk,onDone,onError,onRetry,onThink})` `cancelStream` `onCliReq` `sendCliRes`
 
 ---
 
 ## 6. Streaming pipeline
 
-**Main process** (`chat:stream`):
-1. Builds an `openai` client from settings (`apiKey`, `baseURL`, `maxRetries: 0`).
-2. Retries the initial request up to **4 attempts** on transient errors (see §7); gives up immediately on billing errors.
-3. Iterates the async stream, forwarding each chunk to the renderer:
-   - `delta.content` → `chat:chunk` with `kind: 'text'`
-   - `delta.reasoning_content` → `chat:chunk` with `kind: 'think'`
-4. Ends with `chat:done { full }` or `chat:error { message }`.
+**Main process** (`chat:stream` in main.js):
 
-When `thinking` is on, the request includes `thinking: { type: 'enabled' }`.
+1. Builds an `openai` client from settings (`maxRetries: 0`); an `AbortController` is registered so the UI's Stop button can cancel.
+2. **Provider shaping**, by endpoint:
+   - **GLM** (`z.ai` / `bigmodel`): `thinking: { type:'enabled', clear_thinking: <preserved_thinking off?> }` and `reasoning_effort` mapped per family (5.3+ accepts only max/high/low; older enums mapped down).
+   - **Gemini** (`googleapis.com`): thinking travels as `extra_body.google.thinking_config` — `include_thoughts` (from the thinking toggle) plus `thinking_level` mapped from the effort setting (max→high, medium→medium, low/minimal→low). **Mutually exclusive with `reasoning_effort`** — sending both is a 400.
+   - **Other OpenAI-compatible:** the standard `reasoning_effort` knob, mapped. History is stripped of `reasoning_content` and of the prefill's trailing empty assistant turn (GLM-only constructs).
+3. Retries the initial request up to **4 attempts** on transient errors (429/5xx/408/409/no-status; never on billing or 401), backoff `min(8000, 800·2^n)` ms.
+4. Iterates the stream, forwarding chunks to the renderer:
+   - `delta.reasoning_content` → `chat:chunk { kind:'think' }`
+   - `delta.content` → `chat:chunk { kind:'text' }` — on Gemini, content first passes a stateful **`<thought>…</thought>` splitter** (marker holdback across chunk boundaries, end-of-stream flush) that routes summaries to the think channel so the reply stays clean prose.
+   - the final chunk's `usage` and `finish_reason` are captured and forwarded in `chat:done`.
 
 **Renderer** (`chat.js → streamReply`):
-- Reveals text via a `requestAnimationFrame` "typewriter pump" at `opts.streamCps` chars/sec (`Infinity` = instant). Markdown is re-parsed on a ~40 ms throttle as the revealed prefix grows.
-- **Smart scroll:** only auto-follows the stream when the reader is already near the bottom; if they scrolled up to read, their place is preserved and a **↓ jump-to-latest** button appears.
-- On completion: the caret is removed, the final markdown is rendered, a **word/char count** footer is filled, and the chat **auto-saves**.
-- **Stop / Continue / Copy:** the send button becomes a **Stop** button during generation (aborts the stream via an `AbortController` + `chat:cancel`; partial text is kept). The final chunk's `finish_reason` is forwarded in `chat:done` — when it's `'length'` (cut off by `max_tokens`), a **Continue** action appears on that message and sends a follow-up "continue" turn. **Copy** (⎘) on any message copies its raw markdown; code blocks get their own copy button.
-- **Reasoning is persisted & preserved:** `reasoning_content` collected during the stream is stored verbatim on the assistant message (`reasoning`) so the ✦ Thinking block is restored when the chat is reopened. When thinking is on, `toApiMessages` also returns each prior turn's `reasoning_content` **verbatim** (GLM **Preserved Thinking**, requested as `thinking:{type:'enabled', clear_thinking:false}`) so reasoning carries across turns; the context meter counts it. Turn thinking off to stop sending it.
 
-### Retry policy (`isRetryable`)
-- **Skip** (won't retry): billing/quota errors — `/余额|insufficient.*(balance|quota|credit)/i`, and any 401.
-- **Retry**: HTTP 429, 5xx, 408, 409, and network errors with no status.
-- **Backoff:** `min(8000, 800 · 2^(attempt-1))` ms → ~0.8 s, 1.6 s, 3.2 s.
+- Reveals text via a rAF typewriter pump at `streamCps` (`0` = instant); markdown re-parsed on a ~40 ms throttle.
+- **Scroll etiquette:** model-side output never snaps a reader who's scrolled up (a ↓ jump button appears); the composer's growth is corrected pre-paint (ResizeObserver + rAF) so typing never flickers the chat.
+- **Watchdog:** 420 s allowed before the *first* byte (compatibility-layer models think silently server-side), then 90 s between chunks once flowing — a silent hang cancels cleanly instead of locking the UI.
+- On completion: phrase bans tidy the final reply, the mood sky assesses it, usage accrues, and the chat auto-saves (debounced). `finish_reason: 'length'` surfaces a **Continue** action.
 
 ---
 
 ## 7. Subsystems
 
-### Markdown (`renderMarkdown`)
-`marked.parse(src, { gfm:true, breaks:true })` → parsed into an inert `<template>` → a DOM-tree-walker **sanitizer** strips `<script>/<iframe>/<object>/...`, all `on*` attributes, and `javascript:`/`vbscript:`/`data:text/html` URLs → returned as safe HTML. Falls back to escaped text if `marked` is absent.
+### Markdown, sanitizer, and the immersion grammar
+`marked.parse` → inert `<template>` → a DOM-tree-walker sanitizer (no scripts/iframes/`on*`/`javascript:` URLs). On top sits an opt-in **immersion grammar** (Settings → Generation, off by default): a system-prompt block teaches the *model* to author ~14 typographic techniques (flush-left/flush-right register columns, `!!panic!!` / `::d i s s o c i a t i o n::` letter distortion, `~alien speech~`, `%%centered verse%%`, `==marked==`, `||redaction||` with click/hover reveal, `[[message]]` chips, `@ slug` establishers, drop caps, dossier blocks); `md.js` renders them (`preGrammar` line pass before marked, `postGrammar` inline walk after). Distortion spans are atomic (`white-space: nowrap`). Two plumbing rules: GFM strikethrough would eat `~single-tilde~`, so alien speech rides through marked as private-use sentinel characters; raw-HTML emissions must be followed by a blank line or marked swallows the next markdown.
 
-### Code blocks (`enhanceCodeBlocks`)
-Once a message is fully rendered (after streaming, or on load), each `<pre>` is wrapped in a `.codeblock` "card" with an **Expand/Collapse** toggle. Collapsed (default) = horizontal scroll as before; **Expand** flips the `pre` to `white-space: pre-wrap` + `overflow-wrap: anywhere` so wide blocks wrap to the window and read top-to-bottom without scrolling sideways. Injected only on the final render (not during the throttled streaming re-parses), and re-applied when a message is restored after editing.
+### Sculpt mode, reasoning steering, prefill
+- **Sculpt (✎):** edit any assistant message; `orig`/`edited` preserve fidelity; optional "teach from edits" is off by default. Edit-and-resend truncates forward history; the hover eye on attachments hides from context *without* regenerating.
+- **Reasoning editor:** every ✦ Thinking block has its own ✎ — editing writes `reasoning` while `rOrig` keeps the model's original. Via GLM Preserved Thinking, steered history becomes durable influence (the model cannot distinguish placed reasoning from its own).
+- **Prefill drawer (»):** an optional reasoning seed for one send; rides as a trailing empty assistant turn after trimming; prepended to the stored reasoning so today's prefill steers tomorrow. (Tested verdict: GLM accepts but ignores seeds — kept as an experimenter's tool.)
+- **Tokenizer:** `tokenizer:count` IPC asks the provider for exact counts on demand; coding-plan keys are declined (429), so the ◐ meter falls back to the `≈` chars/4 estimate.
 
-### File attachments
-A 📎 button + drag-and-drop read selected files as text (`FileReader`), shown as chips with name + char count (amber tint > 50 k chars). On send, each file's text is inlined into the user message behind a clear delimiter (`===== Attached file: name (N chars) =====`) via `toApiMessages()`. Attachments persist in the saved session and survive edits/regenerates.
+### Lore engine (`engines.js`, shared)
+Lorebooks are collections of entries with optional trigger `keys`. At send time: **constant** entries always inject; keyword entries match against the last 4 messages' full text; keyless entries are chunked and ranked by hybrid BM25 + cosine (local `nomic-embed-text-v1.5`, 256-dim, lazy-loaded) under a character budget. Attach/detach per chat via `setSessionLore`; cards seed their book as `lb_<cardid>`.
 
-### Sessions (`sessions.js`)
-Sidebar lists saved chats sorted by recency. **Titles persist**: the first message auto-derives a title, but once set (or renamed), later auto-saves keep it instead of re-deriving. Rename via inline ✎ (Enter saves / Esc cancels) through a `sessions:rename` IPC.
+### Phrase bans
+`config/phrase_bans.txt` — `find = replace` lines (empty replacement deletes), word-boundary, case-insensitive, applied to the final reply only. The model never sees the list.
 
-### Settings (`settings.js`)
-Sections: **Presets**, **System instructions (roleplay)**, **Project instructions**, **Connection** (API key, model, endpoint picker), **Generation** (creativity, max length, thinking, **text flow speed**), **Appearance** (text size, chat width, **accent color**). The ✦ star **toggles** the panel open/closed; it does **not** close on click-away (to protect in-progress edits). Close button + `Esc` also close.
+### Story Constellations, Chronicle, mood, color
+Bookmarks are stars (★ panel; the sky map overlay shows them as a navigable constellation). The Chronicle extracts per-chat reference facts (chunked, flash-extracted) into a reader's side panel. The mood sky weathers with the prose; color words wear their own hue (223-name bank).
 
-### Appearance theming
-Driven by CSS custom properties set at runtime on `:root`:
-- `--font-scale` (scales message + input text)
-- `--chat-col` (width of the centered conversation column; bubbles are `0.75 × --chat-col`, so user-right / GLM-left bubbles reach across the centerline)
-- `--accent` + derived `--accent-dim`, `--user-bubble`, `--glow` (recomputed from one hex)
+### Sigils (✦)
+A usage-ordered glyph picker beside the prompt box: ~640 glyphs across 7 groups, paginated, searchable, recents in renderer localStorage; inserts literal strings (quote pairs land caret-between).
 
-Applied on startup (`app.js`) and live in Settings. The OS window size is persisted to `window-state.json` and restored on launch.
+### Settings UI
+Four tabs (✎ Writing / ✦ Generation / ◈ Appearance / ☰ System), same sections in the same order within each; per-section scope-labeled saves; toggles autosave. Slider rows carry synced number boxes; the reply-length slider is log-scale 512→65,536.
 
-### Craft mode (`craft.js`)
-"Pull my writing from current chat" copies the user's typed messages into a textarea; **Analyze** sends them with `modes/craft.txt` as the system prompt and streams the review. A regex (`/Craft takeaway:\s*(.+)/i`) extracts any takeaway line and appends it to the craft journal.
+### Sessions sidebar
+Sorted by recency or pinned; folders, hide, rename, search (title + full-text with jump-to-match); fork (⑂) snapshots with lineage (`parentId` ↳ shown); per-chat **spent** token totals with a footer grand total.
 
-### Spellcheck
-Electron's built-in spellchecker draws the red underline; a `webContents('context-menu')` handler in `main.js` builds a `Menu` offering correction suggestions (`replaceMisspelling`), **Add to dictionary** (`session.addWordToSpellCheckerDictionary`), and Copy/Paste.
+### Exports & backups
+- **Markdown export (⤓):** Obsidian-flavored — `[!QUESTION] User` / `[!NOTE] <Model>` callouts, folded thinking/system blocks, YAML frontmatter, `· ✎ edited` marks; thinking-block inclusion follows Settings. Built by `mdexport.js` (main-process; **must remain in `build.files`** or the packaged app crashes on require).
+- **Per-chat Markdown backups** (Settings → Data): one dated `.md` per chat into a chosen folder.
+- **JSON backup/restore:** full bundle (config + sessions + presets + drafts + journal) via native dialogs.
 
-### Starfield (`starfield.js`)
-A fixed `<canvas>` behind everything: true-black field, pinpoint stars, per-star twinkle phase, very slow drift, and **pointer parallax** (stars sit in random depth layers and shift with the mouse for a sense of real space). Density and twinkle are runtime-tunable via `Constellation.starfield.setDensity/setTwinkle`, surfaced as Appearance sliders and persisted as `star_density`/`twinkle_speed`. One canvas, `requestAnimationFrame`, lightweight.
+### Cast — characters & personas (♛)
+Import chara_card_v2/v3 from JSON or **PNG** (the card rides tEXt/zTXt chunks; `ccv3` preferred over `chara`; zTXt is zlib-inflated). Re-importing the same name+creator **updates in place** (id preserved, so chat badges stay linked). Details show description/scenario/greeting previews. **Start chat** compiles once: greeting picker → base choice (**your instructions / a preset / the card's own directives / none**) → persona → an editable system-prompt preview with token estimate; the card's `system_prompt` becomes the base and its `post_history_instructions` land as a trailing Reminder block when "Card's directives" is chosen. The card's lorebook seeds the chat (decorator lines stripped). Personas are name+description presets, one default.
 
-### Visual polish
-- **Reading-progress hairline** — a 2px starlight bar down the right edge tracks scroll position through the chat (`updateReadProgress`; hidden when there's nothing to scroll).
-- **Speaker glyphs** — ✦ beside GLM, ✧ beside You, in each message's role label.
-- **Status breathe** — the `connected` status slowly pulses opacity, only when idle.
-- **Zen mode** — `body.zen` (☾ button / Esc) fades the top bar (hover the top edge to recall it), force-closes the sidebar, and widens the conversation column via `--chat-col`.
-
----
-
-### Per-chat settings, context window, and fork
-- **Per-chat settings**: generation (`model`, temperature, nucleus, max length, thinking + effort, flow speed, context window) lives in a `gen` object on each session, restored on load (older chats fall back to global config). Settings → Generation reads/writes the active chat; saving also updates the global default for new chats. Connection (key/endpoint) + Appearance stay global.
-- **Sliding context window** (`trimForApi`): when `contextWindow > 0`, the oldest middle turns are dropped from the request (system message + latest turn always kept) until the chars/4 estimate fits — saved history is never touched. The context meter then reads `◐ sent / total` and scales warm/hot to the window.
-- **Fork** (⑂ on any message): `forkFromEl` snapshots the conversation prefix non-destructively; `sessions.forkFrom` creates a new chat carrying the parent's `system`/`project`/`gen`. The original chat is untouched.
-
-### Sidebar: search, pin, model switcher, draft
-- **Search** (`sessions:search`) scans every session's title + message content server-side; the sidebar shows matches with a snippet, and loading one calls `chat.scrollToMatch` to scroll to + flash the hit.
-- **Pin** — a `pinned` flag on the session, sorted first by `sessions:list` and preserved across auto-saves; ☆ toggle per item.
-- **Quick model switcher** (`#topModel` in the top bar) calls `setOptions({model})` + `persist()`; `setOptions` keeps the dropdown in sync with the active chat's model.
-- **Draft autosave** (`data/drafts.json`, a map of sessionId → text) — saved debounced on input, restored on load, cleared on send / new chat.
-
-### Lineage, usage, and backup
-- **Fork lineage** — a fork stores `parentId`/`parentTitle`; the sidebar shows `↳ ⟨parent⟩`. Preserved across auto-saves.
-- **Usage tracker** — `chat.js` accumulates an estimated token count per chat (request via `estTokens(trimForApi(...))` + reply chars/4), stored as `usage: {tokens, requests}` on the session; the sidebar shows per-chat usage and a grand total in `#sidebarFoot`.
-- **Backup / restore** (`backup:export`, `backup:import`) — bundles config (settings/project/modes), all sessions, presets, drafts, and the craft journal into one JSON via native dialogs; restore clears sessions/presets and writes the bundle, then the app reloads.
+### CLI bridge & the prompt lab
+An opt-in localhost server (Settings → System; port 7331; per-launch bearer token in `cli-server.json`; Host-header anti-rebind). Routes: `/ping` `/state` `/retrieve` `/bans` `/dry-send`. The repo-root `cli.js` wraps it for agents: offline inspectors (`lorebooks` `entries` `sessions` `retrieve` `bans` `inspect`) and lab commands (`ping` `state` `teardown` `dry` with `--probe` `--system-file` `--history-file` (self-chaining round files) `--effort` `--draws` `--max-reason` `--full` `--json` `--out`). **Not packaged** — a development-time tool.
 
 ---
 
-## 8. GLM integration specifics
+## 8. Provider integration specifics
 
-- **OpenAI-compatible** chat-completions API via the `openai` SDK.
-- A **GLM Coding Plan** key requires the dedicated **coding endpoint** `https://api.z.ai/api/coding/paas/v4`. The general `open.bigmodel.cn` endpoint returns `429 余额不足` for such keys. An endpoint picker is exposed in Settings.
-- **Context caching is automatic** on Z.ai (cached prefix tokens billed ~50%); no client setting required.
-- Optional **thinking** (`reasoning_content`) surfaced in a collapsible block. On GLM-5.2+, **`reasoning_effort`** (`max`/`high`/`minimal`) tunes how hard it reasons (`minimal` skips thinking). Sent only when thinking is enabled, the effort isn't the default `max`, and the model is GLM-5.2+.
-- **Sampling:** both `temperature` and `top_p` are exposed; GLM advises changing one, not both.
-- **`max_tokens`** caps at 16384 in the UI (GLM-4.6 allows up to 128K); `0` omits it.
-- **Preserved Thinking** (`thinking.clear_thinking:false`): with thinking on, prior assistant turns' `reasoning_content` is returned to the API verbatim so reasoning continuity carries across turns (better quality + cache hit rates). Costs more tokens per turn; default-on for the Coding Plan endpoint. Requires the exact original sequence, which we store untouched.
-- Provider swap = change `base_url`/`model`/`api_key`; no logic changes (provider-agnostic).
+### GLM (Z.ai / Zhipu)
+- Coding Plan keys require the **coding endpoint** `https://api.z.ai/api/coding/paas/v4`; the general endpoint returns `429 余额不足` for them.
+- **Preserved Thinking:** with thinking on and `preserved_thinking` enabled (default), prior turns' `reasoning_content` is returned verbatim (`thinking: { type:'enabled', clear_thinking:false }`) — reasoning continuity across turns, better cache hits, more tokens.
+- `reasoning_effort`: GLM-5.2 takes max/high/medium/low/minimal; **5.3+ accepts only max/high/low** (others map down).
+- `max_tokens` defaults to 65,536 (the glm-5.x provider default); context caching is automatic.
+
+### Gemini (compatibility layer)
+- Base URL `https://generativelanguage.googleapis.com/v1beta/openai`.
+- Thinking config travels as `extra_body.google.thinking_config` (`include_thoughts`, `thinking_level` low/medium/high) and **cannot coexist with `reasoning_effort`**.
+- Thought summaries return **inside `delta.content`** as a `<thought>…</thought>` head block — the stream loop splits them into the think channel. Summaries can be legitimately empty on trivial prompts at low effort.
+
+### Any other OpenAI-compatible provider
+Change `base_url`/`model`/`api_key` in Settings → Connection. Reasoning fields and GLM-only constructs are stripped from history automatically; `reasoning_effort` is passed through with standard mapping.
 
 ---
 
@@ -279,43 +254,44 @@ A fixed `<canvas>` behind everything: true-black field, pinpoint stars, per-star
 Prereqs: Node.js + npm on PATH.
 
 ```bash
-# install deps (electron, electron-builder, openai, marked, pngjs, to-ico)
-npm install
-
-# run from source (dev)
-npm start
-
-# produce the Windows installer
-npm run dist
+npm install        # electron, electron-builder, openai, marked, @huggingface/transformers…
+npm start          # run from source (dev)
+npm run dist       # produce the Windows installer
+node mdexport-test.js   # export unit tests
 ```
 
-Output: `dist\Constellation Setup 0.1.0.exe` (NSIS, non-one-click, per-user, lets the user pick the install folder) and `dist\win-unpacked\`.
+Output: `dist\Constellation Setup 0.9.7.exe` (NSIS, non-one-click, per-user) and `dist\win-unpacked\`.
 
-**`package.json` → `build`** deliberately packages only:
+**`package.json` → `build.files`** deliberately packages only:
 ```jsonc
-"files": [ "main.js", "preload.js", "src/**", "config/modes/**", "build/icon.ico" ]
+[ "main.js", "preload.js", "mdexport.js", "src/**", "config/modes/**", "build/icon.ico" ]
 ```
-so the user's `settings.txt`, `project.txt`, and `data/` are **not** baked into the installer (the API key is never shipped). On first launch the installed app seeds fresh defaults into `%AppData%\constellation`.
-
-The app icon (`build/icon.ico`) is set both as the `BrowserWindow` icon and the build icon.
+so the user's settings, data, `cli.js` (dev tool), and `settings.example.txt` never ship — the API key is never packaged. First launch seeds fresh defaults into `%AppData%\constellation`.
 
 ---
 
 ## 10. Known gotchas
 
-- **`var` not `const`** for the shared `Constellation` namespace, or a redeclaration SyntaxError silently kills a renderer module.
-- **winCodeSign extraction** (`npm run dist` on a non-admin box): the `winCodeSign-2.6.0.7z` helper contains two macOS symlinks Windows can't create without Developer Mode/admin, so 7-Zip exits nonzero and electron-builder reports failure even though the win32 tools extracted fine. **Fix:** copy one of the partial temp extractions from `%LOCALAPPDATA%\electron-builder\Cache\winCodeSign\<random>\` to `…\winCodeSign\winCodeSign-2.6.0\`; the build then finds it cached and skips. (Persistent.)
-- **Rebuild file lock:** `npm run dist` can fail with `remove dist\win-unpacked\Constellation.exe: Access is denied` even with no app running (Explorer thumbnail handle or Defender scan). Transient. **Fix:** `rm -rf dist/win-unpacked` then re-run, or close any running Constellation + the open `dist` folder.
-- **API-key endpoint:** Coding Plan keys need the coding endpoint (see §8); a 429 "余额不足" usually means the wrong endpoint, not insufficient credit.
+- **`var` not `const`** for the shared namespace — a redeclaration SyntaxError silently kills a renderer module.
+- **`mdexport.js` must stay in `build.files`** — the packaged app requires it at runtime; omitting it ships an app that throws on first export.
+- **winCodeSign extraction** (non-admin `npm run dist`): the helper archive contains macOS symlinks Windows can't create; if 7-Zip exits nonzero, copy a partial extraction from `%LOCALAPPDATA%\electron-builder\Cache\winCodeSign\` into place once and it stays cached.
+- **Rebuild file lock:** `dist\win-unpacked\Constellation.exe: Access is denied` with nothing running — Explorer/Defender handle. `rm -rf dist/win-unpacked`, re-run.
+- **SETTINGS_SPEC fallbacks:** `0`/garbage/absent → row default (by design; e.g. `twinkle_speed: 0` does not round-trip).
+- **Immersion grammar plumbing:** single-tilde spans need the private-use sentinel smuggling; raw-HTML blocks need a trailing blank line.
+- **Gemini:** `reasoning_effort` and `thinking_config` are mutually exclusive; expect long silent gaps before the first byte (the watchdog's 420 s first-byte allowance exists for this).
+- **Dev sandboxes (file://):** a long-lived sandbox serves the renderer JS it loaded at launch — after editing renderer code, relaunch the sandbox before verifying.
+- **Coding Plan endpoint:** a `429 余额不足` usually means the wrong endpoint, not insufficient credit.
 
 ---
 
 ## 11. Extension points
 
-- **Add a provider:** point `base_url`/`model`/`api_key` at another OpenAI-compatible API. No code changes.
-- **Add a mode:** drop a `config/modes/<name>.txt`; it's auto-loaded by `modes:load`.
-- **Retune the look:** edit CSS variables in `src/styles/theme.css` (colors, fonts, `--chat-col`, `--font-scale`).
-- **Regenerate the icon:** edit the tunable params at the top of `build/icon-render.js` and run `node build/icon-render.js`.
+- **Add a provider:** point `base_url`/`model`/`api_key` at any OpenAI-compatible API. Provider-specific shaping branches live at the top of the `chat:stream` handler.
+- **Add a setting:** one `SETTINGS_SPEC` row (kind + default) + renderer wiring; `config:load`/`save` follow automatically.
+- **Add a mode:** drop `config/modes/<name>.txt` — auto-loaded by `modes:load`.
+- **Add lorebooks/characters:** JSON on disk (formats in §4/§7) or the import dialogs.
+- **Retune the look:** CSS variables in `src/styles/theme.css`.
+- **Regenerate the icon:** edit tunables atop `build/icon-render.js`, run it.
 
 ---
 
