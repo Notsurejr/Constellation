@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.9.9 — The Bottom Bun
+
+### Changed
+
+- **Project instructions now ride the bottom of the context.** They used to sit in the
+  system prompt at the top — now they're appended to the newest user prompt at send time,
+  fenced as `<project_instructions>…</project_instructions>`, the last thing the model
+  reads before writing. One copy per request, always the freshest: nothing is stored in
+  the chat, nothing lingers on previous turns, and the block survives context trimming
+  because it travels inside the newest turn. The ◐ request inspector shows it exactly as
+  sent. Chats keep their own snapshot of the project text, as before.
+
 ## v0.9.8 — Quiet Keys
 
 ### New

@@ -233,9 +233,10 @@ Constellation.chat = (function () {
   }
 
   function buildSystem() {
+    // Project instructions no longer sit here — they ride the NEWEST user turn at compose
+    // time (see toApiMessages), the bottom of the context, closest to generation.
     return [
       roleplayPrompt,
-      projectInstructions && ('# Project instructions\n' + projectInstructions),
       filesBlock(systemFiles),
       filesBlock(projectFiles),
       opts.immersion && immersionBlock(),
@@ -566,6 +567,25 @@ Constellation.chat = (function () {
           return '· "' + o + '" → "' + n + '"';
         });
         out[0] = { role: 'system', content: out[0].content + '\n\n# The writer\u2019s hand\nThe writer edits your replies after the fact; their edited wording is the voice they want. Lean toward it naturally — never mention or quote these notes.\n' + lines.join('\n') };
+      }
+    }
+    // Project instructions ride the NEWEST user turn — the bottom of the context, appended
+    // here at compose time ONLY. Nothing is stored in the chat (UI, session files, and lore
+    // keyword scanning all see the clean prompt); the ◐ inspector sees exactly this. The
+    // block survives context trimming because trimForApi always keeps the latest turn, and
+    // its cost is counted because the window estimate runs on what this returns.
+    if (projectInstructions) {
+      const fence = '\n\n<project_instructions>\n' + projectInstructions + '\n</project_instructions>';
+      for (let i = out.length - 1; i >= 0; i--) {
+        if (out[i].role !== 'user') continue;
+        if (typeof out[i].content === 'string') {
+          if (out[i].content.indexOf('<project_instructions>') === -1) out[i].content += fence;
+        } else if (Array.isArray(out[i].content)) {
+          const t = out[i].content.find((p) => p && p.type === 'text');
+          if (t) { if (String(t.text || '').indexOf('<project_instructions>') === -1) t.text = String(t.text || '') + fence; }
+          else out[i].content.push({ type: 'text', text: fence.trim() });
+        }
+        break;
       }
     }
     return out;
