@@ -68,8 +68,26 @@ async function populateModelsFromConnection() {
     if (window.Constellation && window.Constellation.settings && Constellation.settings.syncEffortOptions) Constellation.settings.syncEffortOptions();
   } catch (e) { console.warn('[constellation]', e && e.message || e); }
 }
-// Any save (Settings panel or otherwise) rebuilds the dropdowns — single source of truth.
-window.addEventListener('constellation:connections', populateModelsFromConnection);
+// Any save (Settings panel, IPC, or otherwise) rebuilds the dropdowns — the main process
+// broadcasts connections:changed after every successful save; the DOM event covers panel-local saves.
+async function onConnectionsChanged() {
+  await populateModelsFromConnection();
+  // If the active chat's model isn't offered by the new connection, fall in line with the
+  // connection's first model (per-chat model choice stays sacred when still available).
+  try {
+    const conn = await window.api.activeConnection();
+    const ids = (conn.models || []).map((m) => m.id);
+    const chat = window.Constellation && window.Constellation.chat;
+    if (conn && ids.length && chat && chat.getOptions && chat.setOptions) {
+      const cur = chat.getOptions().model;
+      if (cur && !ids.includes(cur)) chat.setOptions({ model: conn.activeModel && ids.includes(conn.activeModel) ? conn.activeModel : ids[0] });
+    }
+  } catch (e) { console.warn('[constellation]', e && e.message || e); }
+}
+window.addEventListener('constellation:connections', onConnectionsChanged);
+if (window.api && window.api.onConnectionsChanged) {
+  window.api.onConnectionsChanged(onConnectionsChanged);
+}
 
 window.addEventListener('DOMContentLoaded', async () => {
   populateModels();

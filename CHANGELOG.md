@@ -1,5 +1,39 @@
 # Changelog
 
+## v0.10.0 — Connections
+
+### New
+
+- **Named connections.** Keep any number of endpoint configurations — "GLM," "OpenRouter,"
+  "Gemini AI Studio," anything OpenAI-compatible — and switch the active one in a click.
+  Each connection carries its own **editable model list** (add any model id, remove the
+  ones you don't use, optional display labels) that feeds both the chat Model dropdown and
+  the topbar switcher. The legacy single endpoint migrates automatically into a "GLM"
+  connection on first launch, seeded with the current GLM lineup (4.7 / 5.1 / 5.2 / 5.3 /
+  5.3-flash).
+- **Keys are encrypted at rest.** Each connection's API key is stored in
+  `config\keys.json`, encrypted with Windows' built-in credential protection (DPAPI) —
+  bound to your user account on this machine. Keys never appear in settings.txt, never
+  cross the UI bridge in plaintext, and never enter backups. Plain settings carry no key
+  at all; copying the folder to another machine carries no working keys, by design.
+- **OpenRouter provider pinning.** Any model in an OpenRouter connection can carry a
+  provider pin (e.g. `openai`, `deepinfra/turbo`); sends then target that provider's
+  endpoint with fallbacks disabled, per OpenRouter's routing API. No more building
+  provider profiles on their side to work around us.
+- **PNG card imports keep the picture.** A card imported from a PNG becomes its own icon —
+  downscaled once at import (a 4K multi-megabyte portrait becomes a small embedded
+  thumbnail), shown in the Cast panel and chat sidebar. Cast avatars and sidebar character
+  chips are ~10–15% larger.
+- **The Cast screens match the theme.** Start-chat selects, persona inputs, and dropdown
+  popups render dark like the rest of the app (no more Chrome-white boxes).
+
+### Changed
+
+- Switching to a connection whose model list doesn't include the current chat's model
+  adopts the connection's model (per-chat model choice is preserved whenever it's still
+  offered).
+- The thinking-effort hint no longer carries the GLM version qualifier.
+
 ## v0.9.10 — A Third Dialect
 
 ### New

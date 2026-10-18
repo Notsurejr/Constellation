@@ -296,7 +296,7 @@ ipcMain.handle('connections:load', () => {
   const vault = readKeyVault();
   return { active: conns.active, list: conns.list.map((c) => Object.assign({}, c, { hasKey: !!vault[c.id] })) };   // hasKey only — keys never cross the bridge
 });
-ipcMain.handle('connections:save', (_e, payload) => {
+ipcMain.handle('connections:save', async (_e, payload) => {
   try {
     if (!payload || !Array.isArray(payload.list)) return { ok: false, error: 'bad payload' };
     const prev = readConnections() || { list: [] };
@@ -328,6 +328,9 @@ ipcMain.handle('connections:save', (_e, payload) => {
       if (act.activeModel) patch.model = act.activeModel;
       writeSettings(patch);
     }
+    // Broadcast so every renderer rebuilds its model dropdowns — regardless of which
+    // window/path initiated the save (Settings panel, IPC, future automation).
+    try { if (_e && _e.sender && !_e.sender.isDestroyed()) _e.sender.send('connections:changed'); } catch (e) {}
     return { ok: true };
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 });
