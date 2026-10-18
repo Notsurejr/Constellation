@@ -12,34 +12,26 @@ Constellation.toast = function (msg, linger) {
   setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, linger || 1800);
 };
 
-// The single source of truth for model options — populates both the top-bar switcher and Settings.
-const MODELS = [
+// Model options come from the ACTIVE CONNECTION's list (Settings → Connection); this
+// fallback seeds the dropdowns before the connection loads (first-boot / race cover).
+const FALLBACK_MODELS = [
   { id: 'glm-5.3', label: 'glm-5.3 — Flagship' },
   { id: 'glm-5.3-flash', label: 'glm-5.3-flash — Fast · Vision' },
   { id: 'glm-5.2', label: 'glm-5.2' },
   { id: 'glm-5.1', label: 'glm-5.1' },
-  { id: 'glm-5-turbo', label: 'glm-5-turbo — Fast' },
-  { id: 'glm-5', label: 'glm-5' },
   { id: 'glm-4.7', label: 'glm-4.7 — Latest 4.x' },
-  { id: 'glm-4.6', label: 'glm-4.6 — Coding-focused' },
-  { id: 'glm-4.5', label: 'glm-4.5 — Agent flagship' },
-  { id: 'glm-4.5-air', label: 'glm-4.5-air — Lighter / cheaper' },
-  { id: 'glm-4.7-flash', label: 'glm-4.7-flash — Free' },
-  { id: 'glm-4.5-flash', label: 'glm-4.5-flash — Free' },
-  { id: 'glm-5v-turbo', label: 'glm-5v-turbo — Vision (fast)' },
-  { id: 'glm-4.6v', label: 'glm-4.6v — Vision' },
 ];
 let _modelsPopulated = false;
 function populateModels(current) {
   const top = document.getElementById('topModel');
   const set = document.getElementById('modelInput');
   if (!_modelsPopulated) {
-    for (const m of MODELS) {
+    for (const m of FALLBACK_MODELS) {
       if (top) { const o = document.createElement('option'); o.value = m.id; o.textContent = m.id; top.appendChild(o); }
       if (set) { const o = document.createElement('option'); o.value = m.id; o.textContent = m.label; set.appendChild(o); }
     }
     const c = document.createElement('option'); c.value = '__custom__'; c.textContent = 'Custom…';
-    if (set) set.appendChild(c);   // any provider's model id (OpenRouter & friends)
+    if (set) set.appendChild(c);
     _modelsPopulated = true;
   }
   if (current) {   // a custom model id from settings stays selectable in both dropdowns
@@ -51,6 +43,31 @@ function populateModels(current) {
     }
   }
 }
+// Replace both dropdowns with the active connection's model list (called at boot once the
+// connection resolves, and from Settings after any connection change).
+async function populateModelsFromConnection() {
+  try {
+    const conn = await window.api.activeConnection();
+    const models = (conn && conn.models && conn.models.length) ? conn.models : FALLBACK_MODELS;
+    for (const selId of ['topModel', 'modelInput']) {
+      const sel = document.getElementById(selId);
+      if (!sel) continue;
+      const cur = sel.value;
+      sel.innerHTML = '';
+      for (const m of models) {
+        const o = document.createElement('option');
+        o.value = m.id; o.textContent = selId === 'topModel' ? m.id : (m.label || m.id);
+        sel.appendChild(o);
+      }
+      if (selId === 'modelInput') {
+        const c = document.createElement('option'); c.value = '__custom__'; c.textContent = 'Custom…'; sel.appendChild(c);
+      }
+      if (cur && Array.from(sel.options).some((o) => o.value === cur)) sel.value = cur;
+      else if (models.length) sel.value = models[0].id;
+    }
+    if (window.Constellation && window.Constellation.settings && Constellation.settings.syncEffortOptions) Constellation.settings.syncEffortOptions();
+  } catch (e) { console.warn('[constellation]', e && e.message || e); }
+}
 
 window.addEventListener('DOMContentLoaded', async () => {
   populateModels();
@@ -61,6 +78,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   try {
     const cfg = await window.api.loadConfig();
     populateModels(cfg.model);   // a custom model id (e.g. OpenRouter's) joins the dropdowns
+    populateModelsFromConnection();   // then the active connection's list takes over
     const fs2 = cfg.fontScale != null ? cfg.fontScale : 1;
     const cw = cfg.chatWidth != null ? cfg.chatWidth : 880;
     document.documentElement.style.setProperty('--font-scale', fs2);

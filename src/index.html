@@ -372,27 +372,39 @@
 
       <div class="settings-section">
         <h2>Connection <em class="hint-inline">global</em></h2>
-        <div class="hint">Works with GLM out of the box, or any OpenAI-compatible provider — OpenRouter, Ollama, LM Studio and friends via <em>Custom</em>. (The model is per-chat — see Generation.)</div>
-        <label class="field">
-          <span>API key</span>
-          <input type="password" id="apiKeyInput" placeholder="paste your API key" autocomplete="off" />
-        </label>
-        <label class="field">
-          <span>Endpoint</span>
-          <select id="endpointInput">
-            <option value="https://api.z.ai/api/coding/paas/v4">GLM — Coding plan (api.z.ai)</option>
-            <option value="https://api.z.ai/api/paas/v4">GLM — General (api.z.ai)</option>
-            <option value="https://open.bigmodel.cn/api/paas/v4/">GLM — General (bigmodel.cn)</option>
-            <option value="https://openrouter.ai/api/v1">OpenRouter (openrouter.ai)</option>
-            <option value="custom">Custom (any OpenAI-compatible)…</option>
-          </select>
-        </label>
-        <label class="field" id="customEndpointField" hidden>
-          <span>Base URL</span>
-          <input type="text" id="customEndpointInput" placeholder="https://your-provider.com/v1" />
-        </label>
+        <div class="hint">Any number of named connections — switch in one click; the active one carries every send. Keys live in <em>config\keys.json</em>, encrypted with Windows' credential protection (DPAPI) — they never leave this machine, and never enter backups. (The model is per-chat — see Generation.)</div>
+        <div class="conn-manager" id="connManager">
+          <div class="conn-rows" id="connRows"></div>
+          <div class="conn-editor" id="connEditor" hidden>
+            <label class="field"><span>Name</span><input type="text" id="connNameInput" placeholder="e.g. OpenRouter" maxlength="60" /></label>
+            <label class="field"><span>Endpoint</span>
+              <select id="connEndpointInput">
+                <option value="https://api.z.ai/api/coding/paas/v4">GLM — Coding plan (api.z.ai)</option>
+                <option value="https://api.z.ai/api/paas/v4">GLM — General (api.z.ai)</option>
+                <option value="https://open.bigmodel.cn/api/paas/v4/">GLM — General (bigmodel.cn)</option>
+                <option value="https://openrouter.ai/api/v1">OpenRouter (openrouter.ai)</option>
+                <option value="https://generativelanguage.googleapis.com/v1beta/openai">Gemini — AI Studio (compat)</option>
+                <option value="custom">Custom (any OpenAI-compatible)…</option>
+              </select>
+            </label>
+            <label class="field" id="connCustomEndpointField" hidden><span>Base URL</span><input type="text" id="connCustomEndpointInput" placeholder="https://your-provider.com/v1" /></label>
+            <label class="field"><span>API key <em class="hint-inline" id="connKeyState"></em></span><input type="password" id="connKeyInput" placeholder="paste key (leave blank to keep)" autocomplete="off" /></label>
+            <div class="field">
+              <span>Models <em class="hint-inline">this connection's list — the chat Model dropdown</em></span>
+              <div class="conn-models" id="connModels"></div>
+              <div class="conn-model-add">
+                <input type="text" id="connModelId" placeholder="model id, e.g. anthropic/claude-sonnet-4.5" />
+                <input type="text" id="connModelLabel" placeholder="display label (optional)" />
+                <input type="text" id="connModelProvider" placeholder="OpenRouter provider pin (optional)" />
+                <button class="btn ghost" id="connModelAdd" type="button">Add</button>
+              </div>
+              <div class="hint">Provider pin = OpenRouter endpoint routing (e.g. <em>openai</em>, <em>deepinfra/turbo</em>) — the request targets that provider and does not fall back. Only meaningful on OpenRouter.</div>
+            </div>
+          </div>
+        </div>
         <div class="settings-actions">
           <span class="saved-tag" id="connSaved">saved ✓</span>
+          <button class="btn ghost" id="connNew" type="button">New connection</button>
           <button class="btn" id="saveConnection">Save connection</button>
         </div>
       </div>

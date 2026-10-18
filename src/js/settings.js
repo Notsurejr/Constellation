@@ -37,17 +37,10 @@ Constellation.settings = (function () {
     const cwin = o.contextWindow != null ? o.contextWindow : 0;
     if ($('contextWindowInput')) { $('contextWindowInput').value = cwin; $('contextWindowVal').textContent = cwLabel(cwin); }
     if ($('cwNum')) $('cwNum').value = cwin;
-    // Connection (key/endpoint) + Appearance are global.
+    // Connection (multi) + Appearance are global.
     try {
       const cfg = await window.api.loadConfig();
-      if ($('apiKeyInput')) $('apiKeyInput').value = cfg.apiKey || '';
-      const ep = $('endpointInput');
-      if (ep) {
-        const cur = cfg.baseUrl || 'https://api.z.ai/api/coding/paas/v4';
-        const known = Array.from(ep.options).some((o) => o.value === cur);
-        if (known) { ep.value = cur; $('customEndpointField').hidden = true; }
-        else { ep.value = 'custom'; $('customEndpointField').hidden = false; $('customEndpointInput').value = cur; }
-      }
+      await loadConnectionsUI();
       const fs2 = cfg.fontScale != null ? cfg.fontScale : 1;
       const chatW = cfg.chatWidth != null ? cfg.chatWidth : 880;
       $('fontInput').value = fs2;
@@ -166,14 +159,133 @@ Constellation.settings = (function () {
   async function savePrompt() { await applyEditors(); flash('promptSaved'); }
   async function saveProject() { await applyEditors(); flash('projectSaved'); }
 
+  // ---- connections manager ----
+  let conns = { active: '', list: [] };          // working copy (hasKey flags, never keys)
+  let editingConn = null;                        // connection id being edited
+  let connKeyDraft = {};                         // { connId: typedKey } — sent once on save
+
+  async function loadConnectionsUI() {
+    try { conns = await window.api.loadConnections() || { active: '', list: [] }; } catch (e) { console.warn('[constellation]', e && e.message || e); }
+    renderConnRows();
+  }
+  function renderConnRows() {
+    const host = $('connRows');
+    if (!host) return;
+    host.innerHTML = '';
+    conns.list.forEach((c) => {
+      const row = document.createElement('div');
+      row.className = 'conn-row' + (c.id === conns.active ? ' active' : '');
+      const name = document.createElement('span');
+      name.className = 'conn-name';
+      name.textContent = c.name + (c.hasKey ? '' : ' — no key');
+      row.appendChild(name);
+      const meta = document.createElement('span');
+      meta.className = 'conn-meta';
+      meta.textContent = (c.models || []).length + ' model' + ((c.models || []).length === 1 ? '' : 's');
+      row.appendChild(meta);
+      row.addEventListener('click', () => { conns.active = c.id; renderConnRows(); });   // pick active (applies on save)
+      const edit = document.createElement('button');
+      edit.className = 'btn ghost conn-edit'; edit.type = 'button'; edit.textContent = 'Edit';
+      edit.addEventListener('click', (e) => { e.stopPropagation(); openConnEditor(c.id); });
+      row.appendChild(edit);
+      const del = document.createElement('button');
+      del.className = 'btn ghost conn-del'; del.type = 'button'; del.textContent = 'Remove';
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        conns.list = conns.list.filter((x) => x.id !== c.id);
+        if (conns.active === c.id) conns.active = conns.list.length ? conns.list[0].id : '';
+        if (editingConn === c.id) { editingConn = null; $('connEditor').hidden = true; }
+        renderConnRows();
+      });
+      row.appendChild(del);
+      host.appendChild(row);
+    });
+  }
+  function openConnEditor(id) {
+    const c = conns.list.find((x) => x.id === id);
+    if (!c) return;
+    editingConn = id;
+    $('connEditor').hidden = false;
+    $('connNameInput').value = c.name || '';
+    const ep = $('connEndpointInput');
+    const cur = (c.baseUrl || '').replace(/\/+$/, '');
+    const known = Array.from(ep.options).some((o) => o.value === cur);
+    ep.value = known ? cur : 'custom';
+    $('connCustomEndpointField').hidden = known;
+    if (!known) $('connCustomEndpointInput').value = cur;
+    $('connKeyInput').value = '';
+    $('connKeyState').textContent = c.hasKey ? 'key saved — blank keeps it' : 'no key yet';
+    renderConnModels(c);
+    $('connRows').querySelectorAll('.conn-row').forEach((r) => r.classList.toggle('editing', r.dataset.cid === id));
+    renderConnRows();   // refresh editing highlight via active state
+  }
+  function renderConnModels(c) {
+    const host = $('connModels');
+    if (!host) return;
+    host.innerHTML = '';
+    (c.models || []).forEach((m, i) => {
+      const row = document.createElement('div');
+      row.className = 'conn-model-row';
+      const label = document.createElement('span');
+      label.className = 'conn-model-name';
+      label.textContent = m.label || m.id;
+      label.title = m.id + (m.provider ? ' · pinned to ' + m.provider : '');
+      row.appendChild(label);
+      if (m.provider) { const pin = document.createElement('em'); pin.className = 'conn-model-pin'; pin.textContent = '⚑ ' + m.provider; row.appendChild(pin); }
+      const del = document.createElement('button');
+      del.className = 'btn ghost'; del.type = 'button'; del.textContent = '✕';
+      del.title = 'Remove model';
+      del.addEventListener('click', () => { c.models.splice(i, 1); renderConnModels(c); });
+      row.appendChild(del);
+      host.appendChild(row);
+    });
+  }
   async function saveConnection() {
-    const apiKey = $('apiKeyInput').value.trim();
-    const sel = $('endpointInput').value;
-    const baseUrl = sel === 'custom'
-      ? ($('customEndpointInput').value.trim().replace(/\/+$/, '') || 'https://openrouter.ai/api/v1')
-      : sel;
-    await window.api.saveConfig({ api_key: apiKey, base_url: baseUrl });   // key + endpoint are global; model is per-chat (Generation)
-    flash('connSaved');
+    // fold the open editor into the working copy
+    if (editingConn) {
+      const c = conns.list.find((x) => x.id === editingConn);
+      if (c) {
+        c.name = $('connNameInput').value.trim() || c.name;
+        const sel = $('connEndpointInput').value;
+        c.baseUrl = sel === 'custom' ? ($('connCustomEndpointInput').value.trim().replace(/\/+$/, '') || c.baseUrl) : sel;
+        const typed = $('connKeyInput').value;
+        if (typed) connKeyDraft[c.id] = typed;   // blank = keep existing
+      }
+    }
+    if (!conns.list.length) { if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Keep at least one connection'); return; }
+    if (!conns.active) conns.active = conns.list[0].id;
+    const keyUpdates = Object.keys(connKeyDraft).map((cid) => ({ connId: cid, key: connKeyDraft[cid] }));
+    connKeyDraft = {};
+    const r = await window.api.saveConnections({ active: conns.active, list: conns.list, keyUpdates });
+    if (r && r.ok) {
+      flash('connSaved');
+      await loadConnectionsUI();
+      refreshModelDropdowns();   // the active connection's model list is now what chats see
+    } else if (window.Constellation && window.Constellation.toast) {
+      window.Constellation.toast('Save failed — ' + ((r && r.error) || 'unknown'), 9000);
+    }
+  }
+  // Rebuild both model dropdowns from the ACTIVE connection's list (app.js owns initial fill).
+  function refreshModelDropdowns() {
+    const act = conns.list.find((c) => c.id === conns.active);
+    const models = (act && act.models) || [];
+    for (const selId of ['modelInput', 'topModel']) {
+      const sel = $(selId);
+      if (!sel) continue;
+      const cur = sel.value;
+      sel.innerHTML = '';
+      for (const m of models) {
+        const o = document.createElement('option');
+        o.value = m.id; o.textContent = m.label || m.id;
+        sel.appendChild(o);
+      }
+      if (selId === 'modelInput') {
+        const c = document.createElement('option'); c.value = '__custom__'; c.textContent = 'Custom…'; sel.appendChild(c);
+      }
+      if (cur && Array.from(sel.options).some((o) => o.value === cur)) sel.value = cur;
+      else if (models.length) sel.value = models[0].id;
+    }
+    syncEffortOptions();
   }
   async function savePhraseBans() {
     const text = $('phraseBansEditor').value;
@@ -458,11 +570,33 @@ Constellation.settings = (function () {
     $('saveConnection').addEventListener('click', saveConnection);
     const spb = $('savePhraseBans'); if (spb) spb.addEventListener('click', savePhraseBans);
     const cli = $('cliServerInput'); if (cli) cli.addEventListener('change', () => window.api.saveConfig({ cli_server: cli.checked ? 'on' : 'off' }));
-    const epSel = $('endpointInput');
-    if (epSel) epSel.addEventListener('change', () => {
-      const custom = epSel.value === 'custom';
-      $('customEndpointField').hidden = !custom;
-      if (custom) { $('customEndpointInput').focus(); }
+    const cnBtn = $('connNew');
+    if (cnBtn) cnBtn.addEventListener('click', () => {
+      const id = 'c_' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+      conns.list.push({ id, name: 'New connection', baseUrl: 'https://openrouter.ai/api/v1', models: [], activeModel: '', hasKey: false });
+      renderConnRows();
+      openConnEditor(id);
+    });
+    const ceSel = $('connEndpointInput');
+    if (ceSel) ceSel.addEventListener('change', () => {
+      const custom = ceSel.value === 'custom';
+      $('connCustomEndpointField').hidden = !custom;
+      if (custom) $('connCustomEndpointInput').focus();
+    });
+    const cmAdd = $('connModelAdd');
+    if (cmAdd) cmAdd.addEventListener('click', () => {
+      const c = conns.list.find((x) => x.id === editingConn);
+      if (!c) return;
+      const id = $('connModelId').value.trim();
+      if (!id) return;
+      if (!(c.models || []).some((m) => m.id === id)) {
+        const m = { id };
+        const lbl = $('connModelLabel').value.trim(); if (lbl) m.label = lbl;
+        const prov = $('connModelProvider').value.trim(); if (prov) m.provider = prov;
+        c.models = c.models || []; c.models.push(m);
+      }
+      $('connModelId').value = ''; $('connModelLabel').value = ''; $('connModelProvider').value = '';
+      renderConnModels(c);
     });
     const mSel2 = $('modelInput');
     if (mSel2) mSel2.addEventListener('change', () => {
@@ -564,5 +698,5 @@ Constellation.settings = (function () {
     });
   }
 
-  return { init };
+  return { init, syncEffortOptions };
 })();

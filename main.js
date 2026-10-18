@@ -2,7 +2,7 @@
 // This is the only place that touches the network or your API key.
 // The UI (renderer) talks to it through the safe window.api bridge (see preload.js).
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, MenuItem, clipboard, shell, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, MenuItem, clipboard, shell, nativeImage, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -218,6 +218,126 @@ function getSettings() {
   return out;
 }
 
+// ---------- Connections ----------
+// A connection = name + endpoint + model list (+ optional per-model provider routing) +
+// an API key stored SEPARATELY, encrypted with the OS keychain (DPAPI on Windows via
+// Electron safeStorage). Model lists live in config/connections.json (shareable, keyless);
+// ciphertexts live in config/keys.json (machine-bound — copying the folder to another
+// machine does not carry the keys, by design).
+//   connections.json: { active: 'c_...', list: [{ id, name, baseUrl, models: [{id, label?, provider?}], activeModel }] }
+//   keys.json:        { c_<id>: '<base64 safeStorage ciphertext>' }
+const CONNECTIONS_FILE = path.join(CONFIG_DIR, 'connections.json');
+const KEYS_FILE = path.join(CONFIG_DIR, 'keys.json');
+
+function readConnections() {
+  try {
+    const j = JSON.parse(fs.readFileSync(CONNECTIONS_FILE, 'utf8'));
+    if (j && Array.isArray(j.list)) return j;
+  } catch (e) {}
+  return null;
+}
+function readKeyVault() {
+  try { return JSON.parse(fs.readFileSync(KEYS_FILE, 'utf8')) || {}; } catch (e) { return {}; }
+}
+function storeKey(connId, key) {
+  const vault = readKeyVault();
+  if (!key) { delete vault[connId]; }   // clearing a key removes it from the vault
+  else {
+    try { vault[connId] = safeStorage.encryptString(key).toString('base64'); }
+    catch (e) { console.warn('[constellation] key encrypt failed:', e && e.message || e); return false; }
+  }
+  try { fs.writeFileSync(KEYS_FILE, JSON.stringify(vault, null, 2), 'utf8'); return true; } catch (e) { return false; }
+}
+function loadKey(connId) {
+  const vault = readKeyVault();
+  const ct = vault[connId];
+  if (!ct) return '';
+  try { return safeStorage.decryptString(Buffer.from(ct, 'base64')); } catch (e) { return ''; }
+}
+// Resolve the ACTIVE connection end-to-end: record + decrypted key. Falls back to the
+// legacy single-slot settings (api_key/base_url in settings.txt) when no connection exists.
+function resolveActiveConnection() {
+  const conns = readConnections();
+  if (conns && conns.list.length) {
+    const c = conns.list.find((x) => x.id === conns.active) || conns.list[0];
+    return { id: c.id, name: c.name, baseUrl: c.baseUrl, models: c.models || [], activeModel: c.activeModel || '', key: loadKey(c.id) };
+  }
+  const s = getSettings();
+  return { id: null, name: 'Default', baseUrl: s.baseUrl, models: [], activeModel: s.model, key: s.apiKey };
+}
+function saveConnections(conns) {
+  fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  fs.writeFileSync(CONNECTIONS_FILE, JSON.stringify(conns, null, 2), 'utf8');
+}
+// One-time migration: the legacy single slot (settings.txt api_key/base_url/model) becomes
+// the "GLM" connection, seeded with the pruned stock GLM model list. Runs when
+// connections.json does not exist yet; never overwrites an existing file.
+function migrateConnectionsIfNeeded() {
+  if (readConnections()) return;
+  const s = getSettings();
+  const models = [
+    { id: 'glm-5.3', label: 'glm-5.3 — Flagship' },
+    { id: 'glm-5.3-flash', label: 'glm-5.3-flash — Fast · Vision' },
+    { id: 'glm-5.2', label: 'glm-5.2' },
+    { id: 'glm-5.1', label: 'glm-5.1' },
+    { id: 'glm-4.7', label: 'glm-4.7 — Latest 4.x' },
+  ];
+  const id = 'c_' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+  const rec = { id, name: 'GLM', baseUrl: s.baseUrl || 'https://api.z.ai/api/coding/paas/v4', models, activeModel: s.model || 'glm-5.3' };
+  saveConnections({ active: id, list: [rec] });
+  if (s.apiKey) storeKey(id, s.apiKey);
+  console.log('[constellation] migrated single-slot connection to "GLM" (' + (s.apiKey ? 'key vaulted' : 'no key') + ')');
+}
+
+ipcMain.handle('connections:load', () => {
+  migrateConnectionsIfNeeded();
+  const conns = readConnections();
+  if (!conns) return { active: '', list: [] };
+  const vault = readKeyVault();
+  return { active: conns.active, list: conns.list.map((c) => Object.assign({}, c, { hasKey: !!vault[c.id] })) };   // hasKey only — keys never cross the bridge
+});
+ipcMain.handle('connections:save', (_e, payload) => {
+  try {
+    if (!payload || !Array.isArray(payload.list)) return { ok: false, error: 'bad payload' };
+    const prev = readConnections() || { list: [] };
+    const list = payload.list.map((c) => ({
+      id: String(c.id || ('c_' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36))).slice(0, 64),
+      name: String(c.name || 'Connection').slice(0, 60),
+      baseUrl: String(c.baseUrl || '').trim().replace(/\/+$/, '').slice(0, 300),
+      models: Array.isArray(c.models) ? c.models.filter((m) => m && m.id).map((m) => ({ id: String(m.id).slice(0, 120), label: m.label ? String(m.label).slice(0, 80) : undefined, provider: m.provider ? String(m.provider).slice(0, 80) : undefined })) : [],
+      activeModel: c.activeModel ? String(c.activeModel).slice(0, 120) : '',
+    }));
+    const active = list.some((c) => c.id === payload.active) ? payload.active : (list[0] && list[0].id) || '';
+    saveConnections({ active, list });
+    // Key changes arrive as plain {connId, key} side-channels (never embedded in the shareable list).
+    for (const k of (payload.keyUpdates || [])) {
+      if (!k || !k.connId) continue;
+      const target = list.find((c) => c.id === k.connId);
+      if (!target) continue;
+      storeKey(k.connId, String(k.key || ''));
+    }
+    // Deleted connections drop their vault entries.
+    for (const p of (prev.list || [])) if (!list.some((c) => c.id === p.id)) storeKey(p.id, '');
+    // The active connection keeps settings.txt's base_url/model in sync so every existing
+    // consumer (chat sends, tokenizer, CLI, craft, presets) keeps working unchanged.
+    const act = list.find((c) => c.id === active);
+    if (act) {
+      const cur = getSettings();
+      const patch = { base_url: act.baseUrl };
+      if (act.activeModel) patch.model = act.activeModel;
+      if (payload.keyUpdates && payload.keyUpdates.some((k) => k && k.connId === active && typeof k.key === 'string' && k.key)) {
+        patch.api_key = payload.keyUpdates.find((k) => k.connId === active).key;
+      }
+      writeSettings(patch);
+    }
+    return { ok: true };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+});
+ipcMain.handle('connections:active', () => {
+  const c = resolveActiveConnection();
+  return { id: c.id, name: c.name, baseUrl: c.baseUrl, models: c.models, activeModel: c.activeModel, hasKey: !!c.key };
+});
+
 // ---------- IPC: config ----------
 ipcMain.handle('config:load', () => {
   const s = getSettings();
@@ -227,11 +347,11 @@ ipcMain.handle('config:load', () => {
   });
 });
 
-ipcMain.handle('config:save', (_e, patch) => {
+// Merge a {txt_key: value} patch into settings.txt (spec-driven; keeps line order + comments).
+function writeSettings(patch) {
   fs.mkdirSync(CONFIG_DIR, { recursive: true });
   let lines = [];
   try { lines = fs.readFileSync(SETTINGS_FILE, 'utf8').split(/\r?\n/); } catch (e) { console.warn('[constellation]', e && e.message || e); }
-
   const setLine = (key, val) => {
     let found = false;
     lines = lines.map((l) => {
@@ -250,7 +370,9 @@ ipcMain.handle('config:save', (_e, patch) => {
   }
   fs.writeFileSync(SETTINGS_FILE, lines.join('\n'), 'utf8');
   return getSettings();
-});
+}
+
+ipcMain.handle('config:save', (_e, patch) => writeSettings(patch));
 
 // ---------- IPC: mode prompts ----------
 ipcMain.handle('phrasebans:save', (_e, text) => {
@@ -1011,6 +1133,9 @@ ipcMain.handle('backup:export', async () => {
           craft: readTextSafe(path.join(MODES_DIR, 'craft.txt')),
         },
         phraseBans: readTextSafe(PHRASE_BANS_FILE),
+        // Connections ride along KEYLESS — models and endpoints are shareable config; the
+        // encrypted vault (keys.json) is deliberately excluded, and machine-bound anyway.
+        connections: readConnections() || undefined,
       },
       sessions: readJsonDir(SESSIONS_DIR),
       presets: readJsonDir(PRESETS_DIR),
@@ -1155,8 +1280,18 @@ ipcMain.handle('chat:stream', async (event, payload) => {
   const isAbort = (err) => err && (err.name === 'AbortError' || /abort/i.test(err.message || ''));
   try {
     const s = getSettings();
-    if (!s.apiKey) throw new Error('No API key set. Add your GLM key in Settings (or config/settings.txt).');
-    const client = new OpenAI({ apiKey: s.apiKey, baseURL: s.baseUrl, maxRetries: 0 });
+    // The ACTIVE connection resolves the key (decrypted vault) and the provider-routing
+    // preference for the model being sent; settings.txt stays in sync for everything else.
+    const conn = resolveActiveConnection();
+    const apiKey = conn.key || s.apiKey;
+    if (!apiKey) throw new Error('No API key set. Add one in Settings → Connection (the active connection).');
+    const client = new OpenAI({ apiKey, baseURL: s.baseUrl, maxRetries: 0 });
+    // OpenRouter provider pinning: a per-model provider preference becomes their documented
+    // routing object (order + no fallbacks) so a pinned model never silently re-routes.
+    const modelRoute = conn.models.find((m) => m.id === (opts.model || s.model));
+    const orProvider = (/openrouter\.ai/i.test(String(s.baseUrl || '')) && modelRoute && modelRoute.provider)
+      ? { provider: { order: [modelRoute.provider], allow_fallbacks: false } }
+      : {};
     const supportsEffort = /^glm-5\.[2-9]/i.test(String(opts.model || s.model));   // reasoning_effort is GLM-5.2+
     const is53Family = /^glm-5\.[3-9]/i.test(String(opts.model || s.model));   // 5.3+ accepts only max/high/low
     const isGlmEndpoint = /z\.ai|bigmodel/i.test(String(s.baseUrl || ''));   // GLM-specific params (thinking) only go to GLM
@@ -1202,6 +1337,7 @@ ipcMain.handle('chat:stream', async (event, payload) => {
           ...(isOpenRouter && opts.thinking && opts.reasoningEffort && opts.reasoningEffort !== 'none'
             ? { reasoning: { effort: opts.reasoningEffort } }
             : {}),
+          ...orProvider,   // OpenRouter provider pinning (per-model routing preference)
           // Gemini's OpenAI-compat door: the thinking level travels INSIDE thinking_config
           // (mutually exclusive with reasoning_effort), and include_thoughts makes the model
           // stream its thought summaries inline as a <thought>…</thought> head block inside

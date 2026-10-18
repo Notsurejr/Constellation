@@ -6,6 +6,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   loadConfig: () => ipcRenderer.invoke('config:load'),
   saveConfig: (patch) => ipcRenderer.invoke('config:save', patch),
+  loadConnections: () => ipcRenderer.invoke('connections:load'),
+  saveConnections: (payload) => ipcRenderer.invoke('connections:save', payload),
+  activeConnection: () => ipcRenderer.invoke('connections:active'),
   savePhraseBans: (text) => ipcRenderer.invoke('phrasebans:save', text),
   loadModes: () => ipcRenderer.invoke('modes:load'),
   saveMode: (name, content) => ipcRenderer.invoke('modes:save', name, content),
