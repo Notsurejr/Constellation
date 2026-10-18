@@ -103,7 +103,9 @@ All writable state lives in the OS user-data folder — **never inside the read-
 %AppData%\constellation\
 ├── config\
 │   ├── settings.txt          # key/value, table-driven (see below)
-│   ├── project.txt           # per-project standing instructions
+│   ├── connections.json      # named connections: endpoint + editable model lists (+ provider pins) — keyless, shareable
+│   ├── keys.json             # per-connection API keys, ENCRYPTED (DPAPI via safeStorage) — machine-bound, never in backups
+│   ├── project.txt           # per-project standing instructions (ride the newest user turn at send time)
 │   ├── modes\*.txt           # system prompts per mode (roleplay/creative/craft)
 │   ├── personas.json         # Cast personas (name + description, one default)
 │   └── phrase_bans.txt       # find = replace rules applied post-generation
