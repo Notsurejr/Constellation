@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.9.10 — A Third Dialect
+
+### New
+
+- **OpenRouter reasoning models now show their thinking.** OpenRouter speaks its own
+  reasoning dialect — a `reasoning` object on the request (its effort scale matches ours
+  word for word: max/xhigh/high/medium/low/minimal) and `reasoning` / `reasoning_details`
+  fields on the streamed response. Constellation now speaks it: your effort setting maps
+  straight through, and the thinking panel fills with the model's own reasoning, verbatim.
+  Models that report each thought twice — once as a plain string, once inside a details
+  array — are deduplicated, so every thought displays exactly once. The long first-byte
+  allowance already covers OpenRouter's routing queue (`OPENROUTER PROCESSING` keepalives
+  ride as SSE comments).
+
 ## v0.9.9 — The Bottom Bun
 
 ### Changed

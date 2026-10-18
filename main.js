@@ -1150,6 +1150,7 @@ ipcMain.handle('chat:stream', async (event, payload) => {
     const is53Family = /^glm-5\.[3-9]/i.test(String(opts.model || s.model));   // 5.3+ accepts only max/high/low
     const isGlmEndpoint = /z\.ai|bigmodel/i.test(String(s.baseUrl || ''));   // GLM-specific params (thinking) only go to GLM
     const isGeminiEndpoint = /googleapis\.com/i.test(String(s.baseUrl || ''));   // Gemini's OpenAI-compat door (AI Studio / Vertex)
+    const isOpenRouter = /openrouter\.ai/i.test(String(s.baseUrl || ''));   // OpenRouter's reasoning dialect: the `reasoning` object, not reasoning_effort
     // Preserved thinking (reasoning_content echo-back) is a GLM capability — never send the field
     // to other providers, where it's noise at best and a schema error at worst.
     const apiMessages = isGlmEndpoint ? messages : messages.map((m) => {
@@ -1179,11 +1180,16 @@ ipcMain.handle('chat:stream', async (event, payload) => {
                     ? ({ xhigh: 'high', high: 'high', medium: 'low', low: 'low', minimal: 'low' })[opts.reasoningEffort] || 'high'
                     : opts.reasoningEffort } : {}),
             } : {}),
-          // Non-GLM providers (OpenRouter & friends): pass the standard OpenAI-style effort knob,
-          // mapped from our options. 'none' means don't send it. (Gemini is handled below —
-          // its compat door REJECTS reasoning_effort alongside thinking_config.)
-          ...(opts.thinking && !isGlmEndpoint && !isGeminiEndpoint && opts.reasoningEffort && opts.reasoningEffort !== 'none'
+          // Non-GLM providers (OpenAI-style & friends): pass the standard OpenAI-style effort knob,
+          // mapped from our options. 'none' means don't send it. (Gemini and OpenRouter are handled
+          // separately — their reasoning knobs have their own shapes.)
+          ...(opts.thinking && !isGlmEndpoint && !isGeminiEndpoint && !isOpenRouter && opts.reasoningEffort && opts.reasoningEffort !== 'none'
             ? { reasoning_effort: ({ max: 'high', xhigh: 'high', high: 'high', medium: 'medium', low: 'low', minimal: 'minimal' })[opts.reasoningEffort] || 'high' }
+            : {}),
+          // OpenRouter: the canonical knob is the `reasoning` object, and its effort enum
+          // matches ours word-for-word (max/xhigh/high/medium/low/minimal) — pass through.
+          ...(isOpenRouter && opts.thinking && opts.reasoningEffort && opts.reasoningEffort !== 'none'
+            ? { reasoning: { effort: opts.reasoningEffort } }
             : {}),
           // Gemini's OpenAI-compat door: the thinking level travels INSIDE thinking_config
           // (mutually exclusive with reasoning_effort), and include_thoughts makes the model
@@ -1246,7 +1252,19 @@ ipcMain.handle('chat:stream', async (event, payload) => {
           if (!choice) continue;
           if (choice.finish_reason) finishReason = choice.finish_reason;   // 'length' = cut off by max_tokens
           const delta = choice.delta || {};
+          // Reasoning dialects: GLM streams reasoning_content; OpenRouter/OpenAI-style models
+          // stream `reasoning` (string) AND a redundant reasoning_details array carrying the
+          // same text — take exactly ONE (string first, details only when absent) or every
+          // thought displays doubled.
           let think = delta.reasoning_content || '';
+          if (!think && typeof delta.reasoning === 'string') think = delta.reasoning;
+          if (!think && Array.isArray(delta.reasoning_details)) {
+            think = delta.reasoning_details.map((d) => {
+              if (!d || d.type === 'reasoning.text') return (d && typeof d.text === 'string') ? d.text : '';
+              if (d.type === 'reasoning.summary' && typeof d.summary === 'string') return d.summary;
+              return '';
+            }).join('');
+          }
           let piece = delta.content || '';
           if (piece && isGeminiEndpoint) { const s = geminiSplit(piece); think += s.think; piece = s.text; }
           if (think) event.sender.send('chat:chunk', { requestId, delta: think, kind: 'think' });
