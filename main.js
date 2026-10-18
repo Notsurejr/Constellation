@@ -2,7 +2,7 @@
 // This is the only place that touches the network or your API key.
 // The UI (renderer) talks to it through the safe window.api bridge (see preload.js).
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, MenuItem, clipboard, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, MenuItem, clipboard, shell, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -871,9 +871,20 @@ async function importCharacterFiles(paths) {
   for (const p of paths) {
     try {
       let raw;
+      let pngAvatar = '';
       if (/\.png$/i.test(p)) {
-        raw = extractCardFromPng(fs.readFileSync(p));   // the image IS the card (tEXt/zTXt chunk)
+        const pngBuf = fs.readFileSync(p);
+        raw = extractCardFromPng(pngBuf);   // the image IS the card (tEXt/zTXt chunk)
         if (!raw) { out.push({ ok: false, error: 'No character data chunk in ' + path.basename(p) + ' (not a chara card PNG?)' }); continue; }
+        // The card's picture becomes its icon: downscaled once at import (a 4K multi-MB
+        // portrait becomes a small embedded thumbnail, not a bloated base64 blob).
+        try {
+          const img = nativeImage.createFromBuffer(pngBuf);
+          const scaled = (img.getSize().width > 256) ? img.resize({ width: 256 }) : img;
+          const jpg = scaled.toJPEG(82);
+          pngAvatar = 'data:image/jpeg;base64,' + jpg.toString('base64');
+          if (jpg.length > 600 * 1024) pngAvatar = '';   // cap: fall back to the initial chip
+        } catch (e) { console.warn('[constellation]', e && e.message || e); }
       } else {
         raw = JSON.parse(fs.readFileSync(p, 'utf8'));
       }
@@ -881,7 +892,7 @@ async function importCharacterFiles(paths) {
       if (!norm) { out.push({ ok: false, error: 'No character name found in ' + path.basename(p) }); continue; }
       const dupeKey = norm.name.toLowerCase() + '|' + (norm.creator || '').toLowerCase();
       const prior = existing[dupeKey];
-      const avatar = norm.avatarUrl ? await fetchAvatarDataUrl(norm.avatarUrl) : '';
+      const avatar = norm.avatarUrl ? await fetchAvatarDataUrl(norm.avatarUrl) : pngAvatar;
       // Same name+creator -> keep the OLD id (existing chats' badges stay linked) and refresh the card.
       const rec = Object.assign({ id: prior ? prior.id : cardId(norm.name), avatar: avatar || (prior ? prior.avatar : ''), importedAt: prior ? prior.importedAt : Date.now(), source: path.basename(p) }, norm);
       delete rec.avatarUrl;
