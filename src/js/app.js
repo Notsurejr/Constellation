@@ -44,7 +44,7 @@ function populateModels(current) {
   }
 }
 // Replace both dropdowns with the active connection's model list (called at boot once the
-// connection resolves, and from Settings after any connection change).
+// connection resolves, and after every connections save — 'constellation:connections' event).
 async function populateModelsFromConnection() {
   try {
     const conn = await window.api.activeConnection();
@@ -68,6 +68,8 @@ async function populateModelsFromConnection() {
     if (window.Constellation && window.Constellation.settings && Constellation.settings.syncEffortOptions) Constellation.settings.syncEffortOptions();
   } catch (e) { console.warn('[constellation]', e && e.message || e); }
 }
+// Any save (Settings panel or otherwise) rebuilds the dropdowns — single source of truth.
+window.addEventListener('constellation:connections', populateModelsFromConnection);
 
 window.addEventListener('DOMContentLoaded', async () => {
   populateModels();

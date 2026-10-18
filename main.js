@@ -319,15 +319,13 @@ ipcMain.handle('connections:save', (_e, payload) => {
     // Deleted connections drop their vault entries.
     for (const p of (prev.list || [])) if (!list.some((c) => c.id === p.id)) storeKey(p.id, '');
     // The active connection keeps settings.txt's base_url/model in sync so every existing
-    // consumer (chat sends, tokenizer, CLI, craft, presets) keeps working unchanged.
+    // consumer (chat sends, tokenizer, CLI, craft, presets) keeps working unchanged. The
+    // KEY never syncs into settings.txt — the vault is the single key store; chat:stream
+    // resolves it there (with settings.txt as the legacy fallback for untouched setups).
     const act = list.find((c) => c.id === active);
     if (act) {
-      const cur = getSettings();
       const patch = { base_url: act.baseUrl };
       if (act.activeModel) patch.model = act.activeModel;
-      if (payload.keyUpdates && payload.keyUpdates.some((k) => k && k.connId === active && typeof k.key === 'string' && k.key)) {
-        patch.api_key = payload.keyUpdates.find((k) => k.connId === active).key;
-      }
       writeSettings(patch);
     }
     return { ok: true };

@@ -260,32 +260,10 @@ Constellation.settings = (function () {
     if (r && r.ok) {
       flash('connSaved');
       await loadConnectionsUI();
-      refreshModelDropdowns();   // the active connection's model list is now what chats see
+      window.dispatchEvent(new Event('constellation:connections'));   // app.js rebuilds all model dropdowns
     } else if (window.Constellation && window.Constellation.toast) {
       window.Constellation.toast('Save failed — ' + ((r && r.error) || 'unknown'), 9000);
     }
-  }
-  // Rebuild both model dropdowns from the ACTIVE connection's list (app.js owns initial fill).
-  function refreshModelDropdowns() {
-    const act = conns.list.find((c) => c.id === conns.active);
-    const models = (act && act.models) || [];
-    for (const selId of ['modelInput', 'topModel']) {
-      const sel = $(selId);
-      if (!sel) continue;
-      const cur = sel.value;
-      sel.innerHTML = '';
-      for (const m of models) {
-        const o = document.createElement('option');
-        o.value = m.id; o.textContent = m.label || m.id;
-        sel.appendChild(o);
-      }
-      if (selId === 'modelInput') {
-        const c = document.createElement('option'); c.value = '__custom__'; c.textContent = 'Custom…'; sel.appendChild(c);
-      }
-      if (cur && Array.from(sel.options).some((o) => o.value === cur)) sel.value = cur;
-      else if (models.length) sel.value = models[0].id;
-    }
-    syncEffortOptions();
   }
   async function savePhraseBans() {
     const text = $('phraseBansEditor').value;
