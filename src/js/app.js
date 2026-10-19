@@ -43,27 +43,51 @@ function populateModels(current) {
     }
   }
 }
-// Replace both dropdowns with the active connection's model list (called at boot once the
-// connection resolves, and after every connections save — 'constellation:connections' event).
+// Replace both dropdowns with EVERY connection's models, grouped by connection (default
+// first) — a chat can run any model any connection offers; routing follows the model.
 async function populateModelsFromConnection() {
   try {
-    const conn = await window.api.activeConnection();
-    const models = (conn && conn.models && conn.models.length) ? conn.models : FALLBACK_MODELS;
+    const conns = await window.api.loadConnections();
+    const list = (conns && conns.list && conns.list.length) ? conns.list : null;
+    const groups = [];
+    if (list) {
+      const def = list.find((c) => c.id === conns.active) || list[0];
+      if (def && (def.models || []).length) groups.push(def);
+      for (const c of list) if (c !== def && (c.models || []).length) groups.push(c);
+    }
     for (const selId of ['topModel', 'modelInput']) {
       const sel = document.getElementById(selId);
       if (!sel) continue;
       const cur = sel.value;
       sel.innerHTML = '';
-      for (const m of models) {
-        const o = document.createElement('option');
-        o.value = m.id; o.textContent = selId === 'topModel' ? m.id : (m.label || m.id);
+      if (groups.length) {
+        for (const g of groups) {
+          const og = document.createElement('optgroup');
+          og.label = g.name;
+          for (const m of (g.models || [])) {
+            const o = document.createElement('option');
+            o.value = m.id; o.textContent = selId === 'topModel' ? m.id : (m.label || m.id);
+            og.appendChild(o);
+          }
+          if (og.children.length) sel.appendChild(og);
+        }
+      } else {
+        for (const m of FALLBACK_MODELS) {
+          const o = document.createElement('option');
+          o.value = m.id; o.textContent = selId === 'topModel' ? m.id : (m.label || m.id);
+          sel.appendChild(o);
+        }
+      }
+      // The current selection survives even if its connection was deleted.
+      if (cur && cur !== '__custom__' && !Array.from(sel.options).some((o) => o.value === cur)) {
+        const o = document.createElement('option'); o.value = cur; o.textContent = cur;
         sel.appendChild(o);
       }
       if (selId === 'modelInput') {
         const c = document.createElement('option'); c.value = '__custom__'; c.textContent = 'Custom…'; sel.appendChild(c);
       }
       if (cur && Array.from(sel.options).some((o) => o.value === cur)) sel.value = cur;
-      else if (models.length) sel.value = models[0].id;
+      else if (sel.options.length) sel.value = sel.options[0].value;
     }
     if (window.Constellation && window.Constellation.settings && Constellation.settings.syncEffortOptions) Constellation.settings.syncEffortOptions();
   } catch (e) { console.warn('[constellation]', e && e.message || e); }
@@ -72,17 +96,8 @@ async function populateModelsFromConnection() {
 // broadcasts connections:changed after every successful save; the DOM event covers panel-local saves.
 async function onConnectionsChanged() {
   await populateModelsFromConnection();
-  // If the active chat's model isn't offered by the new connection, fall in line with the
-  // connection's first model (per-chat model choice stays sacred when still available).
-  try {
-    const conn = await window.api.activeConnection();
-    const ids = (conn.models || []).map((m) => m.id);
-    const chat = window.Constellation && window.Constellation.chat;
-    if (conn && ids.length && chat && chat.getOptions && chat.setOptions) {
-      const cur = chat.getOptions().model;
-      if (cur && !ids.includes(cur)) chat.setOptions({ model: conn.activeModel && ids.includes(conn.activeModel) ? conn.activeModel : ids[0] });
-    }
-  } catch (e) { console.warn('[constellation]', e && e.message || e); }
+  // NOTE: the chat's model is deliberately NOT touched here — routing follows the model
+  // (main.js resolveForModel), so a chat keeps its model across connection switches.
 }
 window.addEventListener('constellation:connections', onConnectionsChanged);
 if (window.api && window.api.onConnectionsChanged) {

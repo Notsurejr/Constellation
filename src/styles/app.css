@@ -1571,6 +1571,10 @@ input.num::-webkit-outer-spin-button, input.num::-webkit-inner-spin-button { opa
   cursor: pointer;
 }
 .conn-row.active { border-color: var(--accent-dim); background: rgba(159,184,255,0.07); }
+.conn-key { font-size: 11px; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--panel-border); white-space: nowrap; }
+.conn-key.has { color: #9fd8a8; border-color: rgba(159, 216, 168, 0.35); }
+.conn-key.none { color: var(--text-faint); }
+.conn-default { color: var(--accent-dim); font-size: 11px; font-style: normal; letter-spacing: 0.04em; }
 .conn-row .conn-name { font-weight: 600; color: var(--text); }
 .conn-row .conn-meta { color: var(--text-faint); font-size: 12px; margin-right: auto; }
 .conn-row .btn { padding: 3px 10px; font-size: 12px; }

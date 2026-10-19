@@ -254,6 +254,24 @@ function loadKey(connId) {
   if (!ct) return '';
   try { return safeStorage.decryptString(Buffer.from(ct, 'base64')); } catch (e) { return ''; }
 }
+// Resolve the connection FOR A MODEL: whichever connection's list offers the model id
+// carries the send — a GLM chat keeps routing through GLM while OpenRouter is the default
+// connection elsewhere, and vice versa. The default connection's copy wins id collisions
+// and is the fallback for unknown ids (Custom…). Falls back to legacy settings when no
+// connections exist.
+function resolveForModel(modelId) {
+  const conns = readConnections();
+  if (conns && conns.list.length) {
+    const active = conns.list.find((x) => x.id === conns.active) || conns.list[0];
+    const offers = (c) => (c.models || []).some((m) => m.id === modelId);
+    let c = offers(active) ? active : conns.list.find((x) => x.id !== active.id && offers(x));
+    if (!c) c = active;
+    return { id: c.id, name: c.name, baseUrl: c.baseUrl, models: c.models || [], activeModel: c.activeModel || '', key: loadKey(c.id) };
+  }
+  const s = getSettings();
+  return { id: null, name: 'Default', baseUrl: s.baseUrl, models: [], activeModel: s.model, key: s.apiKey };
+}
+
 // Resolve the ACTIVE connection end-to-end: record + decrypted key. Falls back to the
 // legacy single-slot settings (api_key/base_url in settings.txt) when no connection exists.
 function resolveActiveConnection() {
@@ -285,8 +303,10 @@ function migrateConnectionsIfNeeded() {
   const id = 'c_' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
   const rec = { id, name: 'GLM', baseUrl: s.baseUrl || 'https://api.z.ai/api/coding/paas/v4', models, activeModel: s.model || 'glm-5.3' };
   saveConnections({ active: id, list: [rec] });
-  if (s.apiKey) storeKey(id, s.apiKey);
-  console.log('[constellation] migrated single-slot connection to "GLM" (' + (s.apiKey ? 'key vaulted' : 'no key') + ')');
+  let vaulted = false;
+  if (s.apiKey && safeStorage.isEncryptionAvailable()) vaulted = storeKey(id, s.apiKey);
+  if (vaulted) writeSettings({ api_key: '' });   // the vault replaces the plaintext slot once the key is safely inside
+  console.log('[constellation] migrated single-slot connection to "GLM" (' + (vaulted ? 'key vaulted, plaintext slot cleared' : s.apiKey ? 'key left in settings.txt (vault unavailable)' : 'no key') + ')');
 }
 
 ipcMain.handle('connections:load', () => {
@@ -327,6 +347,9 @@ ipcMain.handle('connections:save', async (_e, payload) => {
       const patch = { base_url: act.baseUrl };
       if (act.activeModel) patch.model = act.activeModel;
       writeSettings(patch);
+      // One-time cleanup for upgraded setups: once the default connection demonstrably
+      // holds a working vaulted key, the legacy plaintext slot in settings.txt retires.
+      if (act.id && loadKey(act.id) && getSettings().apiKey) writeSettings({ api_key: '' });
     }
     // Broadcast so every renderer rebuilds its model dropdowns — regardless of which
     // window/path initiated the save (Settings panel, IPC, future automation).
@@ -1281,23 +1304,25 @@ ipcMain.handle('chat:stream', async (event, payload) => {
   const isAbort = (err) => err && (err.name === 'AbortError' || /abort/i.test(err.message || ''));
   try {
     const s = getSettings();
-    // The ACTIVE connection resolves the key (decrypted vault) and the provider-routing
-    // preference for the model being sent; settings.txt stays in sync for everything else.
-    const conn = resolveActiveConnection();
-    const apiKey = conn.key || s.apiKey;
-    if (!apiKey) throw new Error('No API key set. Add one in Settings → Connection (the active connection).');
-    const client = new OpenAI({ apiKey, baseURL: s.baseUrl, maxRetries: 0 });
+    // ROUTING FOLLOWS THE MODEL: whichever connection's list offers this chat's model
+    // carries the send — endpoint AND vaulted key. A GLM chat keeps routing through GLM
+    // while OpenRouter is the default connection elsewhere, and vice versa. Unknown ids
+    // (Custom…) fall back to the default connection.
+    const conn = resolveForModel(opts.model || s.model);
+    const apiKey = conn.id ? conn.key : (conn.key || s.apiKey);
+    if (!apiKey) throw new Error('No API key set for the "' + conn.name + '" connection — add one in Settings → Connection.');
+    const client = new OpenAI({ apiKey, baseURL: conn.baseUrl, maxRetries: 0 });
     // OpenRouter provider pinning: a per-model provider preference becomes their documented
     // routing object (order + no fallbacks) so a pinned model never silently re-routes.
     const modelRoute = conn.models.find((m) => m.id === (opts.model || s.model));
-    const orProvider = (/openrouter\.ai/i.test(String(s.baseUrl || '')) && modelRoute && modelRoute.provider)
+    const orProvider = (/openrouter\.ai/i.test(String(conn.baseUrl || '')) && modelRoute && modelRoute.provider)
       ? { provider: { order: [modelRoute.provider], allow_fallbacks: false } }
       : {};
     const supportsEffort = /^glm-5\.[2-9]/i.test(String(opts.model || s.model));   // reasoning_effort is GLM-5.2+
     const is53Family = /^glm-5\.[3-9]/i.test(String(opts.model || s.model));   // 5.3+ accepts only max/high/low
-    const isGlmEndpoint = /z\.ai|bigmodel/i.test(String(s.baseUrl || ''));   // GLM-specific params (thinking) only go to GLM
-    const isGeminiEndpoint = /googleapis\.com/i.test(String(s.baseUrl || ''));   // Gemini's OpenAI-compat door (AI Studio / Vertex)
-    const isOpenRouter = /openrouter\.ai/i.test(String(s.baseUrl || ''));   // OpenRouter's reasoning dialect: the `reasoning` object, not reasoning_effort
+    const isGlmEndpoint = /z\.ai|bigmodel/i.test(String(conn.baseUrl || ''));   // GLM-specific params (thinking) only go to GLM
+    const isGeminiEndpoint = /googleapis\.com/i.test(String(conn.baseUrl || ''));   // Gemini's OpenAI-compat door (AI Studio / Vertex)
+    const isOpenRouter = /openrouter\.ai/i.test(String(conn.baseUrl || ''));   // OpenRouter's reasoning dialect: the `reasoning` object, not reasoning_effort
     // Preserved thinking (reasoning_content echo-back) is a GLM capability — never send the field
     // to other providers, where it's noise at best and a schema error at worst.
     const apiMessages = isGlmEndpoint ? messages : messages.map((m) => {

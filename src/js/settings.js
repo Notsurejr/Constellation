@@ -175,10 +175,22 @@ Constellation.settings = (function () {
     conns.list.forEach((c) => {
       const row = document.createElement('div');
       row.className = 'conn-row' + (c.id === conns.active ? ' active' : '');
+      row.title = c.id === conns.active ? 'Default connection — where unknown models route' : 'Click to make this the default';
       const name = document.createElement('span');
       name.className = 'conn-name';
-      name.textContent = c.name + (c.hasKey ? '' : ' — no key');
+      name.textContent = c.name;
       row.appendChild(name);
+      const keyChip = document.createElement('span');
+      keyChip.className = 'conn-key ' + (c.hasKey ? 'has' : 'none');
+      keyChip.textContent = c.hasKey ? 'key ✓' : 'no key';
+      keyChip.title = c.hasKey ? 'API key stored encrypted (config\\keys.json)' : 'No API key stored — Edit to add one';
+      row.appendChild(keyChip);
+      if (c.id === conns.active) {
+        const dflt = document.createElement('em');
+        dflt.className = 'conn-default';
+        dflt.textContent = 'default';
+        row.appendChild(dflt);
+      }
       const meta = document.createElement('span');
       meta.className = 'conn-meta';
       meta.textContent = (c.models || []).length + ' model' + ((c.models || []).length === 1 ? '' : 's');
@@ -259,8 +271,12 @@ Constellation.settings = (function () {
     const r = await window.api.saveConnections({ active: conns.active, list: conns.list, keyUpdates });
     if (r && r.ok) {
       flash('connSaved');
+      const nKeys = keyUpdates.length;
       await loadConnectionsUI();
       window.dispatchEvent(new Event('constellation:connections'));   // app.js rebuilds all model dropdowns
+      if (window.Constellation && window.Constellation.toast) {
+        window.Constellation.toast('Connections saved' + (nKeys ? ' — ' + nKeys + ' key' + (nKeys === 1 ? '' : 's') + ' stored encrypted' : ''));
+      }
     } else if (window.Constellation && window.Constellation.toast) {
       window.Constellation.toast('Save failed — ' + ((r && r.error) || 'unknown'), 9000);
     }

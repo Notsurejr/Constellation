@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.10.1 — Routing Follows the Model
+
+### Fixed
+
+- **Switching a chat's model now switches the whole route, not just the name.** Sends used
+  to ride the *active* connection's endpoint and key regardless of the chat's model — a GLM
+  chat switched to an OpenRouter model kept hitting the GLM endpoint with the GLM key and
+  died with a 429. Routing now follows the model: whichever connection's list offers the
+  chat's model carries the send — its endpoint, its vaulted key, and its provider dialect.
+  Unknown/Custom model ids fall back to the default connection.
+- **The model dropdowns now show every connection's models**, grouped by connection
+  (default first) — pick a model from any connection in any chat; it routes correctly.
+
+### Improved
+
+- **Connection rows show key state at a glance** — a "key ✓" chip (green) or "no key" on
+  every row, plus a "default" tag on the active one.
+- **Saving is explicit about keys** — the toast states how many keys were stored
+  encrypted; the editor's key field says "key saved — blank keeps it" or "no key yet";
+  the section hint spells out that Save Connection stores everything shown, including the
+  key.
+- **The legacy plaintext key in settings.txt retires automatically** once the default
+  connection holds a vaulted key — settings.txt carries no key at all.
+
 ## v0.10.0 — Connections
 
 ### New

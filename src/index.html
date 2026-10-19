@@ -372,7 +372,7 @@
 
       <div class="settings-section">
         <h2>Connection <em class="hint-inline">global</em></h2>
-        <div class="hint">Any number of named connections — switch in one click; the active one carries every send. Keys live in <em>config\keys.json</em>, encrypted with Windows' credential protection (DPAPI) — they never leave this machine, and never enter backups. (The model is per-chat — see Generation.)</div>
+        <div class="hint">Each connection = endpoint + its models + a key. <strong>Save connection</strong> stores everything shown — including the key (blank keeps the stored one). Keys live in <em>config\keys.json</em>, encrypted with Windows' credential protection (DPAPI); they never leave this machine and never enter backups. Chats route through whichever connection offers their model — the <em>default</em> row only decides where unknown/Custom models go.</div>
         <div class="conn-manager" id="connManager">
           <div class="conn-rows" id="connRows"></div>
           <div class="conn-editor" id="connEditor" hidden>
