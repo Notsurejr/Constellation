@@ -24,7 +24,7 @@ Constellation.chat = (function () {
   let bulkScroll = false;      // suppress per-message auto-scroll while bulk-rendering a chat
   let usage = { tokens: 0, requests: 0 };   // cumulative estimated tokens for the current chat
   let pendingFiles = [];   // [{ name, size, text }] queued attachments for the next send
-  let opts = { model: 'glm-5.2', temperature: 0.8, topP: 0.95, maxTokens: 0, thinking: false, reasoningEffort: 'max', streamCps: 0, contextWindow: 0, teachEdits: false, preservedThinking: true, immersion: false, sendAttachments: true };
+  let opts = { model: 'glm-5.2', provider: '', temperature: 0.8, topP: 0.95, maxTokens: 0, thinking: false, reasoningEffort: 'max', streamCps: 0, contextWindow: 0, teachEdits: false, preservedThinking: true, immersion: false, sendAttachments: true };
   let activeLore = [];   // lorebooks enabled for the current chat (each { entries, semantic }); sessions applies this
   let phraseBanRules = [];   // [{ re, replace }] tidied out of GLM's replies AFTER generation (the model never sees these)
   let systemFiles = [];   // [{name,text}] .md/.txt attached to this chat's system instructions (inlined into the system prompt)
@@ -274,6 +274,100 @@ Constellation.chat = (function () {
       }
       topModel.value = opts.model;   // keep the top-bar switcher in sync
     }
+    updateRouteChip();
+  }
+
+  // ---- The route chip: how THIS chat's sends travel (connection +, on OpenRouter, provider) ----
+  let routeInfo = null;          // last connections:route answer for the current model
+  let routePopover = null;
+  function effectiveRoute() {
+    if (!routeInfo) return '';
+    if (routeInfo.isOpenRouter) {
+      if (opts.provider === 'auto') return 'auto';
+      return opts.provider || routeInfo.modelPin || 'auto';
+    }
+    return routeInfo.connectionName;
+  }
+  async function updateRouteChip() {
+    const chip = document.getElementById('routeChip');
+    if (!chip) return;
+    const model = opts.model;
+    try { routeInfo = await window.api.modelRoute(model); } catch (e) { return; }
+    if (model !== opts.model) return;   // model changed while asking — a later call owns the chip
+    if (!routeInfo || !routeInfo.connectionName) { chip.hidden = true; return; }
+    chip.hidden = false;
+    chip.textContent = routeInfo.isOpenRouter ? ('via OR · ' + effectiveRoute()) : ('via ' + routeInfo.connectionName);
+    chip.title = routeInfo.isOpenRouter
+      ? 'Route: ' + (effectiveRoute() === 'auto' ? 'auto (OpenRouter load-balances)' : effectiveRoute() + ' (no fallbacks)') + ' — click to change'
+      : 'Routed by your "' + routeInfo.connectionName + '" connection';
+  }
+  function closeRoutePopover() { if (routePopover) { routePopover.remove(); routePopover = null; } }
+  async function toggleRoutePopover() {
+    if (routePopover) { closeRoutePopover(); return; }
+    const chip = document.getElementById('routeChip');
+    if (!chip || !routeInfo) return;
+    const pop = document.createElement('div');
+    pop.className = 'route-pop';
+    const head = document.createElement('div');
+    head.className = 'route-pop-head';
+    head.textContent = 'Route · ' + (opts.model || '');
+    pop.appendChild(head);
+    const mkRow = (label, sub, active, fn) => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'route-row' + (active ? ' active' : '');
+      const l = document.createElement('span'); l.textContent = label; row.appendChild(l);
+      if (sub) { const s = document.createElement('em'); s.textContent = sub; row.appendChild(s); }
+      row.addEventListener('click', fn);
+      pop.appendChild(row);
+      return row;
+    };
+    if (!routeInfo.isOpenRouter) {
+      const note = document.createElement('div');
+      note.className = 'route-note';
+      note.textContent = 'This model travels through your "' + routeInfo.connectionName + '" connection. Provider routing is an OpenRouter feature.';
+      pop.appendChild(note);
+    } else {
+      mkRow('Auto', 'let OpenRouter route · fallbacks on', effectiveRoute() === 'auto', () => { setOptions({ provider: 'auto' }); persist(); closeRoutePopover(); });
+      const listHost = document.createElement('div');
+      listHost.className = 'route-list';
+      const loading = document.createElement('div');
+      loading.className = 'route-note';
+      loading.textContent = 'providers…';
+      listHost.appendChild(loading);
+      pop.appendChild(listHost);
+      const refreshBtn = document.createElement('button');
+      refreshBtn.type = 'button';
+      refreshBtn.className = 'route-refresh';
+      refreshBtn.textContent = '↻ refresh';
+      refreshBtn.title = 'Re-fetch the provider list for this model (manual — nothing refreshes on its own)';
+      refreshBtn.addEventListener('click', () => fillList(true));
+      pop.appendChild(refreshBtn);
+      async function fillList(refresh) {
+        const r = await window.api.openrouterEndpoints(opts.model, refresh);
+        listHost.innerHTML = '';
+        if (!r.ok && !r.endpoints.length) {
+          const n = document.createElement('div');
+          n.className = 'route-note';
+          n.textContent = 'Provider list unavailable (offline or not an OpenRouter model). "Auto" still works.';
+          listHost.appendChild(n);
+          return;
+        }
+        for (const e of r.endpoints) {
+          mkRow(e.tag, e.quantization, effectiveRoute() === e.tag, () => { setOptions({ provider: e.tag }); persist(); closeRoutePopover(); });
+        }
+      }
+      fillList(false);   // cached copy instantly; refresh control re-fetches on demand
+    }
+    document.body.appendChild(pop);
+    const r = chip.getBoundingClientRect();
+    pop.style.top = Math.round(r.bottom + 6) + 'px';
+    pop.style.left = Math.max(8, Math.min(window.innerWidth - 320, Math.round(r.left))) + 'px';
+    routePopover = pop;
+    setTimeout(() => {
+      const off = (e) => { if (!pop.contains(e.target) && e.target !== chip) { closeRoutePopover(); document.removeEventListener('mousedown', off); } };
+      document.addEventListener('mousedown', off);
+    }, 0);
   }
   function setActiveLore(arr) { activeLore = Array.isArray(arr) ? arr.filter((lb) => lb && Array.isArray(lb.entries)) : []; updateContextMeter(); }
 
@@ -294,6 +388,7 @@ Constellation.chat = (function () {
     let cfg = { hasKey: false, model: 'glm-5.2' };
     try { cfg = await window.api.loadConfig(); } catch (e) { console.warn('[constellation]', e && e.message || e); }
     opts.model = cfg.model || 'glm-5.2';
+    updateRouteChip();   // chip reflects the boot-time model's route
     opts.temperature = cfg.temperature ?? opts.temperature;
     opts.topP = cfg.topP ?? opts.topP;
     opts.maxTokens = cfg.maxTokens ?? opts.maxTokens;
@@ -342,10 +437,13 @@ Constellation.chat = (function () {
     });
     if (topModel) topModel.addEventListener('change', () => {
       const model = topModel.value;
-      setOptions({ model });
+      setOptions({ model, provider: '' });   // new model -> route resets to its connection's default
       setStatus('connected', 'ok');
       persist();   // model is per-chat -> save it with this chat
     });
+    const routeChip = document.getElementById('routeChip');
+    if (routeChip) routeChip.addEventListener('click', toggleRoutePopover);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeRoutePopover(); });
     autoGrow();
     watchComposerGrowth();   // composer resizing follows the reader without flicker
     // "Lead its thinking" drawer — a one-shot reasoning seed for the next send.
@@ -1725,7 +1823,9 @@ Constellation.chat = (function () {
   // freezing thinking/effort/etc here meant Settings changes silently never reached existing
   // chats (chats stuck on a stale effort was the "thinking got shorter" bug).
   function genSnapshot() {
-    return { model: opts.model };
+    // Full generation settings persist per chat (this used to carry only the model — the
+    // documented restore never actually survived a reload). provider = the chat's route.
+    return { model: opts.model, provider: opts.provider || '', temperature: opts.temperature, topP: opts.topP, maxTokens: opts.maxTokens, thinking: !!opts.thinking, reasoningEffort: opts.reasoningEffort, streamCps: opts.streamCps, contextWindow: opts.contextWindow, preservedThinking: opts.preservedThinking, sendAttachments: opts.sendAttachments };
   }
 
   // Persist the current chat (messages + instructions + settings) now — used when you edit

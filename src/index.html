@@ -26,6 +26,7 @@
         <button class="icon-btn" id="craftBtn" title="Craft — writing coach">✒</button>
         <button class="icon-btn" id="shortcutsBtn" title="Keyboard shortcuts (?)">?</button>
         <select id="topModel" class="top-model" title="Model for this chat"></select>
+        <button id="routeChip" class="route-chip" type="button" hidden title="Route — how this chat's sends travel">via</button>
         <div class="status" id="status">starting…</div>
       </div>
     </header>
@@ -398,7 +399,7 @@
                 <input type="text" id="connModelProvider" placeholder="OpenRouter provider pin (optional)" />
                 <button class="btn ghost" id="connModelAdd" type="button">Add</button>
               </div>
-              <div class="hint">Provider pin = OpenRouter endpoint routing (e.g. <em>openai</em>, <em>deepinfra/turbo</em>) — the request targets that provider and does not fall back. Only meaningful on OpenRouter.</div>
+              <div class="hint">Provider pin = OpenRouter endpoint routing (e.g. <em>openai</em>, <em>deepinfra/turbo</em>) — the request targets that provider and does not fall back. This pin is the <em>default for new chats</em>; any chat can switch its own route via the chip beside the model selector.</div>
             </div>
           </div>
         </div>

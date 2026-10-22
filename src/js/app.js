@@ -98,6 +98,8 @@ async function onConnectionsChanged() {
   await populateModelsFromConnection();
   // NOTE: the chat's model is deliberately NOT touched here — routing follows the model
   // (main.js resolveForModel), so a chat keeps its model across connection switches.
+  // But the route CHIP must re-resolve (its connection/pin facts may have changed).
+  if (window.Constellation && window.Constellation.chat && Constellation.chat.setOptions) Constellation.chat.setOptions({});
 }
 window.addEventListener('constellation:connections', onConnectionsChanged);
 if (window.api && window.api.onConnectionsChanged) {

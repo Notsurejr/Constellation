@@ -1273,6 +1273,39 @@ input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
 .top-model option { background: #0b0e16; color: var(--text); }
 .top-model:focus { border-color: var(--accent-dim); box-shadow: var(--glow); }
 
+/* Route chip — how this chat's sends travel (connection +, on OpenRouter, the provider pin).
+   Click opens the route popover: pick Auto or a specific provider endpoint, per chat. */
+.route-chip {
+  font-family: var(--font-ui); font-size: 11px; color: var(--text-dim);
+  background: transparent; border: 1px solid transparent; border-radius: 8px;
+  padding: 4px 8px; cursor: pointer; white-space: nowrap; max-width: 190px;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.route-chip:hover { color: var(--text); border-color: var(--panel-border); background: rgba(0,0,0,0.35); }
+.route-chip:not([hidden]) { display: inline-block; }
+.route-pop {
+  position: fixed; z-index: 60; width: 300px; max-height: 55vh; overflow-y: auto;
+  background: rgba(10, 13, 20, 0.98); border: 1px solid var(--panel-border); border-radius: 12px;
+  box-shadow: 0 18px 50px rgba(0,0,0,0.6); padding: 8px;
+}
+.route-pop-head { font-size: 12px; color: var(--text-dim); padding: 4px 8px 8px; letter-spacing: 0.03em; }
+.route-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%;
+  background: transparent; border: none; border-radius: 8px; padding: 7px 10px;
+  color: var(--text); font-family: var(--font-ui); font-size: 13px; cursor: pointer; text-align: left;
+}
+.route-row em { color: var(--text-faint); font-style: normal; font-size: 11px; }
+.route-row:hover { background: rgba(159,184,255,0.08); }
+.route-row.active { background: rgba(159,184,255,0.12); color: #cdd9ff; }
+.route-row.active::before { content: '●'; font-size: 8px; margin-right: 6px; color: var(--accent-dim); }
+.route-row span:first-of-type { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.route-note { font-size: 12px; color: var(--text-faint); padding: 8px 10px; line-height: 1.5; }
+.route-refresh {
+  display: block; margin: 6px auto 2px; background: none; border: none; color: var(--text-faint);
+  font-size: 11px; cursor: pointer; padding: 3px 8px; border-radius: 6px;
+}
+.route-refresh:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+
 .session-search {
   width: 100%; margin-top: 8px; padding: 8px 10px;
   border-radius: 9px; border: 1px solid var(--panel-border);

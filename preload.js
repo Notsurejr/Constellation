@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('api', {
   loadConnections: () => ipcRenderer.invoke('connections:load'),
   saveConnections: (payload) => ipcRenderer.invoke('connections:save', payload),
   activeConnection: () => ipcRenderer.invoke('connections:active'),
+  modelRoute: (modelId) => ipcRenderer.invoke('connections:route', modelId),
+  openrouterEndpoints: (modelId, refresh) => ipcRenderer.invoke('openrouter:endpoints', modelId, !!refresh),
   onConnectionsChanged: (cb) => { const h = (_e, d) => cb(d); ipcRenderer.on('connections:changed', h); return () => ipcRenderer.removeListener('connections:changed', h); },
   savePhraseBans: (text) => ipcRenderer.invoke('phrasebans:save', text),
   loadModes: () => ipcRenderer.invoke('modes:load'),

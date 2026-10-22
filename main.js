@@ -361,6 +361,33 @@ ipcMain.handle('connections:active', () => {
   const c = resolveActiveConnection();
   return { id: c.id, name: c.name, baseUrl: c.baseUrl, models: c.models, activeModel: c.activeModel, hasKey: !!c.key };
 });
+// How a MODEL travels: which connection carries it + that connection's model-level pin
+// (the default for new chats). The chat-level route choice rides gen and is combined
+// renderer-side — this only reports the connection-side facts.
+ipcMain.handle('connections:route', (_e, modelId) => {
+  const conn = resolveForModel(String(modelId || ''));
+  const m = conn.models.find((x) => x.id === modelId);
+  return { connectionName: conn.name, isOpenRouter: /openrouter\.ai/i.test(String(conn.baseUrl || '')), modelPin: (m && m.provider) || '' };
+});
+// OpenRouter's provider catalog is PUBLIC (no key). Fetched ONLY when the user opens the
+// route popover for an uncached model, or hits its refresh control — never on a timer.
+// Session cache in main (renderer CSP forbids external fetches).
+const OR_ENDPOINT_CACHE = new Map();
+ipcMain.handle('openrouter:endpoints', async (_e, modelId, refresh) => {
+  const id = String(modelId || '');
+  if (!id) return { ok: false, endpoints: [] };
+  if (!refresh && OR_ENDPOINT_CACHE.has(id)) return { ok: true, endpoints: OR_ENDPOINT_CACHE.get(id) };
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/models/' + id.split('/').map(encodeURIComponent).join('/') + '/endpoints', { signal: AbortSignal.timeout(12000) });
+    if (!res.ok) return { ok: false, endpoints: [] };
+    const j = await res.json();
+    const list = ((j.data && j.data.endpoints) || []).map((e) => ({ tag: e.tag || '', name: e.provider_name || '', quantization: e.quantization || '' }));
+    OR_ENDPOINT_CACHE.set(id, list);
+    return { ok: true, endpoints: list };
+  } catch (e) {
+    return { ok: false, endpoints: OR_ENDPOINT_CACHE.get(id) || [] };   // stale cache beats nothing
+  }
+});
 
 // ---------- IPC: config ----------
 ipcMain.handle('config:load', () => {
@@ -1312,11 +1339,16 @@ ipcMain.handle('chat:stream', async (event, payload) => {
     const apiKey = conn.id ? conn.key : (conn.key || s.apiKey);
     if (!apiKey) throw new Error('No API key set for the "' + conn.name + '" connection — add one in Settings → Connection.');
     const client = new OpenAI({ apiKey, baseURL: conn.baseUrl, maxRetries: 0 });
-    // OpenRouter provider pinning: a per-model provider preference becomes their documented
-    // routing object (order + no fallbacks) so a pinned model never silently re-routes.
+    // OpenRouter provider routing, THREE states from the chat's route choice (gen.provider):
+    // a tag → pin to it; 'auto' → explicitly route-free; unset ('') → the connection's
+    // model-level pin (the default for new chats); pin absent → OpenRouter load-balances.
     const modelRoute = conn.models.find((m) => m.id === (opts.model || s.model));
-    const orProvider = (/openrouter\.ai/i.test(String(conn.baseUrl || '')) && modelRoute && modelRoute.provider)
-      ? { provider: { order: [modelRoute.provider], allow_fallbacks: false } }
+    const chatRoute = typeof opts.provider === 'string' ? opts.provider : '';
+    let effectivePin = '';
+    if (chatRoute && chatRoute !== 'auto') effectivePin = chatRoute;
+    else if (!chatRoute) effectivePin = (modelRoute && modelRoute.provider) || '';
+    const orProvider = (/openrouter\.ai/i.test(String(conn.baseUrl || '')) && effectivePin)
+      ? { provider: { order: [effectivePin], allow_fallbacks: false } }
       : {};
     const supportsEffort = /^glm-5\.[2-9]/i.test(String(opts.model || s.model));   // reasoning_effort is GLM-5.2+
     const is53Family = /^glm-5\.[3-9]/i.test(String(opts.model || s.model));   // 5.3+ accepts only max/high/low

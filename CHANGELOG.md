@@ -2,6 +2,22 @@
 
 ## v0.10.2 — Steady Sky, Steady Scroll
 
+### New
+
+- **The route chip — providers at a glance, switched in one click.** A small chip beside
+  the model selector shows how this chat's sends travel: `via OR · xiaomi/fp8`,
+  `via OR · auto`, or `via GLM` / `via Gemini` for direct connections. Click it to open
+  the route popover: pick **Auto** (let OpenRouter load-balance, fallbacks on) or any
+  provider currently hosting the model — the list comes live from OpenRouter's public
+  catalog, fetched only when you open it for a new model or hit its refresh control
+  (nothing refreshes on a timer). The choice is per-chat, saved with it, and applies on
+  the very next send. The connection's model-level pin becomes the *default for new
+  chats*; the chat's own choice always wins. No more deleting and re-typing model
+  entries to switch providers.
+- **Per-chat generation settings actually persist.** The snapshot carried only the model —
+  temperature, effort, and the rest silently fell back to global defaults after a reload.
+  Now everything (including the route) survives restarts, as originally documented.
+
 ### Fixed
 
 - **Typing no longer sets off the cosmos.** Every keystroke's native scroll nudge walked
