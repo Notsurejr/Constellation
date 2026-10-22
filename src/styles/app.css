@@ -152,6 +152,11 @@ html, body {
 
 /* Markdown rendering inside message bodies (white-space: pre-wrap while streaming, normal once formatted) */
 .msg .body { white-space: pre-wrap; }
+/* Prose territory = text cursor, everywhere inside the body — margins, paragraph gaps,
+   emphasis spans, code chips. The native ~21px keystroke nudge shifts content under a
+   resting pointer; without this, crossing element boundaries flips the cursor between
+   I-beam and arrow on every keystroke while typing over a response. Links keep theirs. */
+.msg .body, .msg .body *:not(a):not(button):not(.msg-actions *) { cursor: text; }
 .msg .body.md { white-space: normal; }
 .msg .body > *:first-child { margin-top: 0; }
 .msg .body > *:last-child { margin-bottom: 0; }

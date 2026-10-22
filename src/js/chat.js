@@ -44,7 +44,18 @@ Constellation.chat = (function () {
     return messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 120;
   }
   function scrollToBottom() { messagesEl.scrollTop = messagesEl.scrollHeight; }
-  function maybeScroll() { if (atBottom()) scrollToBottom(); }
+  // Follow-the-stream with a hands-off guard. The 120px window must survive BOTH the native
+  // ~21px keystroke nudge AND the ~100px of reveal between renders — so distance alone can't
+  // tell "content grew under a stationary reader" (follow) from "reader scrolled up" (hands
+  // off, immediately and permanently until they return to the bottom). The reader's own
+  // scrollTop moving DOWN is the tell: growth leaves scrollTop untouched.
+  let followTop = 0;
+  function maybeScroll() {
+    const dist = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight;
+    if (dist < 28) { scrollToBottom(); followTop = messagesEl.scrollTop; return; }   // truly at the bottom — follow
+    if (messagesEl.scrollTop < followTop - 8) return;   // the reader pulled away mid-stream — hands off
+    if (dist < 120) { scrollToBottom(); followTop = messagesEl.scrollTop; }
+  }
   function updateJumpBtn() { if (jumpBtn) jumpBtn.hidden = atBottom(); }
 
   // The newest user message — the one whose attachments still go out when "send attachments"
@@ -957,6 +968,7 @@ Constellation.chat = (function () {
         enhanceCodeBlocks(body);   // finished streaming -> add expand/collapse toggles
         if (window.Constellation && window.Constellation.colorfx) window.Constellation.colorfx.tagColors(body);   // tag colors in the finished reply
         if (finishAnchor) restoreScrollAnchor(finishAnchor);   // final render settled — put the reader's line back
+        else scrollToBottom();   // the final re-parse can SHRINK content (~code blocks tighten); a bottom-pinned reader would fall with the clamp — re-pin
         rafId = null;
       }
     }

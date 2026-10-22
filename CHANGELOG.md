@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.10.2 — Steady Sky, Steady Scroll
+
+### Fixed
+
+- **Typing no longer sets off the cosmos.** Every keystroke's native scroll nudge walked
+  color words across the scan-range boundary and back, re-arming them to fire celestial
+  events — per keystroke, backspaces included. A per-word re-fire cooldown plus a
+  flare-visual gate (the glow only updates on real movement) make typing sky-silent while
+  scrolling keeps its full reactivity.
+- **No more scroll snap when a long reply finishes mid-read.** Two causes, both fixed:
+  the follow-the-stream behavior now has a hands-off guard (a reader who scrolls up is
+  released immediately and permanently until they return to the bottom — previously a
+  120px tolerance dragged mid-readers along the growing reply), and the final re-parse
+  that shrinks content (code blocks tightening, layout settling) re-pins bottom readers
+  instead of letting them fall with the clamp.
+- **The cursor holds its shape over a reply while you type.** The prose body and
+  everything inside it (margins, paragraph gaps, emphasis, code chips) is text-cursor
+  territory now; the keystroke nudge shifting content under a resting pointer can no
+  longer flip it between I-beam and arrow. Links keep their pointing hand.
+
+### Investigated
+
+- **Long-session lag / starfield stutter: not reproducible.** Instrumented soaks (85+
+  messages, heavy scrolling, repeated sends) show flat frame gaps (6–12ms), heap that
+  GCs normally, and DOM/listener growth strictly proportional to content. If it recurs,
+  a note of the app's memory in Task Manager at the moment of stutter would pin it down.
+
 ## v0.10.1 — Routing Follows the Model
 
 ### Fixed

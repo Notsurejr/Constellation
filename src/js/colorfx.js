@@ -200,6 +200,13 @@ Constellation.colorfx = (function () {
 
   // --- Track which color words have already fired an event (one per pass) ---
   const fired = new Set();
+  // Typing nudges the scroll ~21px per keystroke and the pre-paint correction undoes it — a
+  // word near the scan-range boundary "leaves and returns" within one frame pair, which used
+  // to re-arm it and fire a celestial event PER KEYSTROKE. A per-word cooldown plus a
+  // flare-visual gate (only update on real movement) make typing sky-silent.
+  const lastFiredAt = new Map();
+  const REFIRE_COOLDOWN_MS = 1600;
+  let lastFlareKey = '';
 
   // --- The scan: finds nearby color words, drives flare + fires events ---
   function scan(messagesEl) {
@@ -216,11 +223,11 @@ Constellation.colorfx = (function () {
       if (!rgb) continue;
       nearby.push({ el: w, hex: w.dataset.color, rgb: rgb, dist: dist, prox: 1 - dist / params.range, x: r.left + r.width / 2, y: wc });
     }
-    if (!nearby.length) { if (!queueColors) f.style.opacity = '0'; return; }
+    if (!nearby.length) { if (!queueColors && f.style.opacity !== '0') f.style.opacity = '0'; return; }
 
     // Clean stale fired entries (words no longer nearby can re-fire next pass).
     const nearbyEls = new Set(nearby.map(function (n) { return n.el; }));
-    for (const el of fired) if (!nearbyEls.has(el)) fired.delete(el);
+    for (const el of fired) if (!nearbyEls.has(el)) { fired.delete(el); lastFiredAt.delete(el); }
 
     // Group by vertical (same line ≈ within 24px Y).
     nearby.sort(function (a, b) { return a.y - b.y || a.x - b.x; });
@@ -248,10 +255,22 @@ Constellation.colorfx = (function () {
         if (w.prox > maxP) { maxP = w.prox; maxEl = w.el; }
       }
       if (tw > 0) {
-        f.style.setProperty('--flare-color', 'rgb(' + Math.round(tr / tw) + ',' + Math.round(tg / tw) + ',' + Math.round(tb / tw) + ')');
-        f.style.opacity = String(maxP * params.intensity);
-        // Fire a celestial event when a color word is very close to the scan line (once per pass).
-        if (maxP > 0.6 && maxEl && !fired.has(maxEl)) { fired.add(maxEl); spawnEffect(nearby.find(function (n) { return n.el === maxEl; }).hex); }
+        // Visual gate: only touch the flare when the driving group actually changed or moved
+        // a real amount (>16px) — keystroke-scale jitter must not breathe the glow.
+        const key = nearby[0].el + '|' + Math.round(nearby[0].y / 16);
+        if (key !== lastFlareKey) {
+          lastFlareKey = key;
+          f.style.setProperty('--flare-color', 'rgb(' + Math.round(tr / tw) + ',' + Math.round(tg / tw) + ',' + Math.round(tb / tw) + ')');
+          f.style.opacity = String(maxP * params.intensity);
+        }
+        // Fire a celestial event when a color word is very close to the scan line — once per
+        // pass AND never twice for the same word inside the cooldown window.
+        const now = Date.now();
+        if (maxP > 0.6 && maxEl && !fired.has(maxEl) && now - (lastFiredAt.get(maxEl) || 0) > REFIRE_COOLDOWN_MS) {
+          fired.add(maxEl);
+          lastFiredAt.set(maxEl, now);
+          spawnEffect(nearby.find(function (n) { return n.el === maxEl; }).hex);
+        }
       }
     }
   }
