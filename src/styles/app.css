@@ -847,6 +847,62 @@ html, body {
 }
 .chronicle-progress-cancel:hover { color: var(--danger); border-color: var(--danger); }
 
+/* ---- Chronicle v2: summary, chips, search, supersede history, promote/jump actions ---- */
+.chronicle-model {
+  background: rgba(0,0,0,0.35); color: var(--text-dim); border: 1px solid var(--panel-border);
+  border-radius: 8px; font: inherit; font-size: 12px; padding: 5px 8px; outline: none;
+}
+.chronicle-model:focus { border-color: var(--accent-dim); }
+.chronicle-summary { margin-bottom: 10px; }
+.chronicle-summary-body {
+  font-size: 12.5px; line-height: 1.65; color: var(--text);
+  background: rgba(255,255,255,0.03); border: 1px solid var(--panel-border); border-radius: 9px;
+  padding: 10px 12px; white-space: pre-wrap; cursor: text; max-height: 220px; overflow-y: auto;
+}
+.chronicle-summary-body.empty { color: var(--text-faint); font-style: italic; cursor: default; }
+.chronicle-summary-body textarea {
+  width: 100%; background: rgba(0,0,0,0.4); color: var(--text); border: 1px solid var(--accent-dim);
+  border-radius: 6px; font: inherit; font-size: 12.5px; padding: 6px 8px; outline: none; resize: vertical;
+}
+.chronicle-section-head { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--accent-dim); margin: 10px 2px 4px; }
+.chronicle-section-head em { text-transform: none; letter-spacing: 0; color: var(--text-faint); font-style: italic; }
+.chronicle-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.chronicle-chip {
+  background: rgba(0,0,0,0.35); border: 1px solid var(--panel-border); border-radius: 12px;
+  color: var(--text-dim); font: inherit; font-size: 11px; padding: 3px 10px; cursor: pointer;
+}
+.chronicle-chip:hover { color: var(--text); }
+.chronicle-chip.on { color: #cdd9ff; border-color: var(--accent-dim); background: rgba(159,184,255,0.1); }
+.chronicle-search {
+  background: rgba(0,0,0,0.35); border: 1px solid var(--panel-border); border-radius: 8px;
+  color: var(--text); font: inherit; font-size: 12.5px; padding: 6px 10px; outline: none; margin-bottom: 8px;
+}
+.chronicle-search:focus { border-color: var(--accent-dim); }
+.chronicle-fact { flex-direction: column; align-items: stretch; }
+.chronicle-fact.fresh { border-color: rgba(159,184,255,0.45); }
+.chronicle-fact-main { display: flex; align-items: flex-start; gap: 6px; }
+.chronicle-fact-act {
+  background: none; border: none; color: var(--text-faint); cursor: pointer;
+  font-size: 13px; line-height: 1.5; border-radius: 6px; padding: 0 3px;
+}
+.chronicle-fact-act:hover { color: var(--accent); }
+.chronicle-fact.old { opacity: 0.55; background: transparent; border-style: dashed; }
+.chronicle-hist-toggle {
+  align-self: flex-start; background: none; border: none; color: var(--text-faint);
+  font: inherit; font-size: 10.5px; cursor: pointer; padding: 2px 0 0; letter-spacing: 0.3px;
+}
+.chronicle-hist-toggle:hover { color: var(--text-dim); }
+.chronicle-edit { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.chronicle-edit textarea {
+  width: 100%; background: rgba(0,0,0,0.4); color: var(--text); border: 1px solid var(--accent-dim);
+  border-radius: 6px; font: inherit; font-size: 13px; padding: 6px 8px; outline: none; resize: vertical;
+}
+.chronicle-edit select {
+  align-self: flex-end; background: rgba(0,0,0,0.4); color: var(--text);
+  border: 1px solid var(--panel-border); border-radius: 6px; font: inherit; font-size: 11px; padding: 3px 6px;
+}
+.chronicle-promote { width: 300px; }
+
 /* ---------- What was sent — the last-request inspector ---------- */
 .request-panel { max-width: 780px; }
 .request-body { max-height: 58vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin: 14px 0; }

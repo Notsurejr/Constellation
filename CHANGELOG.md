@@ -1,5 +1,40 @@
 # Changelog
 
+## v0.11.0 — The Chronicle, Remastered
+
+### New
+
+- **Chronicle grows a memory with structure.** Facts are now TYPED at extraction and
+  grouped under generalized headers — **Characters** (identity, traits, relationships),
+  **Places**, **Events** (the beat sheet — history accumulates), **Threads** (open loops:
+  promises, secrets, goals, unresolved tension), and **Status** (current conditions:
+  injuries, transformations, who knows what) — with count chips to filter and a search
+  box to interrogate the record.
+- **Facts supersede.** A newer Thread or Status about the same entity replaces the old
+  one, which collapses into an "⟲ earlier states" toggle on the row — the reference shows
+  what's true NOW, never stale and current as equals. Events never supersede; history is
+  the point of them.
+- **"The story so far."** A new Summarize action builds a faithful rolling condensation
+  of the whole story (150–350 words, nothing invented, order and causality preserved),
+  folding in only what's new each time. It sits at the top of the panel and is editable,
+  like everything here.
+- **Jump to source.** Every captured fact remembers where it came from; the ⌖ beside it
+  scrolls the chat to that moment.
+- **Promote, under your hand only.** The → on any fact offers: paste it into the prompt
+  box, or file it into the chat's lorebook as a constant entry. The reader's memory and
+  the model's memory stay separate cabinets — the bridge is one explicit click.
+- **A model picker for Chronicle work** — defaults to whatever this chat currently runs
+  on; pick any connection's model for captures and summaries. Choices persist per chat.
+- **Forks inherit the chronicle** — facts, history chains, the summary, and the
+  read-position all carry into a fork. A branch mid-story no longer starts with amnesia.
+
+### Fixed
+
+- **Chronicle works on the connection system** — captures and summaries route through
+  the active connection with its vaulted key (previously a hardcoded dead endpoint read
+  from the pre-vault settings slot).
+- Old string-list chronicles migrate automatically to typed records (as notes).
+
 ## v0.10.2 — Steady Sky, Steady Scroll
 
 ### New

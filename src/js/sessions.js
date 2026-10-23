@@ -290,7 +290,7 @@ Constellation.sessions = (function () {
     if (gen && s.gen && s.gen.model) gen.model = s.gen.model;
     currentLore = Array.isArray(s.lore) ? s.lore : [];
     if (window.Constellation.storySky) window.Constellation.storySky.setChat(s.id, s.title || 'Untitled');   // this chat's constellation takes the margin
-    if (window.Constellation.chronicle) window.Constellation.chronicle.setChat(s.id);   // its chronicle is ready behind the right tab
+    if (window.Constellation.chronicle) window.Constellation.chronicle.setChat(s.id, s.gen);   // its chronicle is ready behind the right tab (gen carries the model choice)
     Constellation.chat.loadSession(s.messages || [], system, project, gen, s.usage, s.systemFiles, s.projectFiles);
     applyLore();   // apply this chat's enabled lorebooks to retrieval
     // Restore this chat's saved draft (if any), and — if we arrived via search — jump to the match.
@@ -318,6 +318,14 @@ Constellation.sessions = (function () {
       const parentId = currentId, parentTitle = currentTitle;   // remember where this fork branched from
       const res = await window.api.saveSession({ id: null, title, messages: bundle.messages, system: bundle.system, project: bundle.project, gen: bundle.gen, parentId, parentTitle });
       await load(res.id);   // create + switch into the new fork
+      // The fork inherits the parent chronicle (facts + read-position + summary) — a fork
+      // mid-story must not silently lose the reader reference it branched with.
+      if (parentId) {
+        try {
+          const chr = await window.api.loadChronicle(parentId);
+          if (chr && (chr.facts || []).length) await window.api.saveChronicle(res.id, chr.facts, chr.seen, chr.summary, chr.sumSeen);
+        } catch (e) { console.warn('[constellation]', e && e.message || e); }
+      }
       if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Forked to "' + title + '"');
     } catch (e) { console.warn('[constellation]', e && e.message || e); }
   }
