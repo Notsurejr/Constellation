@@ -15,9 +15,12 @@
   what's true NOW, never stale and current as equals. Events never supersede; history is
   the point of them.
 - **"The story so far."** A new Summarize action builds a faithful rolling condensation
-  of the whole story (150–350 words, nothing invented, order and causality preserved),
-  folding in only what's new each time. It sits at the top of the panel and is editable,
-  like everything here.
+  of the whole story, folding in only what's new each time — nothing invented, order and
+  causality preserved. The length budget SCALES with the material (~1 summary word per 10
+  story words, 200–3,000): a short chat stays a glance, a long epic gets a continuation
+  bible big enough to seed a new chat or carry the story past context loss. Summaries see
+  whole messages (no truncation), the output budget scales with the target, and the
+  summary sits at the top of the panel, editable like everything here.
 - **Jump to source.** Every captured fact remembers where it came from; the ⌖ beside it
   scrolls the chat to that moment.
 - **Promote, under your hand only.** The → on any fact offers: paste it into the prompt

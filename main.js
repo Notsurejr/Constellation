@@ -758,7 +758,7 @@ ipcMain.handle('chronicle:save', (_e, { id, facts, seen, summary, sumSeen }) => 
     if (Array.isArray(f.prev) && f.prev.length) out.prev = f.prev.filter((p) => p && p.t).slice(0, 6).map(slim);
     return out;
   });
-  const sum = typeof summary === 'string' ? summary.slice(0, 8000) : '';
+  const sum = typeof summary === 'string' ? summary.slice(0, 32000) : '';
   if (!clean.length && !sum) delete all[id];
   else all[id] = { facts: clean, seen: Math.max(0, parseInt(seen, 10) || 0), summary: sum, sumSeen: Math.max(0, parseInt(sumSeen, 10) || 0) };
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -798,15 +798,18 @@ async function chronicleExtractChunk(client, model, convo) {
 }
 
 // Rolling summary: each pass folds one chunk into the running "story so far" — faithful
-// condensation, no invention, order and causality preserved.
-async function chronicleSummarizeChunk(client, model, priorSummary, convo) {
+// condensation, no invention, order and causality preserved. The length BUDGET scales with
+// the material (~1 word per 10 of story, 200–3000): short chats stay a glance, long stories
+// get a continuation bible big enough to seed a new chat or carry on after context loss.
+// Fidelity outranks the number — the prompt says so explicitly.
+async function chronicleSummarizeChunk(client, model, priorSummary, convo, targetWords) {
   const r = await client.chat.completions.create({
     model: model,
     messages: [
-      { role: 'system', content: 'You condense an ongoing story for its author. You will get the summary so far followed by the next passage of the story. Rewrite the summary to fold the new passage in. Be FAITHFUL above all: nothing not present in the text, no interpretation, no foreshadowing commentary — names, order of events, and cause-and-effect preserved. Keep it tight: 150-350 words, plain prose, present tense. Output ONLY the updated summary — no preamble, no headings.' },
+      { role: 'system', content: 'You condense an ongoing story for its author. You will get the summary so far followed by the next passage of the story. Rewrite the summary to fold the new passage in. Be FAITHFUL above all: nothing not present in the text, no interpretation, no foreshadowing commentary — names, order of events, and cause-and-effect preserved. Target length: about ' + targetWords + ' words. The number is a guide, fidelity is the rule — never omit a plot-critical beat, name, promise, or cause-effect to save words; a longer story justifies a longer summary. Plain prose, present tense. Output ONLY the updated summary — no preamble, no headings.' },
       { role: 'user', content: (priorSummary ? 'SUMMARY SO FAR:\n' + priorSummary + '\n\n' : '') + 'NEW PASSAGE:\n' + (convo || '(empty story)') },
     ],
-    max_tokens: 2048,
+    max_tokens: Math.max(2048, Math.min(16384, Math.round(targetWords * 3))),
     temperature: 0.3,
   });
   return ((r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content) || '').trim();
@@ -827,10 +830,13 @@ function chronicleClientFor(modelId) {
 }
 // shared chunker: normalize + split into char-budgeted chunks (whole messages only);
 // each chunk remembers the FIRST message index it covers (relative to the input array)
-// so facts can carry jump-to-source positions.
-function chronicleChunks(messages) {
+// so facts can carry jump-to-source positions. sliceAt caps each message — extraction
+// keeps the terse 2,200 default; summarize passes 0 (whole messages: a continuation
+// bible must see everything; truncation would break faithfulness).
+function chronicleChunks(messages, sliceAt) {
+  const cap = sliceAt || 0;
   const msgs = (Array.isArray(messages) ? messages : []).filter((m) => m && m.role !== 'system' && (m.content || '').trim());
-  const norm = msgs.map((m) => (m.role === 'user' ? 'USER: ' : 'STORY: ') + String(m.content).replace(/\s+/g, ' ').slice(0, 2200));
+  const norm = msgs.map((m) => (m.role === 'user' ? 'USER: ' : 'STORY: ') + String(m.content).replace(/\s+/g, ' ').slice(0, cap || Infinity));
   const chunks = [];
   let cur = [], curLen = 0, curStart = 0;
   for (let i = 0; i < norm.length; i++) {
@@ -867,16 +873,19 @@ ipcMain.handle('chronicle:capture', async (event, { messages, model }) => {
 });
 ipcMain.handle('chronicle:summarize', async (event, { messages, model, priorSummary }) => {
   const { client, model: useModel } = chronicleClientFor(model);
-  const { msgs, chunks } = chronicleChunks(messages);
+  const { msgs, chunks } = chronicleChunks(messages, 0);   // whole messages — no truncation
   if (!msgs.length) return { summary: priorSummary || '', coveredMsgs: 0, complete: true, passes: 0 };
   chronicleJob = { cancelled: false };
   let summary = priorSummary || '';
   let covered = 0, done = 0;
+  // scaled budget: ~1 summary word per 10 story words (chars÷6 ≈ words), clamped 200–3000
+  const totalChars = chunks.reduce((n, c) => n + c.text.length, 0) + (priorSummary || '').length;
+  const targetWords = Math.max(200, Math.min(3000, Math.round(Math.ceil(totalChars / 6) / 10)));
   event.sender.send('chronicle:progress', { done: 0, total: chunks.length });
   for (const chunk of chunks) {
     if (chronicleJob.cancelled) break;
     try {
-      const next = await chronicleSummarizeChunk(client, useModel, summary, chunk.text);
+      const next = await chronicleSummarizeChunk(client, useModel, summary, chunk.text, targetWords);
       if (next) summary = next;
     } catch (e) {
       if (done > 0) break;
