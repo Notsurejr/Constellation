@@ -1,20 +1,6 @@
 # Changelog
 
-## v0.11.2 — Your Chronicle, Your Rules
-
-### New
-
-- **User-tunable chunk size.** The ⚙ in the Chronicle panel exposes the pass size — the
-  character budget each capture/summarize pass reads (2,000–50,000, default 11,000).
-  Smaller chunks = more, shorter passes; larger = fewer, heavier ones.
-- **Editable prompts.** The capture (extraction) and summarize prompts are editable in
-  the same ⚙ view — the built-ins are pre-shown as your starting point, `{{words}}` in
-  the summarize prompt receives the scaled length target, and Reset restores the stock
-  text. Only what differs from the built-in is stored, so app updates to the stock
-  prompts still reach you. Saved in `config\chronicle-settings.json`.
-- The gear sits level with the close button now, sized to match.
-
-## v0.11.1 — Chronicle Provider Choice
+## v0.11.1 — Your Chronicle, Your Rules
 
 ### New
 
@@ -23,12 +9,21 @@
   provider, beside the model picker in the panel. Defaults to Auto (OpenRouter routes);
   lists the model's connection pin and every provider hosting the model from the public
   catalog. Saved per chat, applies to Capture and Summarize alike.
+- **User-tunable chunk size.** The ⚙ in the Chronicle panel exposes the pass size — the
+  character budget each capture/summarize pass reads (2,000–50,000, default 11,000).
+  Smaller chunks = more, shorter passes; larger = fewer, heavier ones.
+- **Editable prompts.** The capture (extraction) and summarize prompts are editable in
+  the same ⚙ view — the built-ins are pre-shown as your starting point, `{{words}}` in
+  the summarize prompt receives the scaled length target, and Reset restores the stock
+  text. Only what differs from the built-in is stored, so app updates to the stock
+  prompts still reach you. Saved in `config\chronicle-settings.json`.
 
 ### Fixed
 
 - **The Chronicle panel's surfaces match the app** — the "story so far" block and the
   panel background now wear the same dark input/panel colors as everything else (no more
   off-theme whitish tint).
+- The panel's gear sits level with the close button now, sized to match.
 
 ## v0.11.0 — The Chronicle, Remastered
 
