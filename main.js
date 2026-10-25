@@ -770,9 +770,10 @@ ipcMain.handle('chronicle:save', (_e, { id, facts, seen, summary, sumSeen }) => 
 // terse facts only. One line per fact: KIND|WHO|FACT (WHO empty when not entity-bound).
 // Chunks stay small so heavy reasoning can never eat the whole output budget (whole-chat
 // extraction came back empty on long stories for exactly that reason).
-async function chronicleExtractChunk(client, model, convo) {
+async function chronicleExtractChunk(client, model, provider, convo) {
   const r = await client.chat.completions.create({
     model: model,
+    ...provider,
     messages: [
       { role: 'system', content: 'You maintain a story chronicle for a writer — a quick reference so they never misremember their own story. Extract ONLY durable story facts, one per line, in the exact format KIND|WHO|FACT — no bullets, no numbering, no preamble.\nKIND is exactly one of:\ncharacter — who someone is: identity, traits, relationships, standing\nplace — locations, travel, where things are\nevent — what happened: major beats, reveals, decisions (the story\'s history — these accumulate)\nthread — OPEN loops the story has not resolved: promises, debts, secrets kept, goals, unresolved tensions\nstatus — current conditions: injuries, health, transformations, who currently knows what\nWHO is the entity the fact is bound to (a character or place name, pronouns resolved; empty for general facts). FACT is one terse line, names not pronouns.\nIf nothing durable happened in the passage, reply with exactly: NONE' },
       { role: 'user', content: convo || '(empty story)' },
@@ -802,9 +803,10 @@ async function chronicleExtractChunk(client, model, convo) {
 // the material (~1 word per 10 of story, 200–3000): short chats stay a glance, long stories
 // get a continuation bible big enough to seed a new chat or carry on after context loss.
 // Fidelity outranks the number — the prompt says so explicitly.
-async function chronicleSummarizeChunk(client, model, priorSummary, convo, targetWords) {
+async function chronicleSummarizeChunk(client, model, provider, priorSummary, convo, targetWords) {
   const r = await client.chat.completions.create({
     model: model,
+    ...provider,
     messages: [
       { role: 'system', content: 'You condense an ongoing story for its author. You will get the summary so far followed by the next passage of the story. Rewrite the summary to fold the new passage in. Be FAITHFUL above all: nothing not present in the text, no interpretation, no foreshadowing commentary — names, order of events, and cause-and-effect preserved. Target length: about ' + targetWords + ' words. The number is a guide, fidelity is the rule — never omit a plot-critical beat, name, promise, or cause-effect to save words; a longer story justifies a longer summary. Plain prose, present tense. Output ONLY the updated summary — no preamble, no headings.' },
       { role: 'user', content: (priorSummary ? 'SUMMARY SO FAR:\n' + priorSummary + '\n\n' : '') + 'NEW PASSAGE:\n' + (convo || '(empty story)') },
@@ -822,11 +824,16 @@ let chronicleJob = null;
 ipcMain.handle('chronicle:cancel', () => { if (chronicleJob) chronicleJob.cancelled = true; return { ok: true } });
 // Chronicle jobs route like every other call: the chosen model (picker; '' = the chat's
 // current model) resolves its connection — endpoint AND vaulted key.
-function chronicleClientFor(modelId) {
+function chronicleClientFor(modelId, providerTag) {
   const conn = resolveForModel(String(modelId || ''));
   const apiKey = conn.id ? conn.key : (conn.key || getSettings().apiKey);
   if (!apiKey) throw new Error('No API key set for the "' + conn.name + '" connection.');
-  return { client: new OpenAI({ apiKey, baseURL: conn.baseUrl, maxRetries: 1 }), model: String(modelId || '') };
+  // Chronicle text is story prose — some OpenRouter providers filter it as "high risk".
+  // An explicit provider pin (per-chat, from the panel) routes around them; no tag = auto.
+  const provider = (/openrouter\.ai/i.test(String(conn.baseUrl || '')) && providerTag && providerTag !== 'auto')
+    ? { provider: { order: [providerTag], allow_fallbacks: false } }
+    : {};
+  return { client: new OpenAI({ apiKey, baseURL: conn.baseUrl, maxRetries: 1 }), model: String(modelId || ''), provider };
 }
 // shared chunker: normalize + split into char-budgeted chunks (whole messages only);
 // each chunk remembers the FIRST message index it covers (relative to the input array)
@@ -846,8 +853,8 @@ function chronicleChunks(messages, sliceAt) {
   if (cur.length) chunks.push({ text: cur.join('\n\n'), msgs: norm.length - curStart, from: curStart });
   return { msgs, chunks };
 }
-ipcMain.handle('chronicle:capture', async (event, { messages, model }) => {
-  const { client, model: useModel } = chronicleClientFor(model);
+ipcMain.handle('chronicle:capture', async (event, { messages, model, provider: providerTag }) => {
+  const { client, model: useModel, provider } = chronicleClientFor(model, providerTag);
   const { msgs, chunks } = chronicleChunks(messages);
   if (!msgs.length) return { facts: [], coveredMsgs: 0, complete: true, passes: 0 };
   chronicleJob = { cancelled: false };
@@ -857,7 +864,7 @@ ipcMain.handle('chronicle:capture', async (event, { messages, model }) => {
   for (const chunk of chunks) {
     if (chronicleJob.cancelled) break;
     try {
-      const facts = await chronicleExtractChunk(client, useModel, chunk.text);
+      const facts = await chronicleExtractChunk(client, useModel, provider, chunk.text);
       for (const f of facts) all.push({ kind: f.kind, who: f.who, t: f.t, from: chunk.from });
     } catch (e) {
       if (all.length || done > 0) break;   // partway through: keep what we have, stop here
@@ -871,8 +878,8 @@ ipcMain.handle('chronicle:capture', async (event, { messages, model }) => {
   chronicleJob = null;
   return { facts: all, coveredMsgs: covered, complete, passes: chunks.length };
 });
-ipcMain.handle('chronicle:summarize', async (event, { messages, model, priorSummary }) => {
-  const { client, model: useModel } = chronicleClientFor(model);
+ipcMain.handle('chronicle:summarize', async (event, { messages, model, provider: providerTag, priorSummary }) => {
+  const { client, model: useModel, provider } = chronicleClientFor(model, providerTag);
   const { msgs, chunks } = chronicleChunks(messages, 0);   // whole messages — no truncation
   if (!msgs.length) return { summary: priorSummary || '', coveredMsgs: 0, complete: true, passes: 0 };
   chronicleJob = { cancelled: false };
@@ -885,7 +892,7 @@ ipcMain.handle('chronicle:summarize', async (event, { messages, model, priorSumm
   for (const chunk of chunks) {
     if (chronicleJob.cancelled) break;
     try {
-      const next = await chronicleSummarizeChunk(client, useModel, summary, chunk.text, targetWords);
+      const next = await chronicleSummarizeChunk(client, useModel, provider, summary, chunk.text, targetWords);
       if (next) summary = next;
     } catch (e) {
       if (done > 0) break;

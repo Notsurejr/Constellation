@@ -24,12 +24,17 @@ Constellation.chronicle = (function () {
   let rebuildArmed = false, rebuildTimer = null;
   let filterKind = '', query = '';
   let tab = null, panel = null, listEl = null, sumEl = null, capBtn = null, sumBtn = null, rebuildBtn = null;
-  let progWrap = null, progFill = null, progLabel = null, modelSel = null, searchEl = null, chipsEl = null;
+  let progWrap = null, progFill = null, progLabel = null, modelSel = null, provSel = null, searchEl = null, chipsEl = null;
 
   // ---- model resolution: '' = the chat's current model (default), else any connection's model
   function chronicleModel() {
     if (modelSel && modelSel.value) return modelSel.value;
     return (window.Constellation.chat && window.Constellation.chat.getOptions && window.Constellation.chat.getOptions().model) || '';
+  }
+  // ---- provider resolution: '' = auto. Story prose trips some providers' filters
+  // ("high risk"); an explicit pin routes chronicle jobs around them.
+  function chronicleProvider() {
+    return (provSel && provSel.value) || '';
   }
   async function fillModelSelect() {
     if (!modelSel) return;
@@ -51,7 +56,45 @@ Constellation.chronicle = (function () {
         }
       }
       modelSel.value = (cur && Array.from(modelSel.options).some((o) => o.value === cur)) ? cur : '';
+      await fillProviderSelect();
     } catch (e) { console.warn('[constellation]', e && e.message || e); }
+  }
+  async function fillProviderSelect() {
+    if (!provSel) return;
+    const prev = provSel.value;
+    try {
+      const route = await window.api.modelRoute(chronicleModel());
+      provSel.replaceChildren();
+      if (!route || !route.isOpenRouter) {
+        provSel.hidden = true;
+        provSel.value = '';
+        return;
+      }
+      provSel.hidden = false;
+      const auto = document.createElement('option');
+      auto.value = '';
+      auto.textContent = 'provider: auto';
+      provSel.appendChild(auto);
+      if (route.modelPin) {
+        const o = document.createElement('option');
+        o.value = route.modelPin;
+        o.textContent = 'provider: ' + route.modelPin + ' (model default)';
+        provSel.appendChild(o);
+      }
+      const cat = await window.api.openrouterEndpoints(chronicleModel(), false);
+      for (const e of (cat && cat.endpoints) || []) {
+        if (e.tag && !Array.from(provSel.options).some((o) => o.value === e.tag)) {
+          const o = document.createElement('option');
+          o.value = e.tag;
+          o.textContent = 'provider: ' + e.tag + (e.quantization ? ' · ' + e.quantization : '');
+          provSel.appendChild(o);
+        }
+      }
+      provSel.value = (prev && Array.from(provSel.options).some((o) => o.value === prev)) ? prev : '';
+    } catch (e) {
+      provSel.hidden = true;
+      console.warn('[constellation]', e && e.message || e);
+    }
   }
 
   function ensureDom() {
@@ -124,13 +167,18 @@ Constellation.chronicle = (function () {
     modelSel = document.createElement('select');
     modelSel.className = 'chronicle-model';
     modelSel.title = 'Model for capture + summarize — defaults to whatever this chat runs on';
-    modelSel.addEventListener('change', function () { persistGen(); });
+    modelSel.addEventListener('change', function () { fillProviderSelect(); persistGen(); });
+    provSel = document.createElement('select');
+    provSel.className = 'chronicle-model chronicle-provider';
+    provSel.hidden = true;
+    provSel.title = 'Provider route for chronicle jobs — some OpenRouter providers filter story text; pin a trusted one (auto = let OpenRouter route)';
+    provSel.addEventListener('change', function () { persistGen(); });
     const note = document.createElement('input');
     note.className = 'chronicle-note'; note.type = 'text'; note.placeholder = '+ add your own note, Enter…';
     note.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' && note.value.trim()) { add(note.value.trim(), 'note'); note.value = ''; }
     });
-    actions.appendChild(btnRow); actions.appendChild(modelSel); actions.appendChild(progWrap); actions.appendChild(note);
+    actions.appendChild(btnRow); actions.appendChild(modelSel); actions.appendChild(provSel); actions.appendChild(progWrap); actions.appendChild(note);
 
     sumEl = document.createElement('div');
     sumEl.className = 'chronicle-summary';
@@ -172,7 +220,7 @@ Constellation.chronicle = (function () {
     // the model choice rides the chat's gen settings (like every other per-chat setting)
     try {
       const chat = window.Constellation.chat;
-      if (chat && chat.setOptions) { chat.setOptions({ chronicleModel: chronicleModel() }); if (chat.persist) chat.persist(); }
+      if (chat && chat.setOptions) { chat.setOptions({ chronicleModel: chronicleModel(), chronicleProvider: chronicleProvider() }); if (chat.persist) chat.persist(); }
     } catch (e) { console.warn('[constellation]', e && e.message || e); }
   }
 
@@ -473,7 +521,7 @@ Constellation.chronicle = (function () {
     setBusy(true);
     if (progLabel) progLabel.textContent = 'reading… pass 1 of ?';
     try {
-      const res = await window.api.captureChronicle(fresh, chronicleModel());
+      const res = await window.api.captureChronicle(fresh, chronicleModel(), chronicleProvider());
       const added = mergeFacts((res && res.facts) || []);
       seen += (res && res.coveredMsgs) || 0;
       persist(); render();
@@ -498,7 +546,7 @@ Constellation.chronicle = (function () {
     setBusy(true);
     if (progLabel) progLabel.textContent = 'summarizing… pass 1 of ?';
     try {
-      const res = await window.api.summarizeChronicle(fresh, chronicleModel(), summary);
+      const res = await window.api.summarizeChronicle(fresh, chronicleModel(), chronicleProvider(), summary);
       if (res && res.summary) summary = res.summary;
       sumSeen += (res && res.coveredMsgs) || 0;
       persist(); renderSummary();
@@ -525,6 +573,9 @@ Constellation.chronicle = (function () {
     if (modelSel) {
       const gm = gen && gen.chronicleModel;
       modelSel.value = (gm && Array.from(modelSel.options).some(function (o) { return o.value === gm; })) ? gm : '';
+      const gp = gen && gen.chronicleProvider;
+      if (gp) await fillProviderSelect();
+      if (provSel && gp) provSel.value = (Array.from(provSel.options).some(function (o) { return o.value === gp; })) ? gp : '';
     }
     render();
   }

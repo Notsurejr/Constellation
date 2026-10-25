@@ -31,8 +31,8 @@ contextBridge.exposeInMainWorld('api', {
 
   loadChronicle: (id) => ipcRenderer.invoke('chronicle:load', id),
   saveChronicle: (id, facts, seen, summary, sumSeen) => ipcRenderer.invoke('chronicle:save', { id, facts, seen, summary, sumSeen }),
-  captureChronicle: (messages, model) => ipcRenderer.invoke('chronicle:capture', { messages, model }),
-  summarizeChronicle: (messages, model, priorSummary) => ipcRenderer.invoke('chronicle:summarize', { messages, model, priorSummary }),
+  captureChronicle: (messages, model, provider) => ipcRenderer.invoke('chronicle:capture', { messages, model, provider }),
+  summarizeChronicle: (messages, model, provider, priorSummary) => ipcRenderer.invoke('chronicle:summarize', { messages, model, provider, priorSummary }),
   cancelChronicle: () => ipcRenderer.invoke('chronicle:cancel'),
   onChronicleProgress: (cb) => ipcRenderer.on('chronicle:progress', (_e, p) => cb(p)),
 

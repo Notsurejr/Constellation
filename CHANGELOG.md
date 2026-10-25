@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.11.1 — Chronicle Provider Choice
+
+### New
+
+- **A provider picker for Chronicle jobs.** Story prose trips some OpenRouter providers'
+  content filters ("high risk") — Chronicle captures and summaries can now pin a trusted
+  provider, beside the model picker in the panel. Defaults to Auto (OpenRouter routes);
+  lists the model's connection pin and every provider hosting the model from the public
+  catalog. Saved per chat, applies to Capture and Summarize alike.
+
+### Fixed
+
+- **The Chronicle panel's surfaces match the app** — the "story so far" block and the
+  panel background now wear the same dark input/panel colors as everything else (no more
+  off-theme whitish tint).
+
 ## v0.11.0 — The Chronicle, Remastered
 
 ### New

@@ -792,7 +792,7 @@ html, body {
 .chronicle-panel {
   position: fixed; top: 62px; right: 0; bottom: 0;   /* starts below the topbar so the bookmarks/craft/etc. buttons stay visible */
   width: 348px; z-index: 46;
-  background: rgba(6, 8, 14, 0.94);
+  background: rgba(8, 10, 16, 0.97);   /* matches the cast/settings panel family */
   border-left: 1px solid var(--panel-border);
   display: flex; flex-direction: column;
   padding: 18px 16px 16px;
@@ -856,7 +856,7 @@ html, body {
 .chronicle-summary { margin-bottom: 10px; }
 .chronicle-summary-body {
   font-size: 12.5px; line-height: 1.65; color: var(--text);
-  background: rgba(255,255,255,0.03); border: 1px solid var(--panel-border); border-radius: 9px;
+  background: rgba(0,0,0,0.35); border: 1px solid var(--panel-border); border-radius: 8px;
   padding: 10px 12px; white-space: pre-wrap; cursor: text; max-height: 220px; overflow-y: auto;
 }
 .chronicle-summary-body.empty { color: var(--text-faint); font-style: italic; cursor: default; }
@@ -1868,3 +1868,4 @@ input.num::-webkit-outer-spin-button, input.num::-webkit-inner-spin-button { opa
   padding: 6px 8px; resize: none; outline: none; min-height: 32px; max-height: 120px;
 }
 .prefill textarea:focus { border-color: var(--accent-dim); box-shadow: var(--glow); }
+.chronicle-provider { margin-top: -2px; }

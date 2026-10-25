@@ -24,7 +24,7 @@ Constellation.chat = (function () {
   let bulkScroll = false;      // suppress per-message auto-scroll while bulk-rendering a chat
   let usage = { tokens: 0, requests: 0 };   // cumulative estimated tokens for the current chat
   let pendingFiles = [];   // [{ name, size, text }] queued attachments for the next send
-  let opts = { model: 'glm-5.2', provider: '', chronicleModel: '', temperature: 0.8, topP: 0.95, maxTokens: 0, thinking: false, reasoningEffort: 'max', streamCps: 0, contextWindow: 0, teachEdits: false, preservedThinking: true, immersion: false, sendAttachments: true };
+  let opts = { model: 'glm-5.2', provider: '', chronicleModel: '', chronicleProvider: '', temperature: 0.8, topP: 0.95, maxTokens: 0, thinking: false, reasoningEffort: 'max', streamCps: 0, contextWindow: 0, teachEdits: false, preservedThinking: true, immersion: false, sendAttachments: true };
   let activeLore = [];   // lorebooks enabled for the current chat (each { entries, semantic }); sessions applies this
   let phraseBanRules = [];   // [{ re, replace }] tidied out of GLM's replies AFTER generation (the model never sees these)
   let systemFiles = [];   // [{name,text}] .md/.txt attached to this chat's system instructions (inlined into the system prompt)
@@ -1825,7 +1825,7 @@ Constellation.chat = (function () {
   function genSnapshot() {
     // Full generation settings persist per chat (this used to carry only the model — the
     // documented restore never actually survived a reload). provider = the chat's route.
-    return { model: opts.model, provider: opts.provider || '', chronicleModel: opts.chronicleModel || '', temperature: opts.temperature, topP: opts.topP, maxTokens: opts.maxTokens, thinking: !!opts.thinking, reasoningEffort: opts.reasoningEffort, streamCps: opts.streamCps, contextWindow: opts.contextWindow, preservedThinking: opts.preservedThinking, sendAttachments: opts.sendAttachments };
+    return { model: opts.model, provider: opts.provider || '', chronicleModel: opts.chronicleModel || '', chronicleProvider: opts.chronicleProvider || '', temperature: opts.temperature, topP: opts.topP, maxTokens: opts.maxTokens, thinking: !!opts.thinking, reasoningEffort: opts.reasoningEffort, streamCps: opts.streamCps, contextWindow: opts.contextWindow, preservedThinking: opts.preservedThinking, sendAttachments: opts.sendAttachments };
   }
 
   // Persist the current chat (messages + instructions + settings) now — used when you edit
