@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.11.2 — Your Chronicle, Your Rules
+
+### New
+
+- **User-tunable chunk size.** The ⚙ in the Chronicle panel exposes the pass size — the
+  character budget each capture/summarize pass reads (2,000–50,000, default 11,000).
+  Smaller chunks = more, shorter passes; larger = fewer, heavier ones.
+- **Editable prompts.** The capture (extraction) and summarize prompts are editable in
+  the same ⚙ view — the built-ins are pre-shown as your starting point, `{{words}}` in
+  the summarize prompt receives the scaled length target, and Reset restores the stock
+  text. Only what differs from the built-in is stored, so app updates to the stock
+  prompts still reach you. Saved in `config\chronicle-settings.json`.
+- The gear sits level with the close button now, sized to match.
+
 ## v0.11.1 — Chronicle Provider Choice
 
 ### New

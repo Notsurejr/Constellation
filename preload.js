@@ -34,6 +34,8 @@ contextBridge.exposeInMainWorld('api', {
   captureChronicle: (messages, model, provider) => ipcRenderer.invoke('chronicle:capture', { messages, model, provider }),
   summarizeChronicle: (messages, model, provider, priorSummary) => ipcRenderer.invoke('chronicle:summarize', { messages, model, provider, priorSummary }),
   cancelChronicle: () => ipcRenderer.invoke('chronicle:cancel'),
+  loadChronicleSettings: () => ipcRenderer.invoke('chronicle:settings-load'),
+  saveChronicleSettings: (cfg) => ipcRenderer.invoke('chronicle:settings-save', cfg),
   onChronicleProgress: (cb) => ipcRenderer.on('chronicle:progress', (_e, p) => cb(p)),
 
   loadFolders: () => ipcRenderer.invoke('folders:load'),

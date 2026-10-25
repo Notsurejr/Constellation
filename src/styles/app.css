@@ -1869,3 +1869,20 @@ input.num::-webkit-outer-spin-button, input.num::-webkit-inner-spin-button { opa
 }
 .prefill textarea:focus { border-color: var(--accent-dim); box-shadow: var(--glow); }
 .chronicle-provider { margin-top: -2px; }
+
+/* Chronicle settings view (⚙) — covers the panel content while open */
+.chronicle-headwrap { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+.chronicle-headbtns { display: flex; align-items: center; gap: 2px; }
+.chronicle-gear { font-size: 17px; line-height: 1; padding: 3px 5px; }
+.chronicle-panel.cfg-open .chronicle-hint, .chronicle-panel.cfg-open .chronicle-actions,
+.chronicle-panel.cfg-open .chronicle-summary, .chronicle-panel.cfg-open .chronicle-chips,
+.chronicle-panel.cfg-open .chronicle-search, .chronicle-panel.cfg-open .chronicle-list { display: none; }
+.chronicle-cfg { display: none; flex: 1; flex-direction: column; gap: 10px; overflow-y: auto; }
+.chronicle-panel.cfg-open .chronicle-cfg { display: flex; }
+.chronicle-cfg-label { display: flex; flex-direction: column; gap: 5px; font-size: 11.5px; color: var(--text-dim); line-height: 1.45; }
+.chronicle-cfg-prompt {
+  background: rgba(0,0,0,0.35); color: var(--text); border: 1px solid var(--panel-border); border-radius: 8px;
+  font: inherit; font-size: 11.5px; line-height: 1.5; padding: 8px 10px; outline: none; resize: vertical;
+}
+.chronicle-cfg-prompt:focus { border-color: var(--accent-dim); }
+.chronicle-cfg .chronicle-model { width: 100%; box-sizing: border-box; }

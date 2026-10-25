@@ -118,6 +118,18 @@ Constellation.chronicle = (function () {
     x.className = 'chronicle-close'; x.type = 'button'; x.textContent = '×'; x.title = 'Close';
     x.addEventListener('click', close);
     head.appendChild(h); head.appendChild(x);
+    const headWrap = document.createElement('div');   // title left; gear + close right
+    headWrap.className = 'chronicle-headwrap';
+    headWrap.appendChild(h);
+    const headBtns = document.createElement('div');
+    headBtns.className = 'chronicle-headbtns';
+    const gear = document.createElement('button');
+    gear.className = 'chronicle-close chronicle-gear'; gear.type = 'button'; gear.textContent = '⚙';
+    gear.title = 'Chronicle settings — chunk size + the capture/summarize prompts';
+    gear.addEventListener('click', function () { panel.classList.contains('cfg-open') ? closeCfg() : openCfg(); });
+    headBtns.appendChild(gear); headBtns.appendChild(x);
+    headWrap.appendChild(headBtns);
+    head.replaceChildren(headWrap);
 
     const hint = document.createElement('div');
     hint.className = 'chronicle-hint';
@@ -192,6 +204,7 @@ Constellation.chronicle = (function () {
 
     panel.appendChild(head); panel.appendChild(hint); panel.appendChild(actions);
     panel.appendChild(sumEl); panel.appendChild(chipsEl); panel.appendChild(searchEl); panel.appendChild(listEl);
+    panel.appendChild(buildCfgView());
     document.body.appendChild(panel);
 
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
@@ -205,6 +218,87 @@ Constellation.chronicle = (function () {
     }
     fillModelSelect();
     document.addEventListener('constellation:connections', function () { fillModelSelect(); });
+  }
+
+  // ---- settings view (⚙): chunk size + prompt overrides. Defaults are pre-shown; Save
+  // stores only what DIFFERS from the built-in (blank override = "follow the shipped
+  // default", so app updates to the stock prompts still reach you). {{words}} in the
+  // summarize prompt is where the scaled length target lands.
+  const CHRONICLE_EXTRACT_DEFAULT = 'You maintain a story chronicle for a writer — a quick reference so they never misremember their own story. Extract ONLY durable story facts, one per line, in the exact format KIND|WHO|FACT — no bullets, no numbering, no preamble.\nKIND is exactly one of:\ncharacter — who someone is: identity, traits, relationships, standing\nplace — locations, travel, where things are\nevent — what happened: major beats, reveals, decisions (the story\'s history — these accumulate)\nthread — OPEN loops the story has not resolved: promises, debts, secrets kept, goals, unresolved tensions\nstatus — current conditions: injuries, health, transformations, who currently knows what\nWHO is the entity the fact is bound to (a character or place name, pronouns resolved; empty for general facts). FACT is one terse line, names not pronouns.\nIf nothing durable happened in the passage, reply with exactly: NONE';
+  const CHRONICLE_SUMMARIZE_DEFAULT = 'You condense an ongoing story for its author. You will get the summary so far followed by the next passage of the story. Rewrite the summary to fold the new passage in. Be FAITHFUL above all: nothing not present in the text, no interpretation, no foreshadowing commentary — names, order of events, and cause-and-effect preserved. Target length: about {{words}} words. The number is a guide, fidelity is the rule — never omit a plot-critical beat, name, promise, or cause-effect to save words; a longer story justifies a longer summary. Plain prose, present tense. Output ONLY the updated summary — no preamble, no headings.';
+  let cfgEl = null, cfgChunk = null, cfgExtract = null, cfgSummarize = null;
+  function buildCfgView() {
+    cfgEl = document.createElement('div');
+    cfgEl.className = 'chronicle-cfg';
+    const title = document.createElement('div');
+    title.className = 'chronicle-section-head';
+    title.textContent = 'Chronicle settings';
+    cfgEl.appendChild(title);
+
+    const chunkLbl = document.createElement('label');
+    chunkLbl.className = 'chronicle-cfg-label';
+    chunkLbl.textContent = 'Chunk size (characters per pass — smaller = more, shorter passes)';
+    cfgChunk = document.createElement('input');
+    cfgChunk.type = 'number'; cfgChunk.min = 2000; cfgChunk.max = 50000; cfgChunk.step = 500; cfgChunk.value = 11000;
+    cfgChunk.className = 'chronicle-model';
+    chunkLbl.appendChild(cfgChunk);
+    cfgEl.appendChild(chunkLbl);
+
+    const exLbl = document.createElement('label');
+    exLbl.className = 'chronicle-cfg-label';
+    exLbl.textContent = 'Capture prompt (extraction — KIND|WHO|FACT lines)';
+    cfgExtract = document.createElement('textarea');
+    cfgExtract.rows = 8; cfgExtract.spellcheck = false;
+    cfgExtract.className = 'chronicle-cfg-prompt';
+    cfgExtract.value = CHRONICLE_EXTRACT_DEFAULT;
+    exLbl.appendChild(cfgExtract);
+    cfgEl.appendChild(exLbl);
+
+    const suLbl = document.createElement('label');
+    suLbl.className = 'chronicle-cfg-label';
+    suLbl.textContent = 'Summarize prompt — {{words}} receives the scaled length target';
+    cfgSummarize = document.createElement('textarea');
+    cfgSummarize.rows = 8; cfgSummarize.spellcheck = false;
+    cfgSummarize.className = 'chronicle-cfg-prompt';
+    cfgSummarize.value = CHRONICLE_SUMMARIZE_DEFAULT;
+    suLbl.appendChild(cfgSummarize);
+    cfgEl.appendChild(suLbl);
+
+    const row = document.createElement('div');
+    row.className = 'chronicle-btnrow';
+    const reset = document.createElement('button');
+    reset.className = 'btn ghost'; reset.type = 'button'; reset.textContent = 'Reset prompts';
+    reset.title = 'Restore the built-in prompts into the boxes (Save persists them)';
+    reset.addEventListener('click', function () { cfgExtract.value = CHRONICLE_EXTRACT_DEFAULT; cfgSummarize.value = CHRONICLE_SUMMARIZE_DEFAULT; });
+    const save = document.createElement('button');
+    save.className = 'btn'; save.type = 'button'; save.textContent = 'Save settings';
+    save.addEventListener('click', saveCfg);
+    row.appendChild(reset); row.appendChild(save);
+    cfgEl.appendChild(row);
+    return cfgEl;
+  }
+  async function openCfg() {
+    if (!cfgEl || !panel) return;
+    try {
+      const s = await window.api.loadChronicleSettings();
+      if (cfgChunk) cfgChunk.value = s.chunkSize || 11000;
+      if (cfgExtract) cfgExtract.value = s.extractPrompt || CHRONICLE_EXTRACT_DEFAULT;
+      if (cfgSummarize) cfgSummarize.value = s.summarizePrompt || CHRONICLE_SUMMARIZE_DEFAULT;
+    } catch (e) { console.warn('[constellation]', e && e.message || e); }
+    panel.classList.add('cfg-open');
+  }
+  function closeCfg() { if (panel) panel.classList.remove('cfg-open'); }
+  async function saveCfg() {
+    if (!window.api || !window.api.saveChronicleSettings) return;
+    const ex = cfgExtract.value.trim() === CHRONICLE_EXTRACT_DEFAULT.trim() ? '' : cfgExtract.value;
+    const su = cfgSummarize.value.trim() === CHRONICLE_SUMMARIZE_DEFAULT.trim() ? '' : cfgSummarize.value;
+    try {
+      const r = await window.api.saveChronicleSettings({ chunkSize: parseInt(cfgChunk.value, 10) || 11000, extractPrompt: ex, summarizePrompt: su });
+      if (window.Constellation.toast) window.Constellation.toast(r && r.ok ? 'Chronicle settings saved' : 'Save failed', r && r.ok ? undefined : 9000);
+      if (r && r.ok) closeCfg();
+    } catch (e) {
+      if (window.Constellation.toast) window.Constellation.toast('Save failed: ' + String(e.message || e).slice(0, 100), 9000);
+    }
   }
 
   function disarmRebuild() { rebuildArmed = false; if (rebuildBtn) { rebuildBtn.textContent = '↻ Rebuild'; rebuildBtn.classList.remove('warn'); } }
