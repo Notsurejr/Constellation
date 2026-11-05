@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.11.2 — The Prompt Engine, First Slice
+
+### Fixed
+
+- **Presets now actually reach the Cast start screen.** Choosing a preset as the Base
+  used to compile an empty base — the picker only ever saw preset names, never their
+  text. The start screen now loads each preset's full body, so "Preset:" means what it
+  says: your preset's instructions, in the compiled preview and in the chat it starts.
+
+### New
+
+- **Send-time macros.** Five prompt-engine primitives, evaluated fresh on every send
+  wherever you write them — in your base instructions, or in the message you're sending:
+  - `{{turn}}` — how many user turns the chat has reached (forks inherit the true count)
+  - `{{roll:2d6}}` — dice; supports SillyTavern's double-colon form too (`{{roll::1d20}}`)
+  - `{{random:amber,teal,violet}}` — picks one (commas or `::` separate options)
+  - `{{time}}` / `{{date}}` — your local clock at send
+  Your stored text keeps the macro verbatim, so every send re-rolls. Chats that never
+  write a macro send exactly what they always sent — the pass only touches what matches.
+- **Display filters (display-only regex).** A plain rules file,
+  `%AppData%\constellation\config\display-filters.txt`, rewrites what messages LOOK like
+  on screen — one rule per line, JavaScript (V8) regex flavor:
+  ```
+  # a comment
+  /pattern/flags => replacement     (supports $1-style backreferences)
+  /unwanted/                        (no replacement — the match is deleted)
+  ```
+  Flags: any of `g i m s u`. `#` lines are comments; a bad line is skipped with a
+  console warning, not a crash. Filters are strictly display-only — the stored message,
+  the context the model receives, edits, and exports all keep the raw source.
+
 ## v0.11.1 — Your Chronicle, Your Rules
 
 ### New

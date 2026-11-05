@@ -401,6 +401,7 @@ Constellation.chat = (function () {
     opts.streamCps = cfg.streamCps ?? 0;
     opts.contextWindow = cfg.contextWindow ?? 0;
     setPhraseBans(cfg.phraseBans || '');
+    loadDisplayFilters();   // display-only regex rules (config/display-filters.txt); fire-and-forget
     if (cfg.hasKey) setStatus('connected', 'ok');   // model lives in the top-bar dropdown next to this pill
     else setStatus('add your API key in Settings', 'err');
 
@@ -697,7 +698,82 @@ Constellation.chat = (function () {
         break;
       }
     }
+    // Send-time macros (the prompt-engine primitives): {{turn}} {{roll:NdM}} {{random:…}}
+    // {{time}} {{date}} — fresh values EVERY send, substituted on the request copy only.
+    // The stored conversation keeps the literal macro text (so the next send re-rolls),
+    // and chats that never write a macro are byte-identical: the pass only rewrites what
+    // its regexes match. Applied to the system message and the outgoing user turn (which
+    // carries the fence) — the two live surfaces. ({{turn}} = user messages so far.)
+    const MACRO_HINT = /\{\{\s*(turn|roll|random|time|date)/i;
+    if (out[0] && out[0].role === 'system' && MACRO_HINT.test(out[0].content)) {
+      out[0] = { role: 'system', content: applySendMacros(out[0].content) };
+    }
+    for (let i = out.length - 1; i >= 0; i--) {
+      if (out[i].role !== 'user') continue;
+      if (typeof out[i].content === 'string' && MACRO_HINT.test(out[i].content)) {
+        out[i] = { role: 'user', content: applySendMacros(out[i].content) };
+      } else if (Array.isArray(out[i].content)) {
+        const t = out[i].content.find((p) => p && p.type === 'text');
+        if (t && MACRO_HINT.test(String(t.text || ''))) {
+          const copy = out[i].content.map((p) => p === t ? { type: 'text', text: applySendMacros(String(t.text || '')) } : p);
+          out[i] = { role: 'user', content: copy };
+        }
+      }
+      break;   // newest user turn only
+    }
     return out;
+  }
+
+  // ---- Display filters (P1): display-only regex rules from config/display-filters.txt.
+  // Format: one rule per line — /pattern/flags => replacement  (bare pattern = delete).
+  // '#' lines are comments; invalid lines are skipped. DISPLAY-ONLY: applied to rendered
+  // message bodies; the stored text, the model's context, and exports keep the raw source.
+  let displayFilters = null;   // null = not yet loaded; [] = loaded, no valid rules
+  function parseDisplayFilters(text) {
+    const rules = [];
+    for (const line of String(text || '').split('\n')) {
+      const l = line.trim();
+      if (!l || l.startsWith('#')) continue;
+      const m = l.match(/^\/(.+)\/([gimsu]*)(?:\s*=>\s*([\s\S]*))?$/);
+      if (!m) { console.warn('[constellation] display filter: unparsed line: ' + l.slice(0, 80)); continue; }
+      try { rules.push({ re: new RegExp(m[1], m[2]), repl: m[3] != null ? m[3] : '' }); }
+      catch (e) { console.warn('[constellation] display filter: bad regex: ' + l.slice(0, 80)); }
+    }
+    return rules;
+  }
+  async function loadDisplayFilters() {
+    try { displayFilters = parseDisplayFilters(await window.api.loadDisplayFilters()); }
+    catch (e) { displayFilters = []; console.warn('[constellation]', e && e.message || e); }
+  }
+  function applyDisplayFilters(text) {
+    if (!displayFilters || !displayFilters.length) return text;
+    let out = text;
+    for (const r of displayFilters) out = out.replace(r.re, r.repl);
+    return out;
+  }
+  function renderBodyHTML(content) { return Constellation.md.render(applyDisplayFilters(content)); }
+
+  // ---- Send-time macro engine (P3/P6). Pure text → text; called from toApiMessages on
+  // the request copy. Supports ST's double-colon variants ({{roll::2d6}}) alongside the
+  // single-colon form. {{turn}} is DERIVED from the conversation (count of user messages)
+  // rather than stored — a fork inherits the true count automatically and nothing can drift.
+  function applySendMacros(text) {
+    const turns = conversation.filter((m) => m.role === 'user').length;
+    const roll = (n, sides) => {
+      let sum = 0;
+      for (let i = 0; i < n; i++) sum += 1 + Math.floor(Math.random() * sides);
+      return sum;
+    };
+    return String(text)
+      .replace(/\{\{\s*turn\s*\}\}/gi, String(turns))
+      .replace(/\{\{\s*roll\s*:{1,2}\s*(\d*)d(\d+)\s*\}\}/gi, (m, n, s) => String(roll(Math.max(1, parseInt(n || '1', 10)), parseInt(s, 10))))
+      .replace(/\{\{\s*random\s*:{1,2}\s*([^}]+?)\s*\}\}/gi, (m, list) => {
+        const parts = String(list).includes('::') ? String(list).split('::') : String(list).split(',');
+        const opts = parts.map((x) => x.trim()).filter(Boolean);
+        return opts.length ? opts[Math.floor(Math.random() * opts.length)] : '';
+      })
+      .replace(/\{\{\s*time\s*\}\}/gi, new Date().toLocaleTimeString())
+      .replace(/\{\{\s*date\s*\}\}/gi, new Date().toLocaleDateString());
   }
 
   // Sliding context window: if a token cap is set, drop the OLDEST middle turns from what's sent
@@ -919,7 +995,7 @@ Constellation.chat = (function () {
 
     const body = document.createElement('div');
     body.className = 'body md';
-    body.innerHTML = Constellation.md.render(content);
+    body.innerHTML = renderBodyHTML(content);
     enhanceCodeBlocks(body);     // attach expand/collapse toggles to finished code blocks
     if (window.Constellation && window.Constellation.colorfx) window.Constellation.colorfx.tagColors(body);   // tag color words for the scan flare
     el.appendChild(body);
@@ -1044,7 +1120,7 @@ Constellation.chat = (function () {
     let finishAnchor = null;   // the reader's pinned line across all finish mutations (see onDone)
 
     function renderPrefix() {
-      body.innerHTML = Constellation.md.render(applyPhraseBans(bodyBuf.slice(0, Math.floor(revealedN))));
+      body.innerHTML = renderBodyHTML(applyPhraseBans(bodyBuf.slice(0, Math.floor(revealedN))));
       maybeScroll();
       updateJumpBtn();
       if (meta) updateMeta(meta, body.textContent);
@@ -1499,7 +1575,7 @@ Constellation.chat = (function () {
     el.classList.remove('editing');
     clearAttachEditControls(el);   // chips return to display-only (excluded state stays)
     const body = el.querySelector('.body');
-    if (body) { body.classList.add('md'); body.innerHTML = Constellation.md.render(original); enhanceCodeBlocks(body); }
+    if (body) { body.classList.add('md'); body.innerHTML = renderBodyHTML(original); enhanceCodeBlocks(body); }
     const bar = el.querySelector('.edit-bar');
     if (bar) {
       const actions = document.createElement('div');
@@ -1618,7 +1694,7 @@ Constellation.chat = (function () {
     const body = el.querySelector('.body');
     if (body) {
       body.classList.add('md');
-      body.innerHTML = Constellation.md.render(content);
+      body.innerHTML = renderBodyHTML(content);
       enhanceCodeBlocks(body);
       if (window.Constellation && window.Constellation.colorfx) window.Constellation.colorfx.tagColors(body);
     }
@@ -1651,7 +1727,7 @@ Constellation.chat = (function () {
     if (!m) return;
     el.__raw = m.content || '';   // keep copy/edit on the active variant's raw source
     const body = el.querySelector('.body');
-    if (body) { body.classList.remove('caret'); body.style.color = ''; body.innerHTML = Constellation.md.render(m.content || ''); enhanceCodeBlocks(body); }
+    if (body) { body.classList.remove('caret'); body.style.color = ''; body.innerHTML = renderBodyHTML(m.content || ''); enhanceCodeBlocks(body); }
     const think = el.querySelector('.think-block');
     if (think) {
       if (m.reasoning) { think.hidden = false; think.open = false; const tb = think.querySelector('.think-body'); if (tb) tb.textContent = m.reasoning; }

@@ -157,7 +157,13 @@ Constellation.cast = (function () {
     closeStart();
     const cc = CC();
     let presets = [];
-    try { presets = await window.api.listPresets() || []; } catch (e) { console.warn('[constellation]', e && e.message || e); }
+    // The list API returns only {id, name} — the start screen needs each preset's TEXT,
+    // so load the full record per id. (The old code read p.system straight off the
+    // stripped list, which silently resolved every preset to an empty base.)
+    try {
+      const list = await window.api.listPresets() || [];
+      presets = (await Promise.all(list.map((p) => window.api.loadPreset(p.id).catch(() => null)))).filter(Boolean);
+    } catch (e) { console.warn('[constellation]', e && e.message || e); }
     let defaultRp = '';
     try { defaultRp = ((await window.api.loadModes()).roleplay || ''); } catch (e) { console.warn('[constellation]', e && e.message || e); }
 

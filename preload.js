@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('api', {
   openrouterEndpoints: (modelId, refresh) => ipcRenderer.invoke('openrouter:endpoints', modelId, !!refresh),
   onConnectionsChanged: (cb) => { const h = (_e, d) => cb(d); ipcRenderer.on('connections:changed', h); return () => ipcRenderer.removeListener('connections:changed', h); },
   savePhraseBans: (text) => ipcRenderer.invoke('phrasebans:save', text),
+  loadDisplayFilters: () => ipcRenderer.invoke('displayfilters:load'),
+  saveDisplayFilters: (text) => ipcRenderer.invoke('displayfilters:save', text),
   loadModes: () => ipcRenderer.invoke('modes:load'),
   saveMode: (name, content) => ipcRenderer.invoke('modes:save', name, content),
   loadProject: () => ipcRenderer.invoke('project:load'),

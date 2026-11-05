@@ -1,6 +1,6 @@
 {
   "name": "constellation",
-  "version": "0.11.1",
+  "version": "0.11.2",
   "description": "A cosmic desktop writing & roleplay app for GLM",
   "main": "main.js",
   "scripts": {

@@ -425,6 +425,19 @@ function writeSettings(patch) {
 
 ipcMain.handle('config:save', (_e, patch) => writeSettings(patch));
 
+// ---------- Display filters (P1): display-only regex rules ----------
+// config/display-filters.txt, one rule per line: /pattern/flags => replacement
+// (JS regex flavor; replacement supports $1 backrefs; bare /pattern/flags = delete).
+// '#' lines are comments. DISPLAY-ONLY: applied when a message body is rendered —
+// the stored message, the context the model receives, and exports keep the raw text.
+ipcMain.handle('displayfilters:load', () => {
+  try { return fs.readFileSync(path.join(CONFIG_DIR, 'display-filters.txt'), 'utf8'); } catch (e) { return ''; }
+});
+ipcMain.handle('displayfilters:save', (_e, text) => {
+  try { fs.mkdirSync(CONFIG_DIR, { recursive: true }); fs.writeFileSync(path.join(CONFIG_DIR, 'display-filters.txt'), String(text || ''), 'utf8'); return { ok: true }; }
+  catch (e) { return { ok: false }; }
+});
+
 // ---------- IPC: mode prompts ----------
 ipcMain.handle('phrasebans:save', (_e, text) => {
   try { fs.mkdirSync(CONFIG_DIR, { recursive: true }); fs.writeFileSync(PHRASE_BANS_FILE, String(text || ''), 'utf8'); return { ok: true }; }
