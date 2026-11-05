@@ -12,6 +12,7 @@ Constellation.chat = (function () {
   const jumpBtn = document.getElementById('jumpBottom');
   const ctxMeter = document.getElementById('ctxMeter');
   const topModel = document.getElementById('topModel');
+  const compose = Constellation.compose;   // src/js/compose.js — pure request assembly (system, macros, fence, lore, trim)
 
   let roleplayPrompt = '';
   let projectInstructions = '';
@@ -58,12 +59,7 @@ Constellation.chat = (function () {
   }
   function updateJumpBtn() { if (jumpBtn) jumpBtn.hidden = atBottom(); }
 
-  // The newest user message — the one whose attachments still go out when "send attachments"
-  // is off. One shared rule so the composer (toApiMessages) and the context meter can't drift.
-  function lastUserIndex(list) {
-    for (let i = list.length - 1; i >= 0; i--) { if (list[i].role === 'user') return i; }
-    return -1;
-  }
+  // (lastUserIndex now lives in Constellation.compose — one shared rule for composer + meter.)
 
   // --- Scroll preservation across a reply's finish ---
   // Finishing mutates layout ABOVE the reader's line (final markdown re-render, code-block toolbars,
@@ -128,7 +124,7 @@ Constellation.chat = (function () {
     const _diagT0 = performance.now();
     try {
     let lastUserIdx = -1;
-    if (opts.sendAttachments === false) lastUserIdx = lastUserIndex(conversation);
+    if (opts.sendAttachments === false) lastUserIdx = compose.lastUserIndex(conversation);
     let chars = 0;
     for (const m of conversation) {
       chars += (m.content || '').length;   // includes the system message (your instructions)
@@ -221,50 +217,15 @@ Constellation.chat = (function () {
     });
   }
 
-  // Render attached .md/.txt files as delimited blocks (the model sees these as reference context).
-  function filesBlock(files) {
-    if (!files || !files.length) return '';
-    return files.map((f) => '===== ' + f.name + ' (' + (f.text || '').length + ' chars) =====\n' + (f.text || '')).join('\n\n');
-  }
-  // The immersion grammar, taught to the model when the toggle is on. Restraint is the whole
-  // game: the mandate is a few devices per story, chosen by the moment, never explained.
-  function immersionBlock() {
-    return [
-      '# Prose typography — immersion grammar',
-      'You shape this story with typographic registers. They are part of the prose, never mentioned by you.',
-      'Rules of restraint: plain prose is the default. Use at most one or two devices per scene, and only when the moment earns it. Never stack everything. Never explain the marks.',
-      '- `<< line` — the origin/self world (flush left, italic). `>> line` — the present/other world (flush right, bold). For montages, contrasts, thesis couplets. The axis is origin vs here, NOT good vs bad — painful memories still belong to the self column.',
-      '- Pacing: collapse to short fragments at peak stress; open into long connected sentences at calm. White space is a tempo instrument.',
-      '- `!!words!!` — compressed panic. `::w o r d s::` — dissociation, reality thinning (you space the letters). Mirror images; never both at once, and rarely.',
-      '- `{{word}}` — a whisper, the barely-said.',
-      '- `~words~` — speech the POV character does not truly understand (foreign, machine, dream). The reader may understand it; the character must not.',
-      '- `==word==` — the single word a scene turns on. At most once per scene.',
-      '- `||text||` — gated content the reader chooses to reveal (hover/click). Reserve for the worst moments.',
-      '- A line starting `@ ` — a cinematic establisher of time/place, like a shot change.',
-      '- A paragraph starting `^` opens with a drop cap — scene or chapter openings only.',
-      '- A block between `%%` lines is a centered interlude (verse, ritual, refrain).',
-      '- `[[message]]` — an on-screen text or written note; `[[>message]]` — one the POV character sends.',
-      '- A fenced code block tagged `file` renders as a flat document or dossier.',
-    ].join('\n');
-  }
-
-  function buildSystem() {
-    // Project instructions no longer sit here — they ride the NEWEST user turn at compose
-    // time (see toApiMessages), the bottom of the context, closest to generation.
-    return [
-      roleplayPrompt,
-      filesBlock(systemFiles),
-      filesBlock(projectFiles),
-      opts.immersion && immersionBlock(),
-    ].filter(Boolean).join('\n\n');
-  }
+  // (filesBlock / immersionBlock / buildSystem now live in Constellation.compose —
+  // buildSystem({ roleplayPrompt, systemFiles, projectFiles, immersion }).)
 
   function setPrompts({ roleplay, project, systemFiles: sFiles, projectFiles: pFiles }) {
     if (roleplay !== undefined) roleplayPrompt = (roleplay || '').trim();
     if (project !== undefined) projectInstructions = (project || '').trim();
     if (sFiles !== undefined) systemFiles = Array.isArray(sFiles) ? sFiles : [];
     if (pFiles !== undefined) projectFiles = Array.isArray(pFiles) ? pFiles : [];
-    const sys = buildSystem();
+    const sys = compose.buildSystem({ roleplayPrompt: roleplayPrompt, systemFiles: systemFiles, projectFiles: projectFiles, immersion: opts.immersion });
     if (conversation[0] && conversation[0].role === 'system') conversation[0].content = sys;
     else conversation.unshift({ role: 'system', content: sys });
     updateContextMeter();
@@ -388,7 +349,7 @@ Constellation.chat = (function () {
     } catch (e) { console.warn('[constellation]', e && e.message || e); }
     try { projectInstructions = ((await window.api.loadProject()) || '').trim(); } catch (e) { console.warn('[constellation]', e && e.message || e); }
 
-    conversation = [{ role: 'system', content: buildSystem() }];
+    conversation = [{ role: 'system', content: compose.buildSystem({ roleplayPrompt: roleplayPrompt, systemFiles: systemFiles, projectFiles: projectFiles, immersion: opts.immersion }) }];
 
     let cfg = { hasKey: false, model: 'glm-5.2' };
     try { cfg = await window.api.loadConfig(); } catch (e) { console.warn('[constellation]', e && e.message || e); }
@@ -619,119 +580,16 @@ Constellation.chat = (function () {
     }
   }
 
-  // Expand a user message's typed text + any attached file contents for the API.
-  // Excluded files (the eye in edit mode) stay in the chat but never reach the model.
-  function composeUserContent(m) {
-    let out = m.content || '';
-    const files = (m.files || []).filter((f) => !f.excluded);
-    if (files.length) {
-      const blocks = files.map((f) =>
-        '===== Attached file: ' + f.name + ' (' + (f.text || '').length + ' chars) =====\n' + (f.text || '')
-      ).join('\n\n');
-      out += (out ? '\n\n' : '') + blocks;
-    }
-    return out;
-  }
+  // (composeUserContent + toApiMessages now live in Constellation.compose — pure request
+  // assembly: attachments, preserved thinking, lore section, writer's hand, project
+  // fence, send-time macros. Call: compose.toApiMessages(opts, projectInstructions,
+  // loreCtx, list).)
 
   // Conversation with attached file contents inlined (what actually goes to GLM).
   // What actually goes to GLM. When thinking is on we ALSO return each prior assistant turn's
   // reasoning_content verbatim (GLM "Preserved Thinking") so the model keeps reasoning continuity
   // across turns instead of re-deriving everything from scratch each time. The reasoning we stored
   // is the exact, unedited concatenation of the model's own reasoning_content deltas.
-  function toApiMessages(loreCtx, src) {
-    const list = src || conversation;
-    const preserve = !!opts.thinking && opts.preservedThinking !== false;   // GLM Preserved Thinking (user-adjustable)
-    // "Send attachments" off → only the NEWEST user message keeps its files/images; older ones are
-    // context ballast that can trip moderation, but the fresh attachment is the one being asked about.
-    let lastUserIdx = -1;
-    if (opts.sendAttachments === false) lastUserIdx = lastUserIndex(list);
-    const out = list.map((m, i) => {
-      if (m.role === 'user' && m.files && m.files.length) {
-        const suppressed = opts.sendAttachments === false && i !== lastUserIdx;
-        const files = suppressed ? [] : m.files.filter((f) => !f.excluded);
-        if (!files.length) return { role: 'user', content: m.content };   // nothing sendable left
-        const imgs = files.filter((f) => f.kind === 'image' && f.dataUrl);
-        if (imgs.length) {
-          // Multimodal content array: the typed text (+ any text files) then each image, for a vision model.
-          const textParts = [m.content || ''].concat(
-            files.filter((f) => f.kind !== 'image').map((f) => '===== ' + f.name + ' =====\n' + (f.text || ''))
-          );
-          const textJoin = textParts.filter(Boolean).join('\n\n');
-          const arr = [];
-          if (textJoin) arr.push({ type: 'text', text: textJoin });
-          for (const f of imgs) arr.push({ type: 'image_url', image_url: { url: f.dataUrl } });
-          return { role: 'user', content: arr };
-        }
-        return { role: 'user', content: composeUserContent(m) };   // text files only → single string
-      }
-      const o = { role: m.role, content: m.content };
-      if (preserve && m.role === 'assistant' && m.reasoning) o.reasoning_content = m.reasoning;
-      return o;
-    });
-    // Lorebook: inject only the RELEVANT world context (constant entries + keyword matches + the
-    // top BM25 passages from big reference docs) as a clearly-labeled section. `loreCtx` (if passed)
-    // is reused so the request and the 🌍 log stay in sync.
-    const lc = loreCtx != null ? loreCtx : buildLoreContext();
-    if (lc.body && out[0] && out[0].role === 'system') {
-      out[0] = { role: 'system', content: out[0].content + '\n\n# World\nBackground facts about this world (true; use as context):\n\n' + lc.body };
-    }
-    // The writer's hand (optional, off by default): your sculpted edits, shown to the model as the
-    // voice it should lean toward. Disabled, edits stay entirely private to the story.
-    if (opts.teachEdits && out[0] && out[0].role === 'system') {
-      const pairs = list.filter((m) => m.role === 'assistant' && m.edited && m.orig && m.orig !== m.content);
-      if (pairs.length) {
-        const lines = pairs.slice(-10).map((m) => {
-          const o = String(m.orig).replace(/\s+/g, ' ').trim().slice(0, 140);
-          const n = String(m.content).replace(/\s+/g, ' ').trim().slice(0, 140);
-          return '· "' + o + '" → "' + n + '"';
-        });
-        out[0] = { role: 'system', content: out[0].content + '\n\n# The writer\u2019s hand\nThe writer edits your replies after the fact; their edited wording is the voice they want. Lean toward it naturally — never mention or quote these notes.\n' + lines.join('\n') };
-      }
-    }
-    // Project instructions ride the NEWEST user turn — the bottom of the context, appended
-    // here at compose time ONLY. Nothing is stored in the chat (UI, session files, and lore
-    // keyword scanning all see the clean prompt); the ◐ inspector sees exactly this. The
-    // block survives context trimming because trimForApi always keeps the latest turn, and
-    // its cost is counted because the window estimate runs on what this returns.
-    if (projectInstructions) {
-      const fence = '\n\n<project_instructions>\n' + projectInstructions + '\n</project_instructions>';
-      for (let i = out.length - 1; i >= 0; i--) {
-        if (out[i].role !== 'user') continue;
-        if (typeof out[i].content === 'string') {
-          if (out[i].content.indexOf('<project_instructions>') === -1) out[i].content += fence;
-        } else if (Array.isArray(out[i].content)) {
-          const t = out[i].content.find((p) => p && p.type === 'text');
-          if (t) { if (String(t.text || '').indexOf('<project_instructions>') === -1) t.text = String(t.text || '') + fence; }
-          else out[i].content.push({ type: 'text', text: fence.trim() });
-        }
-        break;
-      }
-    }
-    // Send-time macros (the prompt-engine primitives): {{turn}} {{roll:NdM}} {{random:…}}
-    // {{time}} {{date}}. TWO surfaces with TWO lifetimes: SYSTEM + fence macros refresh
-    // every send ({{turn}} must say the current turn); MESSAGE-BODY macros are frozen by
-    // send()/edit-resend BEFORE this point (the stored text holds the resolved value — a
-    // rolled die never re-rolls). This pass catches what's left live: the system copy and
-    // any macro still standing in the newest user turn (dry-runs, probes, future callers).
-    // Chats that never write a macro are byte-identical: only matches are rewritten.
-    if (out[0] && out[0].role === 'system' && MACRO_HINT.test(out[0].content)) {
-      out[0] = { role: 'system', content: applySendMacros(out[0].content) };
-    }
-    for (let i = out.length - 1; i >= 0; i--) {
-      if (out[i].role !== 'user') continue;
-      if (typeof out[i].content === 'string' && MACRO_HINT.test(out[i].content)) {
-        out[i] = { role: 'user', content: applySendMacros(out[i].content) };
-      } else if (Array.isArray(out[i].content)) {
-        const t = out[i].content.find((p) => p && p.type === 'text');
-        if (t && MACRO_HINT.test(String(t.text || ''))) {
-          const copy = out[i].content.map((p) => p === t ? { type: 'text', text: applySendMacros(String(t.text || '')) } : p);
-          out[i] = { role: 'user', content: copy };
-        }
-      }
-      break;   // newest user turn only
-    }
-    return out;
-  }
 
   // ---- Display filters (P1): display-only regex rules from config/display-filters.txt.
   // Format: one rule per line — /pattern/flags => replacement  (bare pattern = delete).
@@ -836,47 +694,9 @@ Constellation.chat = (function () {
     }
   }
 
-  // Does this text carry any macro we substitute? (Module scope: send() consults it to
-  // decide whether to freeze-resolve a message before it's stored.)
-  const MACRO_HINT = /\{\{\s*(turn|roll|random|time|date)/i;
-
-  // ---- Send-time macro engine (P3/P6). Pure text → text; called from toApiMessages on
-  // the request copy. Supports ST's double-colon variants ({{roll::2d6}}) alongside the
-  // single-colon form. {{turn}} is DERIVED from the conversation (count of user messages)
-  // rather than stored — a fork inherits the true count automatically and nothing can drift.
-  function applySendMacros(text) {
-    const turns = conversation.filter((m) => m.role === 'user').length;
-    const roll = (n, sides) => {
-      let sum = 0;
-      for (let i = 0; i < n; i++) sum += 1 + Math.floor(Math.random() * sides);
-      return sum;
-    };
-    return String(text)
-      .replace(/\{\{\s*turn\s*\}\}/gi, String(turns))
-      .replace(/\{\{\s*roll\s*:{1,2}\s*(\d*)d(\d+)\s*\}\}/gi, (m, n, s) => String(roll(Math.max(1, parseInt(n || '1', 10)), parseInt(s, 10))))
-      .replace(/\{\{\s*random\s*:{1,2}\s*([^}]+?)\s*\}\}/gi, (m, list) => {
-        const parts = String(list).includes('::') ? String(list).split('::') : String(list).split(',');
-        const opts = parts.map((x) => x.trim()).filter(Boolean);
-        return opts.length ? opts[Math.floor(Math.random() * opts.length)] : '';
-      })
-      .replace(/\{\{\s*time\s*\}\}/gi, new Date().toLocaleTimeString())
-      .replace(/\{\{\s*date\s*\}\}/gi, new Date().toLocaleDateString());
-  }
-
-  // Sliding context window: if a token cap is set, drop the OLDEST middle turns from what's sent
-  // (keeping the system message + the latest turn) until the estimate fits. The saved conversation
-  // is never touched — this only trims the array handed to the API.
-  function trimForApi(msgs) {
-    const win = Number(opts.contextWindow) || 0;
-    if (!win) return msgs;
-    const sys = msgs[0] && msgs[0].role === 'system' ? msgs[0] : null;
-    let body = sys ? msgs.slice(1) : msgs.slice();
-    if (body.length <= 1) return msgs;
-    const est = (arr) => Math.ceil(arr.reduce((n, m) => n + (m.content || '').length + (m.reasoning_content || '').length, 0) / 4);
-    while (body.length > 1 && est(sys ? [sys].concat(body) : body) > win) body = body.slice(1);
-    while (body.length > 1 && body[0].role === 'assistant') body = body.slice(1);   // keep it leading with a user turn
-    return sys ? [sys].concat(body) : body;
-  }
+  // (MACRO_HINT, applySendMacros, trimForApi, estTokens now live in Constellation.compose —
+  // applySendMacros(text, turns) takes the turn count explicitly; trimForApi takes the
+  // context window. The send path freezes message-body macros BEFORE storing them.)
 
   // (Lorebook retrieval engine — tokenizing, chunking, BM25, fusion — now lives in
   //  Constellation.engines.lore, shared with the CLI so both run identical code. loreQuery stays
@@ -919,7 +739,7 @@ Constellation.chat = (function () {
     const conv = base.concat([{ role: 'user', content: String(msg || '') }]);
     const recentText = conv.filter((m) => m.role !== 'system').slice(-4).map((m) => m.content || '').join('\n');
     const lc = await Constellation.engines.lore.buildLoreContext(activeLore, recentText, loreEmbedFn());
-    let reqMsgs = trimForApi(toApiMessages(lc, conv));
+    let reqMsgs = compose.trimForApi(opts.contextWindow, compose.toApiMessages(opts, projectInstructions, lc, conv));
     const trimmedMessages = Math.max(0, conv.length - reqMsgs.filter((m) => m.role !== 'system').length);   // silent trimming misattributed to prompts is a lab's worst false positive
     if (system != null && String(system).length) {
       const stripped = reqMsgs.filter((m) => m.role !== 'system');
@@ -942,13 +762,6 @@ Constellation.chat = (function () {
   function testBans(text) {
     const t = String(text || '');
     return { in: t, out: applyPhraseBans(t), rules: phraseBanRules.length };
-  }
-
-  // Rough token estimate (chars/4) of the messages actually sent — used for the usage tracker.
-  function estTokens(msgs) {
-    let c = 0;
-    for (const m of msgs) { c += (m.content || '').length; if (m.reasoning_content) c += m.reasoning_content.length; }
-    return Math.round(c / 4);
   }
 
   // Markdown rendering lives in Constellation.md (src/js/md.js).
@@ -1241,7 +1054,7 @@ Constellation.chat = (function () {
     // For a variant regen, the request excludes the message being re-answered (it's the last turn).
     const reqSrc = variantTarget ? conversation.slice(0, variantCi) : conversation;
     const _diagT0 = performance.now();
-    const reqMsgs = trimForApi(toApiMessages(loreCtx, reqSrc));
+    const reqMsgs = compose.trimForApi(opts.contextWindow, compose.toApiMessages(opts, projectInstructions, loreCtx, reqSrc));
     if (window.Constellation && window.Constellation.diag) window.Constellation.diag.span('compose', performance.now() - _diagT0);
     const seed = activePrefill;   // capture + clear: the drawer is strictly one-shot
     activePrefill = '';
@@ -1252,7 +1065,7 @@ Constellation.chat = (function () {
       // The seed is also prepended to the stored reasoning, so a prefill becomes tomorrow's steer.)
       reqMsgs.push({ role: 'assistant', content: '', reasoning_content: seed });
     }
-    usage.tokens += estTokens(reqMsgs);   // count this request's tokens (context actually sent)
+    usage.tokens += compose.estTokens(reqMsgs);   // count this request's tokens (context actually sent)
     usage.requests++;
     // Watchdog: a request that silently hangs (no tokens, no error) would leave busy=true forever —
     // dots looping and every action locked. Any activity resets it. Slow reasoners (Gemini's
@@ -1392,7 +1205,7 @@ Constellation.chat = (function () {
     // stored message (the drawer's copy gets scratched), so history forever shows the
     // number the model actually saw. System + fence macros keep refreshing by design —
     // {{turn}} at turn 7 should say 7.
-    const outText = MACRO_HINT.test(text) ? applySendMacros(text) : text;
+    const outText = compose.MACRO_HINT.test(text) ? compose.applySendMacros(text, conversation.filter((m) => m.role === 'user').length) : text;
     addMessage('user', outText, files);
     conversation.push({ role: 'user', content: outText, files: files.length ? files : undefined });
     inputEl.value = '';
@@ -1656,7 +1469,7 @@ Constellation.chat = (function () {
 
     save.addEventListener('click', () => {
       const typed = ta.value.trim();
-      const v = MACRO_HINT.test(typed) ? applySendMacros(typed) : typed;   // resend = a fresh send: new macros freeze anew
+      const v = compose.MACRO_HINT.test(typed) ? compose.applySendMacros(typed, conversation.filter((m) => m.role === 'user').length) : typed;   // resend = a fresh send: new macros freeze anew
       const files = el.__files || [];   // keep the message's existing attachments on resend
       el.dataset.editing = '';
       if (!v && !files.length) { restoreMessage(el, original); return; }
@@ -1938,7 +1751,7 @@ Constellation.chat = (function () {
 
   // Start a fresh empty chat (keeps the current system prompt + project instructions).
   function reset() {
-    conversation = [{ role: 'system', content: buildSystem() }];
+    conversation = [{ role: 'system', content: compose.buildSystem({ roleplayPrompt: roleplayPrompt, systemFiles: systemFiles, projectFiles: projectFiles, immersion: opts.immersion }) }];
     usage = { tokens: 0, requests: 0 };
     pendingFiles = [];
     lastRequest = null;   // the inspector shows per-chat sends; switching chats clears it
@@ -1970,7 +1783,7 @@ Constellation.chat = (function () {
       bulkScroll = true;
       const turns = (msgs || []).filter((m) => m.role === 'user' || m.role === 'assistant')
         .map((m) => ({ role: m.role, content: m.content, files: m.files, reasoning: m.reasoning, lore: m.lore, edited: m.edited, orig: m.orig, rOrig: m.rOrig, variants: m.variants, vActive: m.vActive }));
-      conversation = [{ role: 'system', content: buildSystem() }].concat(turns);
+      conversation = [{ role: 'system', content: compose.buildSystem({ roleplayPrompt: roleplayPrompt, systemFiles: systemFiles, projectFiles: projectFiles, immersion: opts.immersion }) }].concat(turns);
       for (const m of turns) {
         const r = addMessage(m.role, m.content, m.files, m.reasoning, m.lore, { edited: m.edited });
         if (m.role === 'assistant' && Array.isArray(m.variants) && m.variants.length > 1 && r && r.el) renderVariantNav(r.el);
@@ -2040,5 +1853,5 @@ Constellation.chat = (function () {
     }
   }
 
-  return { init, setPrompts, getPrompts, getOptions, persist, setOptions, setActiveLore, setPhraseBans, setDraft, scrollToMatch, scrollToMessage, refreshBookmarkGlyphs, reset, loadSession, getUserWriting, recentMessages, getState, testRetrieve, testBans, dryRun, applyDialogue, testCompose: (list) => toApiMessages(null, list) };
+  return { init, setPrompts, getPrompts, getOptions, persist, setOptions, setActiveLore, setPhraseBans, setDraft, scrollToMatch, scrollToMessage, refreshBookmarkGlyphs, reset, loadSession, getUserWriting, recentMessages, getState, testRetrieve, testBans, dryRun, applyDialogue, testCompose: (list) => compose.toApiMessages(opts, projectInstructions, null, list) };
 })();
