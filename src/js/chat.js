@@ -125,6 +125,8 @@ Constellation.chat = (function () {
   // only the newest user message's files do.
   function updateContextMeter() {
     if (!ctxMeter) return;
+    const _diagT0 = performance.now();
+    try {
     let lastUserIdx = -1;
     if (opts.sendAttachments === false) lastUserIdx = lastUserIndex(conversation);
     let chars = 0;
@@ -156,6 +158,9 @@ Constellation.chat = (function () {
     ctxMeter.textContent = trimming ? ('◐ ≈' + fmt(sent) + ' / ≈' + fmt(total)) : ('◐ ≈' + fmt(total));
     ctxMeter.title = (trimming ? ('Sending last ≈' + fmt(sent) + ' of ≈' + fmt(total) + ' tokens (context window on)') : ('Estimated conversation size (≈ until the tokenizer answers after a send)'))
                    + ' — click to see exactly what was sent';
+    } finally {
+      if (window.Constellation && window.Constellation.diag) window.Constellation.diag.span('context-meter', performance.now() - _diagT0);
+    }
   }
 
   // Export this chat as Obsidian-readable Markdown. A small popover gathers the
@@ -699,12 +704,12 @@ Constellation.chat = (function () {
       }
     }
     // Send-time macros (the prompt-engine primitives): {{turn}} {{roll:NdM}} {{random:…}}
-    // {{time}} {{date}} — fresh values EVERY send, substituted on the request copy only.
-    // The stored conversation keeps the literal macro text (so the next send re-rolls),
-    // and chats that never write a macro are byte-identical: the pass only rewrites what
-    // its regexes match. Applied to the system message and the outgoing user turn (which
-    // carries the fence) — the two live surfaces. ({{turn}} = user messages so far.)
-    const MACRO_HINT = /\{\{\s*(turn|roll|random|time|date)/i;
+    // {{time}} {{date}}. TWO surfaces with TWO lifetimes: SYSTEM + fence macros refresh
+    // every send ({{turn}} must say the current turn); MESSAGE-BODY macros are frozen by
+    // send()/edit-resend BEFORE this point (the stored text holds the resolved value — a
+    // rolled die never re-rolls). This pass catches what's left live: the system copy and
+    // any macro still standing in the newest user turn (dry-runs, probes, future callers).
+    // Chats that never write a macro are byte-identical: only matches are rewritten.
     if (out[0] && out[0].role === 'system' && MACRO_HINT.test(out[0].content)) {
       out[0] = { role: 'system', content: applySendMacros(out[0].content) };
     }
@@ -752,6 +757,10 @@ Constellation.chat = (function () {
     return out;
   }
   function renderBodyHTML(content) { return Constellation.md.render(applyDisplayFilters(content)); }
+
+  // Does this text carry any macro we substitute? (Module scope: send() consults it to
+  // decide whether to freeze-resolve a message before it's stored.)
+  const MACRO_HINT = /\{\{\s*(turn|roll|random|time|date)/i;
 
   // ---- Send-time macro engine (P3/P6). Pure text → text; called from toApiMessages on
   // the request copy. Supports ST's double-colon variants ({{roll::2d6}}) alongside the
@@ -1137,12 +1146,14 @@ Constellation.chat = (function () {
       if (revealedN < bodyBuf.length || streaming) {
         rafId = requestAnimationFrame(pump);
       } else {
+        const _diagT0 = performance.now();
         body.classList.remove('caret');
         renderPrefix();
         enhanceCodeBlocks(body);   // finished streaming -> add expand/collapse toggles
         if (window.Constellation && window.Constellation.colorfx) window.Constellation.colorfx.tagColors(body);   // tag colors in the finished reply
         if (finishAnchor) restoreScrollAnchor(finishAnchor);   // final render settled — put the reader's line back
         else scrollToBottom();   // the final re-parse can SHRINK content (~code blocks tighten); a bottom-pinned reader would fall with the clamp — re-pin
+        if (window.Constellation && window.Constellation.diag) window.Constellation.diag.span('finish-render', performance.now() - _diagT0);
         rafId = null;
       }
     }
@@ -1150,7 +1161,9 @@ Constellation.chat = (function () {
 
     // For a variant regen, the request excludes the message being re-answered (it's the last turn).
     const reqSrc = variantTarget ? conversation.slice(0, variantCi) : conversation;
+    const _diagT0 = performance.now();
     const reqMsgs = trimForApi(toApiMessages(loreCtx, reqSrc));
+    if (window.Constellation && window.Constellation.diag) window.Constellation.diag.span('compose', performance.now() - _diagT0);
     const seed = activePrefill;   // capture + clear: the drawer is strictly one-shot
     activePrefill = '';
     if (seed) {
@@ -1296,8 +1309,13 @@ Constellation.chat = (function () {
     contextExact = null;   // new content — the exact count is stale until the next tokenizer pass
     pendingFiles = [];
     renderChips();
-    addMessage('user', text, files);
-    conversation.push({ role: 'user', content: text, files: files.length ? files : undefined });
+    // Message-body macros FREEZE at first send: the resolved value is written into the
+    // stored message (the drawer's copy gets scratched), so history forever shows the
+    // number the model actually saw. System + fence macros keep refreshing by design —
+    // {{turn}} at turn 7 should say 7.
+    const outText = MACRO_HINT.test(text) ? applySendMacros(text) : text;
+    addMessage('user', outText, files);
+    conversation.push({ role: 'user', content: outText, files: files.length ? files : undefined });
     inputEl.value = '';
     autoGrow();
     updateContextMeter();
@@ -1558,7 +1576,8 @@ Constellation.chat = (function () {
     ta.setSelectionRange(ta.value.length, ta.value.length);
 
     save.addEventListener('click', () => {
-      const v = ta.value.trim();
+      const typed = ta.value.trim();
+      const v = MACRO_HINT.test(typed) ? applySendMacros(typed) : typed;   // resend = a fresh send: new macros freeze anew
       const files = el.__files || [];   // keep the message's existing attachments on resend
       el.dataset.editing = '';
       if (!v && !files.length) { restoreMessage(el, original); return; }

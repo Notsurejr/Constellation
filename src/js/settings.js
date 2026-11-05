@@ -686,6 +686,7 @@ Constellation.settings = (function () {
     $('backupBtn').addEventListener('click', backupExport);
     $('restoreBtn').addEventListener('click', backupRestore);
     const bmdb = $('backupMdBtn'); if (bmdb) bmdb.addEventListener('click', backupExportMarkdown);
+    const dbg = $('diagBtn'); if (dbg) dbg.addEventListener('click', () => { if (window.Constellation && window.Constellation.diag) window.Constellation.diag.captureAndSave(); });
     if ($('mdThinkingInput')) $('mdThinkingInput').addEventListener('change', saveTogglesNow);
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && $('settingsOverlay').classList.contains('open')) close();

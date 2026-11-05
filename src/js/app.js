@@ -144,6 +144,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (window.Constellation && window.Constellation.settings) {
     window.Constellation.settings.init();
   }
+  if (window.Constellation && window.Constellation.diag) {
+    window.Constellation.diag.init();   // flight recorder — boots early so the first events land
+  }
   if (window.Constellation && window.Constellation.sessions) {
     window.Constellation.sessions.init();
   }

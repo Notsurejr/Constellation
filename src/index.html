@@ -372,6 +372,14 @@
       </div>
 
       <div class="settings-section">
+        <h2>Diagnostics</h2>
+        <div class="hint">The app quietly records performance data while it runs — memory, slow frames, scroll movements, keystroke rate (counts only, never what you type), and how long the heavy steps take. If something stutters, jumps, or flares: click this right after it happens, and a text file with the evidence is written to the app data folder. Nothing is sent anywhere; the file is yours to read or share.</div>
+        <div class="settings-actions" style="justify-content:flex-start">
+          <button class="btn" id="diagBtn" type="button">Capture diagnostics report</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
         <h2>Connection <em class="hint-inline">global</em></h2>
         <div class="hint">Each connection = endpoint + its models + a key. <strong>Save connection</strong> stores everything shown — including the key (blank keeps the stored one). Keys live in <em>config\keys.json</em>, encrypted with Windows' credential protection (DPAPI); they never leave this machine and never enter backups. Chats route through whichever connection offers their model — the <em>default</em> row only decides where unknown/Custom models go.</div>
         <div class="conn-manager" id="connManager">
@@ -511,6 +519,7 @@
   <script src="lib/marked.umd.js"></script>
   <script src="js/md.js"></script>
   <script src="js/engines.js"></script>
+  <script src="js/diag.js"></script>
   <script src="js/colorfx.js"></script>
   <script src="js/constellations.js"></script>
   <script src="js/story-sky.js"></script>

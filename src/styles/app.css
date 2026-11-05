@@ -1321,6 +1321,10 @@ input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
 .sidebar-empty { color: var(--text-faint); font-size: 13px; padding: 14px 10px; }
 
 /* ---------- Round 2: top-bar model switcher, search, pin, match flash ---------- */
+/* Every dropdown's popup list, app-wide — the native UA default is bright white.
+   (Scoped option rules above were whack-a-mole; this covers cast, settings, and
+   anything added later.) */
+select option { background: #0b0e16; color: var(--text); }
 .top-model {
   font-family: var(--font-ui); font-size: 12px; color: var(--text);
   background: rgba(0,0,0,0.5); border: 1px solid var(--panel-border);

@@ -209,7 +209,19 @@ Constellation.colorfx = (function () {
   let lastFlareKey = '';
 
   // --- The scan: finds nearby color words, drives flare + fires events ---
+  // Wrapper: skip the scan entirely when the chat hasn't moved (the rects can't have
+  // changed), and time what remains for the flight recorder. Every scroll event used to
+  // re-measure EVERY color word in the chat — in a long conversation that is real layout
+  // work per keystroke-nudge.
+  let lastScanTop = -1;
   function scan(messagesEl) {
+    if (messagesEl.scrollTop === lastScanTop) return;
+    lastScanTop = messagesEl.scrollTop;
+    const t0 = performance.now();
+    try { scanInner(messagesEl); }
+    finally { if (window.Constellation && window.Constellation.diag) window.Constellation.diag.span('colorfx.scan', performance.now() - t0); }
+  }
+  function scanInner(messagesEl) {
     const f = ensureFlare();
     const centerY = window.innerHeight / 2;
     const words = messagesEl.querySelectorAll('.colorword');
@@ -269,6 +281,7 @@ Constellation.colorfx = (function () {
         if (maxP > 0.6 && maxEl && !fired.has(maxEl) && now - (lastFiredAt.get(maxEl) || 0) > REFIRE_COOLDOWN_MS) {
           fired.add(maxEl);
           lastFiredAt.set(maxEl, now);
+          if (window.Constellation && window.Constellation.diag) window.Constellation.diag.note('flare', maxEl.textContent);   // flight recorder: WHEN flares fire, and next to what
           spawnEffect(nearby.find(function (n) { return n.el === maxEl; }).hex);
         }
       }

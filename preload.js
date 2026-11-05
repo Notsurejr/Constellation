@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('api', {
   savePhraseBans: (text) => ipcRenderer.invoke('phrasebans:save', text),
   loadDisplayFilters: () => ipcRenderer.invoke('displayfilters:load'),
   saveDisplayFilters: (text) => ipcRenderer.invoke('displayfilters:save', text),
+  diagReport: (payload) => ipcRenderer.invoke('diag:report', payload),
   loadModes: () => ipcRenderer.invoke('modes:load'),
   saveMode: (name, content) => ipcRenderer.invoke('modes:save', name, content),
   loadProject: () => ipcRenderer.invoke('project:load'),
@@ -111,7 +112,10 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('chat:retry', retryListener);
     ipcRenderer.on('chat:done', doneListener);
     ipcRenderer.on('chat:error', errListener);
-    ipcRenderer.invoke('chat:stream', { messages, opts, requestId });
+    // A throw INSIDE the main handler (no key set, bad endpoint at resolve time) rejects this
+    // invoke — route it to the same onError path or the composer stays "busy" until the
+    // watchdog (7 minutes) with no explanation shown.
+    ipcRenderer.invoke('chat:stream', { messages, opts, requestId }).catch((e) => { cleanup(); if (onError) onError(String((e && e.message) || e)); });
     return requestId;
   },
 });

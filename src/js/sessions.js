@@ -301,6 +301,7 @@ Constellation.sessions = (function () {
   }
 
   async function saveCurrent(messages, system, project, gen, usage, systemFiles, projectFiles) {
+    const _diagT0 = performance.now();
     try {
       const title = currentTitle || deriveTitle(messages);
       const res = await window.api.saveSession({ id: currentId, title, messages, system, project, systemFiles, projectFiles, gen, usage, lore: currentLore });
@@ -308,6 +309,7 @@ Constellation.sessions = (function () {
       currentTitle = title;   // keep it across later auto-saves
       refresh();
     } catch (e) { console.warn('[constellation]', e && e.message || e); }
+    finally { if (window.Constellation && window.Constellation.diag) window.Constellation.diag.span('save+sidebar', performance.now() - _diagT0); }
   }
 
   // Create a new chat that branches off a conversation prefix (carrying the parent's instructions

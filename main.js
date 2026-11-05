@@ -438,6 +438,65 @@ ipcMain.handle('displayfilters:save', (_e, text) => {
   catch (e) { return { ok: false }; }
 });
 
+// ---------- Diagnostics: the flight recorder's main-process half ----------
+// Samples this process's memory every 15s (bounded ring); the renderer keeps its own
+// rings (heap, long frames, scroll trail, keystroke rate, flares, step timings). The
+// diag:report handler merges both halves into one human-readable text file.
+const DIAG_MAIN = [];
+setInterval(() => {
+  const m = process.memoryUsage();
+  if (DIAG_MAIN.length >= 80) DIAG_MAIN.shift();
+  DIAG_MAIN.push({ t: Date.now(), rss: Math.round(m.rss / 1048576), heap: Math.round(m.heapUsed / 1048576), ext: Math.round(m.external / 1048576) });
+}, 15000);
+ipcMain.handle('diag:report', (_e, payload) => {
+  try {
+    const p = payload || {};
+    const L = [];
+    const row = (a) => L.push(a.join('\t'));
+    L.push('CONSTELLATION DIAGNOSTIC REPORT');
+    L.push('captured\t' + new Date().toISOString());
+    L.push('version\t' + app.getVersion());
+    L.push('electron\t' + process.versions.electron);
+    L.push('platform\t' + process.platform + ' ' + process.arch);
+    L.push('main uptime\t' + Math.round(process.uptime() / 60) + ' min');
+    L.push('');
+    L.push('== MAIN PROCESS MEMORY (MB, 15s apart, oldest first) ==');
+    row(['time', 'rss', 'heap', 'external']);
+    for (const s of DIAG_MAIN) row([new Date(s.t).toISOString(), s.rss, s.heap, s.ext]);
+    L.push('');
+    L.push('== SNAPSHOT (renderer, at capture) ==');
+    const snap = p.snapshot || {};
+    for (const k of Object.keys(snap)) L.push(k + '\t' + JSON.stringify(snap[k]));
+    L.push('');
+    L.push('== RENDERER HEAP (KB, 15s apart, oldest first) ==');
+    row(['time', 'used', 'total']);
+    for (const s of (p.heap || [])) row([new Date(s.t).toISOString(), s.used, s.total]);
+    L.push('');
+    L.push('== LONG FRAMES (>50ms) ==');
+    for (const f of (p.frames || [])) row([new Date(f.t).toISOString(), f.ms + 'ms']);
+    L.push('');
+    L.push('== SCROLL TRAIL (delta>60px always kept; else at most one per 250ms) ==');
+    row(['time', 'scrollTop', 'deltaPx']);
+    for (const s of (p.scrolls || [])) row([new Date(s.t).toISOString(), s.top, s.jump]);
+    L.push('');
+    L.push('== KEYSTROKE RATE (per 10s bucket — counts only, never text) ==');
+    for (const k of (p.keys || [])) row([new Date(k.t).toISOString(), k.n]);
+    L.push('');
+    L.push('== EVENTS (color flares, render finishes, …) ==');
+    for (const e of (p.events || [])) row([new Date(e.t).toISOString(), e.kind, e.detail]);
+    L.push('');
+    L.push('== TIMING SPANS (ms) ==');
+    for (const s of (p.spans || [])) {
+      L.push(s.name + '\tlast ' + s.last + ' / max ' + s.max + ' / count ' + s.count);
+      for (const r of (s.rec || [])) row(['  ' + new Date(r.t).toISOString(), r.ms]);
+    }
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const file = path.join(USER_DATA_DIR, 'diagnostic-report-' + stamp + '.txt');
+    fs.writeFileSync(file, L.join('\n'), 'utf8');
+    return { ok: true, path: file };
+  } catch (e) { console.warn('[constellation]', e && e.message || e); return { ok: false }; }
+});
+
 // ---------- IPC: mode prompts ----------
 ipcMain.handle('phrasebans:save', (_e, text) => {
   try { fs.mkdirSync(CONFIG_DIR, { recursive: true }); fs.writeFileSync(PHRASE_BANS_FILE, String(text || ''), 'utf8'); return { ok: true }; }
@@ -483,15 +542,27 @@ function safeId(id) {
   return (typeof id === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(id)) ? id : null;
 }
 
+// Sidebar summaries, cached by file stat. The old handler re-read + re-parsed EVERY
+// session file on EVERY list call — and the sidebar refreshes after every send — so a
+// folder of long chats cost megabytes of JSON parsing per message (the "gets sluggish
+// in long back-and-forths" feeling). A stat-sync is a few microseconds per file; rows
+// re-read only when a file actually changed (mtimeMs + size).
+const SESSION_LIST_CACHE = new Map();   // filename -> { mtimeMs, size, row }
 ipcMain.handle('sessions:list', () => {
   try {
     fs.mkdirSync(SESSIONS_DIR, { recursive: true });
-    const list = fs.readdirSync(SESSIONS_DIR)
-      .filter((f) => f.endsWith('.json'))
+    const files = fs.readdirSync(SESSIONS_DIR).filter((f) => f.endsWith('.json'));
+    const list = files
       .map((f) => {
         try {
-          const d = JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, f), 'utf8'));
-          return { id: d.id || f.replace(/\.json$/, ''), title: d.title || 'Untitled', updatedAt: d.updatedAt || 0, pinned: !!d.pinned, hidden: !!d.hidden, usage: d.usage || { tokens: 0, requests: 0 }, parentId: d.parentId, parentTitle: d.parentTitle, folder: d.folder || null, character: d.character || null };
+          const p = path.join(SESSIONS_DIR, f);
+          const st = fs.statSync(p);
+          const c = SESSION_LIST_CACHE.get(f);
+          if (c && c.mtimeMs === st.mtimeMs && c.size === st.size) return c.row;
+          const d = JSON.parse(fs.readFileSync(p, 'utf8'));
+          const row = { id: d.id || f.replace(/\.json$/, ''), title: d.title || 'Untitled', updatedAt: d.updatedAt || 0, pinned: !!d.pinned, hidden: !!d.hidden, usage: d.usage || { tokens: 0, requests: 0 }, parentId: d.parentId, parentTitle: d.parentTitle, folder: d.folder || null, character: d.character || null };
+          SESSION_LIST_CACHE.set(f, { mtimeMs: st.mtimeMs, size: st.size, row: row });
+          return row;
         } catch (e) { return null; }
       })
       .filter(Boolean)
@@ -499,6 +570,7 @@ ipcMain.handle('sessions:list', () => {
         if ((!!a.pinned) !== (!!b.pinned)) return a.pinned ? -1 : 1;   // pinned chats first
         return (b.updatedAt || 0) - (a.updatedAt || 0);
       });
+    for (const k of SESSION_LIST_CACHE.keys()) if (!files.includes(k)) SESSION_LIST_CACHE.delete(k);   // dropped files drop their cache
     return list;
   } catch (e) { return []; }
 });

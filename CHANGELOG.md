@@ -1,5 +1,39 @@
 # Changelog
 
+## v0.11.3 — The Flight Recorder
+
+### New
+
+- **Diagnostics, on demand.** Settings → System → *Capture diagnostics report*. The app
+  quietly records performance data while it runs — memory (both processes, every 15s),
+  slow frames, scroll movements, keystroke rate (counts only, never what you type), when
+  color flares fire, and how long the heavy steps take (compose, finish render, saving).
+  When something stutters, jumps, or flares: click the button right after, and a
+  human-readable text file lands in the app data folder. Nothing is sent anywhere.
+- **Message macros now freeze at send.** A `{{roll:1d20}}` in your message resolves once
+  and the rolled value is written into the stored message — history forever shows the
+  number the model actually saw; it never silently re-rolls. (System-prompt and project-
+  instruction macros keep refreshing every send, as `{{turn}}` should.)
+
+### Fixed
+
+- **Failed sends no longer hang the composer.** If the main process rejected a request
+  outright (no key set, for instance), the error never reached the chat — the composer
+  sat "busy" for seven minutes with no explanation. Errors now surface as a toast
+  immediately and the composer releases.
+- **Dropdown popup lists are dark everywhere** — one app-wide rule replaces the
+  per-dropdown patchwork (the Cast start screen's greeting/preset/persona lists were the
+  last bright ones).
+
+### Faster
+
+- **The sidebar no longer re-reads every chat on disk after every send.** Session
+  summaries are cached and re-read only when a file actually changed — in a folder of
+  long chats this was megabytes of JSON parsing per message, which is a large part of
+  the "gets sluggish in long back-and-forths, fine after a restart" feeling.
+- The color-word scanner skips work entirely when the chat hasn't moved (every scroll
+  event used to re-measure every color word in the conversation).
+
 ## v0.11.2 — The Prompt Engine, First Slice
 
 ### Fixed
