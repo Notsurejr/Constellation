@@ -16,6 +16,15 @@ const OpenAI = _openai.default || _openai.OpenAI || _openai;
 // Markdown export builder — shared by per-chat export and the Markdown backup.
 const mdexport = require('./mdexport');
 
+// Dev/lab profile isolation, env-var shaped. Installed (packaged) builds always use the
+// OS app-data folder. A run straight from the repo (unpacked) defaults to the .lab-sandbox
+// profile so a dev launch can NEVER touch the installed app's live data; CONSTELLATION_USER_DATA
+// overrides the path for special cases (and works for packaged runs too). The CLI bridge
+// port follows the same rule: CONSTELLATION_PORT wins, else repo runs take 7332 so they
+// never fight the installed app's 7331.
+if (process.env.CONSTELLATION_USER_DATA) app.setPath('userData', process.env.CONSTELLATION_USER_DATA);
+else if (!app.isPackaged) app.setPath('userData', path.join(__dirname, '..', '.lab-sandbox', 'roaming', 'constellation'));
+
 // Writable user data lives in the OS app-data folder — safe inside a packaged .exe and
 // survives reinstalls/updates. (app.getPath is available once 'electron' is required.)
 const USER_DATA_DIR = app.getPath('userData');
@@ -1807,7 +1816,7 @@ async function handleCliHttp(req, res, token) {
 function startCliServer() {
   if (cliServer) return;
   if (!getSettings().cliServer) return;   // off by default
-  const PORT = 7331;
+  const PORT = Number(process.env.CONSTELLATION_PORT) || (app.isPackaged ? 7331 : 7332);
   const token = crypto.randomBytes(16).toString('hex');
   cliServer = http.createServer((req, res) => handleCliHttp(req, res, token));
   cliServer.on('error', () => { cliServer = null; });
