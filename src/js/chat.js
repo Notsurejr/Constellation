@@ -405,8 +405,12 @@ Constellation.chat = (function () {
     opts.sendAttachments = cfg.sendAttachments !== false;   // off = only the newest user message's files are sent
     opts.streamCps = cfg.streamCps ?? 0;
     opts.contextWindow = cfg.contextWindow ?? 0;
+    opts.dialogueStyle = cfg.dialogueStyle || 'off';
+    opts.cadenceMarks = cfg.cadenceMarks === true;
+    opts.streamInk = cfg.streamInk === true;
     setPhraseBans(cfg.phraseBans || '');
     loadDisplayFilters();   // display-only regex rules (config/display-filters.txt); fire-and-forget
+    applyDialogue();        // dialogue voice + cadence: config to md.js, class on <body>
     if (cfg.hasKey) setStatus('connected', 'ok');   // model lives in the top-bar dropdown next to this pill
     else setStatus('add your API key in Settings', 'err');
 
@@ -756,7 +760,81 @@ Constellation.chat = (function () {
     for (const r of displayFilters) out = out.replace(r.re, r.repl);
     return out;
   }
-  function renderBodyHTML(content) { return Constellation.md.render(applyDisplayFilters(content)); }
+  function renderBodyHTML(content, opts) { return Constellation.md.render(applyDisplayFilters(content), opts); }
+
+  // ---- dialogue voice + cadence + stream ink (Appearance settings, all off by default) ----
+  const DLG_CLASSES = ['dlg-chiaroscuro', 'dlg-glass', 'dlg-editorial', 'dlg-acoustic', 'dlg-dramatis'];
+  function applyDialogue(patch) {
+    if (patch) {
+      if (patch.dialogueStyle !== undefined) opts.dialogueStyle = patch.dialogueStyle;
+      if (patch.cadenceMarks !== undefined) opts.cadenceMarks = !!patch.cadenceMarks;
+      if (patch.streamInk !== undefined) opts.streamInk = !!patch.streamInk;
+    }
+    const md = window.Constellation && window.Constellation.md;
+    if (md && md.setDialogue) md.setDialogue({ style: opts.dialogueStyle || 'off', cadence: !!opts.cadenceMarks });
+    document.body.classList.remove.apply(document.body.classList, DLG_CLASSES.concat(['cadence-on']));
+    const st = opts.dialogueStyle || 'off';
+    if (DLG_CLASSES.indexOf('dlg-' + st) !== -1) document.body.classList.add('dlg-' + st);
+    if (opts.cadenceMarks) document.body.classList.add('cadence-on');
+    rerenderAllBodies();
+  }
+  function rerenderAllBodies() {
+    for (const el of messagesEl.querySelectorAll('.msg')) {
+      const body = el.querySelector('.body');
+      if (!body || el.__raw == null) continue;
+      body.innerHTML = renderBodyHTML(el.__raw);
+      enhanceCodeBlocks(body);
+      if (window.Constellation && window.Constellation.colorfx) window.Constellation.colorfx.tagColors(body);
+    }
+  }
+
+  // Streaming ink (edge case #1): the reveal re-renders innerHTML every ~40ms, which
+  // destroys and recreates the leading-edge nodes — a plain animation class would restart
+  // at t=0 on every tick. Instead each trailing word gets an inline NEGATIVE delay equal to
+  // its age behind the reveal cursor (age = charsBehind / cps × 1000ms), so every rebuilt
+  // node re-enters the keyframe at the exact millisecond the previous tick left off —
+  // continuous materialization with zero external state.
+  function inkEdge(body, cps) {
+    const win = Math.max(24, Math.ceil(cps * 0.55));   // only words younger than ~550ms
+    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT, null);
+    const tails = [];
+    while (walker.nextNode()) {
+      const n = walker.currentNode;
+      const p = n.parentElement;
+      if (!p) continue;
+      const tag = p.tagName.toLowerCase();
+      if (tag === 'code' || tag === 'pre' || p.classList.contains('tok-in')) continue;
+      tails.push(n);
+      if (tails.length > 40) tails.shift();
+    }
+    let dist = 0;   // rendered chars from the very end of the reply-so-far
+    for (let i = tails.length - 1; i >= 0 && dist < win; i--) {
+      const n = tails[i];
+      const parts = n.textContent.split(/(\s+)/);
+      const frag = document.createDocumentFragment();
+      for (let j = parts.length - 1; j >= 0; j--) {
+        const p = parts[j];
+        if (!p) continue;
+        if (/^\s+$/.test(p)) { frag.insertBefore(document.createTextNode(p), frag.firstChild); dist += p.length; continue; }
+        const ageMs = Math.round((dist / cps) * 1000);
+        if (ageMs < 480) {
+          const s = document.createElement('span');
+          s.className = 'tok-in';
+          s.style.animationDelay = '-' + ageMs + 'ms';
+          s.textContent = p;
+          frag.insertBefore(s, frag.firstChild);
+        } else {
+          frag.insertBefore(document.createTextNode(p), frag.firstChild);
+        }
+        dist += p.length;
+        if (dist >= win) {
+          for (let k = j - 1; k >= 0; k--) if (parts[k]) frag.insertBefore(document.createTextNode(parts[k]), frag.firstChild);
+          break;
+        }
+      }
+      n.parentNode.replaceChild(frag, n);
+    }
+  }
 
   // Does this text carry any macro we substitute? (Module scope: send() consults it to
   // decide whether to freeze-resolve a message before it's stored.)
@@ -1128,8 +1206,9 @@ Constellation.chat = (function () {
     const rate = opts.streamCps > 0 ? opts.streamCps : Infinity;   // chars/sec to reveal at
     let finishAnchor = null;   // the reader's pinned line across all finish mutations (see onDone)
 
-    function renderPrefix() {
-      body.innerHTML = renderBodyHTML(applyPhraseBans(bodyBuf.slice(0, Math.floor(revealedN))));
+    function renderPrefix(ink, streaming) {
+      body.innerHTML = renderBodyHTML(applyPhraseBans(bodyBuf.slice(0, Math.floor(revealedN))), { streaming: !!streaming });
+      if (ink && opts.streamInk && isFinite(rate)) inkEdge(body, rate);
       maybeScroll();
       updateJumpBtn();
       if (meta) updateMeta(meta, body.textContent);
@@ -1141,14 +1220,14 @@ Constellation.chat = (function () {
       lastTs = ts;
       if (revealedN < bodyBuf.length) {
         revealedN = isFinite(rate) ? Math.min(bodyBuf.length, revealedN + rate * dt) : bodyBuf.length;
-        if (ts - lastRender > 40) { renderPrefix(); lastRender = ts; }
+        if (ts - lastRender > 40) { renderPrefix(true, true); lastRender = ts; }
       }
       if (revealedN < bodyBuf.length || streaming) {
         rafId = requestAnimationFrame(pump);
       } else {
         const _diagT0 = performance.now();
         body.classList.remove('caret');
-        renderPrefix();
+        renderPrefix(false, false);
         enhanceCodeBlocks(body);   // finished streaming -> add expand/collapse toggles
         if (window.Constellation && window.Constellation.colorfx) window.Constellation.colorfx.tagColors(body);   // tag colors in the finished reply
         if (finishAnchor) restoreScrollAnchor(finishAnchor);   // final render settled — put the reader's line back
@@ -1961,5 +2040,5 @@ Constellation.chat = (function () {
     }
   }
 
-  return { init, setPrompts, getPrompts, getOptions, persist, setOptions, setActiveLore, setPhraseBans, setDraft, scrollToMatch, scrollToMessage, refreshBookmarkGlyphs, reset, loadSession, getUserWriting, recentMessages, getState, testRetrieve, testBans, dryRun, testCompose: (list) => toApiMessages(null, list) };
+  return { init, setPrompts, getPrompts, getOptions, persist, setOptions, setActiveLore, setPhraseBans, setDraft, scrollToMatch, scrollToMessage, refreshBookmarkGlyphs, reset, loadSession, getUserWriting, recentMessages, getState, testRetrieve, testBans, dryRun, applyDialogue, testCompose: (list) => toApiMessages(null, list) };
 })();

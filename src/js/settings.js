@@ -68,6 +68,9 @@ Constellation.settings = (function () {
       const lh = cfg.lineHeight != null ? cfg.lineHeight : 1.65;
       if ($('lineHeightInput')) { $('lineHeightInput').value = lh; $('lineHeightVal').textContent = Number(lh).toFixed(2); }
       if ($('measureInput')) $('measureInput').value = cfg.proseMeasure || 'off';
+      if ($('dialogueStyleInput')) $('dialogueStyleInput').value = cfg.dialogueStyle || 'off';
+      if ($('cadenceMarksInput')) $('cadenceMarksInput').checked = cfg.cadenceMarks === true;
+      if ($('streamInkInput')) $('streamInkInput').checked = cfg.streamInk === true;
       applyTypography(cfg.fontFamily || 'Literata', lh, cfg.proseMeasure || 'off');
       if ($('teachEditsInput')) $('teachEditsInput').checked = cfg.teachEdits === true;
       if ($('preservedThinkingInput')) $('preservedThinkingInput').checked = cfg.preservedThinking !== false;
@@ -402,7 +405,8 @@ Constellation.settings = (function () {
     const accent = $('accentInput').value;
     const starDensity = Number($('starDensityInput').value) / 100;
     const twinkleSpeed = Number($('twinkleInput').value) / 100;
-    await window.api.saveConfig({ font_scale: fontScale, chat_width: chatWidth, accent, star_density: starDensity, twinkle_speed: twinkleSpeed , font_family: ($('fontFamilyInput') ? $('fontFamilyInput').value : 'Literata'), line_height: parseFloat(($('lineHeightInput') ? $('lineHeightInput').value : 1.65)), prose_measure: ($('measureInput') ? $('measureInput').value : 'off') });
+    await window.api.saveConfig({ font_scale: fontScale, chat_width: chatWidth, accent, star_density: starDensity, twinkle_speed: twinkleSpeed , font_family: ($('fontFamilyInput') ? $('fontFamilyInput').value : 'Literata'), line_height: parseFloat(($('lineHeightInput') ? $('lineHeightInput').value : 1.65)), prose_measure: ($('measureInput') ? $('measureInput').value : 'off'), dialogue_style: ($('dialogueStyleInput') ? $('dialogueStyleInput').value : 'off') });
+    if (window.Constellation && window.Constellation.chat && window.Constellation.chat.applyDialogue) window.Constellation.chat.applyDialogue({ dialogueStyle: ($('dialogueStyleInput') ? $('dialogueStyleInput').value : 'off') });
     applyAppearanceVars(fontScale, chatWidth);
     applyAccent(accent);
     applyStarfield(starDensity, twinkleSpeed);
@@ -416,7 +420,15 @@ Constellation.settings = (function () {
       mood_sky: ($('moodSkyInput') && $('moodSkyInput').checked) ? 'on' : 'off',
       fx_events: ($('fxEventsInput') && $('fxEventsInput').checked) ? 'on' : 'off',
       md_thinking: ($('mdThinkingInput') && $('mdThinkingInput').checked) ? 'on' : 'off',
+      cadence_marks: ($('cadenceMarksInput') && $('cadenceMarksInput').checked) ? 'on' : 'off',
+      stream_ink: ($('streamInkInput') && $('streamInkInput').checked) ? 'on' : 'off',
     });
+    if (window.Constellation && window.Constellation.chat && window.Constellation.chat.applyDialogue) {
+      window.Constellation.chat.applyDialogue({
+        cadenceMarks: !!($('cadenceMarksInput') && $('cadenceMarksInput').checked),
+        streamInk: !!($('streamInkInput') && $('streamInkInput').checked),
+      });
+    }
   }
 
   // Push the current Color-atmosphere inputs to the live engine (used by every live slider + Save).
@@ -635,6 +647,9 @@ Constellation.settings = (function () {
       $('streamVal').textContent = cpsLabel(sliderToCps($('streamInput').value));
     });
     if ($('fontFamilyInput')) $('fontFamilyInput').addEventListener('change', () => { applyTypography($('fontFamilyInput').value, parseFloat($('lineHeightInput').value), $('measureInput').value); });
+    if ($('dialogueStyleInput')) $('dialogueStyleInput').addEventListener('change', () => { if (window.Constellation && window.Constellation.chat && window.Constellation.chat.applyDialogue) window.Constellation.chat.applyDialogue({ dialogueStyle: $('dialogueStyleInput').value }); });   // live preview — Save persists
+    if ($('cadenceMarksInput')) $('cadenceMarksInput').addEventListener('change', saveTogglesNow);   // toggles apply live AND persist immediately
+    if ($('streamInkInput')) $('streamInkInput').addEventListener('change', saveTogglesNow);
     if ($('lineHeightInput')) $('lineHeightInput').addEventListener('input', () => { $('lineHeightVal').textContent = Number($('lineHeightInput').value).toFixed(2); applyTypography($('fontFamilyInput').value, parseFloat($('lineHeightInput').value), $('measureInput').value); });
     if ($('measureInput')) $('measureInput').addEventListener('change', () => { applyTypography($('fontFamilyInput').value, parseFloat($('lineHeightInput').value), $('measureInput').value); });
     const tabsRail = $('settingsTabs');

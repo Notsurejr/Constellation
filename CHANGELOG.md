@@ -4,6 +4,25 @@
 
 ### New
 
+- **Dialogue voices.** Settings → Appearance → *Dialogue voice* — spoken lines stand apart
+  from narration, natively: the renderer finds paired double quotes (straight or curly)
+  and five voices style what they wrap. Nothing the model has to do; nothing stored
+  changes; off by default.
+  - **Chiaroscuro** — narration recedes (softened for long-form comfort), speech steps
+    into the light
+  - **Glass** — spoken lines sit on dark-glass pills, one per wrapped line
+  - **Editorial** — oversized sunken opening quotes, and a margin callout bar on
+    paragraphs that open with speech
+  - **Acoustic** — warm-to-cool gradient speech with a hairline soundwave underline
+    (color words and grammar spans keep their tints inside it)
+  - **Dramatis** — narration turns italic editorial, speech stays upright prose
+- **Cadence marks** (toggle) — em-dashes and ellipses get breathing room and a faint tint.
+- **Streaming ink** (toggle) — as a reply flows in, new words materialize: a blur of
+  candlelight settling into prose. Each word's animation resumes exactly where the last
+  redraw left it (age-derived negative delay), so the effect is continuous despite the
+  40ms re-render. Needs a flow rate above Instant. While a reply streams, an unclosed
+  quote already speaks in the active voice — it settles into a proper pair when the
+  closing quote arrives.
 - **The Cast panel is now a card gallery.** Characters stand as portrait tiles — avatar,
   name, creator, tags; no auto-summarized blurbs. Click a tile to open the full card,
   rendered exactly as the model receives it: description, personality, scenario, example

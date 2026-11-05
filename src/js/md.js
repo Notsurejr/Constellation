@@ -120,6 +120,148 @@ Constellation.md = (function () {
     }
   }
 
+  // ---- Dialogue voice: wrap spoken spans, natively (punctuation-only detection) ----
+  // A text-walking pass over the rendered DOM: paired double quotes (straight " and curly
+  // “ ” both, state machine resolves straight-quote ambiguity) become .dlg spans with the
+  // marks in their own .q spans. Nothing the model has to do; nothing stored changes.
+  // While STREAMING, an unclosed opening quote wraps to the end of its block so the voice
+  // is live from the first spoken word, then settles into a proper pair when the closing
+  // quote arrives.
+  let dlgCfg = { style: 'off', cadence: false };
+  function setDialogue(cfg) {
+    if (!cfg) return;
+    if (cfg.style !== undefined) dlgCfg.style = String(cfg.style);
+    if (cfg.cadence !== undefined) dlgCfg.cadence = !!cfg.cadence;
+  }
+  const isQ = (ch) => ch === '"' || ch === '\u201C' || ch === '\u201D';
+
+  function blockTextNodes(block) {
+    const doc = block.ownerDocument || document;
+    const walker = doc.createTreeWalker(block, NodeFilter.SHOW_TEXT, null);
+    const out = [];
+    while (walker.nextNode()) {
+      const n = walker.currentNode;
+      let p = n.parentElement, bad = false;
+      while (p && p !== block) { const tg = p.tagName && p.tagName.toLowerCase(); if (tg === 'code' || tg === 'pre') { bad = true; break; } p = p.parentElement; }
+      if (!bad && n.textContent) out.push(n);
+    }
+    return out;
+  }
+
+  function wrapSegment(doc, seg, block) {
+    // One quote → one .dlg span (marks as .q children). Segments wrap in reverse document
+    // order so earlier splitText calls never shift later indices.
+    const span = doc.createElement('span');
+    span.className = 'dlg';
+    const q = (node) => { const s = doc.createElement('span'); s.className = 'q'; s.appendChild(node); return s; };
+    if (seg.node === seg.node2) {
+      // Common case: both marks in one text node.  T = [prefix][open][content][close][tail]
+      const tail = seg.node.splitText(seg.mend);
+      const closeM = seg.node.splitText(seg.end);
+      const content = seg.node.splitText(seg.start);
+      const openM = seg.node.splitText(seg.mstart);
+      span.appendChild(q(openM)); span.appendChild(content); span.appendChild(q(closeM));
+      seg.node.parentNode.insertBefore(span, tail);
+    } else {
+      // The quote crosses an element boundary (e.g. "…**bold**…"): wrap each text chunk in
+      // its own .dlg span and TAG the whole inline elements between them, so formatted
+      // speech keeps the voice. Multiple .dlg fragments render as one voice under every
+      // treatment (pills/underlines clone per fragment — close enough, and rare).
+      const markA = seg.node.splitText(seg.mstart);   // starts with the opening mark char
+      const contentA = markA.splitText(1);            // markA = mark · contentA = rest of node A
+      if (contentA.length) span.appendChild(contentA);
+      const bTail = seg.node2.splitText(seg.mend);
+      const closeM = seg.node2.splitText(seg.end);    // node2 keeps [0,end) = content of node B
+      if (seg.node2.length) span.appendChild(seg.node2);
+      span.appendChild(q(markA)); span.appendChild(q(closeM));
+      seg.node2.parentNode.insertBefore(span, bTail);
+      // inline elements strictly between the two marks → same voice
+      try {
+        for (const elm of block.querySelectorAll('em, strong, b, i, a, del, span')) {
+          if (elm === span || elm.contains(span) || span.contains(elm)) continue;
+          const rA = seg.node.compareDocumentPosition(elm);
+          const rB = seg.node2.compareDocumentPosition(elm);
+          if ((rA & Node.DOCUMENT_POSITION_FOLLOWING) && (rB & Node.DOCUMENT_POSITION_PRECEDING)) elm.classList.add('dlg');
+        }
+      } catch (e) { /* compare hiccups must never break rendering */ }
+    }
+  }
+
+  function dialoguePass(root, streaming) {
+    const doc = root.ownerDocument || document;
+    const blocks = root.querySelectorAll('p, li');
+    for (const block of blocks) {
+      const texts = blockTextNodes(block);
+      if (!texts.length) continue;
+      // Phase 1 — find quote segments across the block's text nodes (state machine).
+      const segs = [];   // { node, mstart, start, node2, end, mend } (mark positions inclusive)
+      let open = null;
+      for (const n of texts) {
+        const t = n.textContent;
+        let i = 0;
+        while (i < t.length) {
+          if (!open) {
+            while (i < t.length && !isQ(t[i])) i++;
+            if (i >= t.length) break;
+            open = { node: n, idx: i };
+            i++;
+          } else {
+            while (i < t.length && !isQ(t[i])) i++;
+            if (i >= t.length) continue;   // still open into the next node
+            segs.push({ node: open.node, mstart: open.idx, start: open.idx + 1, node2: n, end: i, mend: i + 1 });
+            open = null;
+            i++;
+          }
+        }
+      }
+      if (open && streaming) {
+        const last = texts[texts.length - 1];
+        segs.push({ node: open.node, mstart: open.idx, start: open.idx + 1, node2: last, end: last.textContent.length, mend: last.textContent.length });
+      }
+      if (!segs.length) continue;
+      // A block whose first non-space character opens a quote is "dialogue-led" (Editorial's margin bar).
+      if (segs[0].node === texts[0] && !texts[0].textContent.slice(0, segs[0].mstart).trim()) block.classList.add('has-lead-dlg');
+      // Phase 2 — wrap (reverse order keeps indices stable).
+      for (let s = segs.length - 1; s >= 0; s--) {
+        try { wrapSegment(doc, segs[s], block); } catch (e) { /* never break rendering for a quote */ }
+      }
+    }
+  }
+
+  // Cadence: em/en-dashes and ellipses get breathing room and a faint tint.
+  const CADENCE_RE = /(\u2014|\u2013|\u2026|\.{3})/g;
+  function cadencePass(root) {
+    const doc = root.ownerDocument || document;
+    const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    const nodes = [];
+    while (walker.nextNode()) {
+      const n = walker.currentNode;
+      const p = n.parentElement;
+      if (!p) continue;
+      const tag = p.tagName.toLowerCase();
+      if (tag === 'code' || tag === 'pre') continue;
+      if (CADENCE_RE.test(n.textContent)) nodes.push(n);
+      CADENCE_RE.lastIndex = 0;
+    }
+    for (const n of nodes) {
+      const text = n.textContent;
+      const frag = doc.createDocumentFragment();
+      let last = 0, m;
+      CADENCE_RE.lastIndex = 0;
+      while ((m = CADENCE_RE.exec(text)) !== null) {
+        if (m.index > last) frag.appendChild(doc.createTextNode(text.slice(last, m.index)));
+        const s = doc.createElement('span');
+        s.className = 'cadence';
+        s.textContent = m[0];
+        frag.appendChild(s);
+        last = m.index + m[0].length;
+      }
+      if (last === 0) continue;
+      if (last < text.length) frag.appendChild(doc.createTextNode(text.slice(last)));
+      n.parentNode.replaceChild(frag, n);
+    }
+  }
+
   // Strip scripts, event handlers, and javascript:/data:html URLs from a parsed fragment.
   function sanitizeFragment(root) {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, null);
@@ -142,7 +284,7 @@ Constellation.md = (function () {
     }
     for (const k of kill) k.remove();
   }
-  function render(text) {
+  function render(text, opts) {
     const src = String(text == null ? '' : text);
     if (!window.marked) return escapeHtml(src).replace(/\n/g, '<br>');
     ensureMarked();
@@ -152,8 +294,16 @@ Constellation.md = (function () {
     const tpl = document.createElement('template');
     tpl.innerHTML = html;
     try { postGrammar(tpl.content); } catch (e) { console.warn('[constellation]', e && e.message || e); }
+    // Dialogue voice + cadence marks — skipped entirely when both are off (the default),
+    // so normal chats render exactly as they always did.
+    if (dlgCfg.style !== 'off' || dlgCfg.cadence) {
+      try {
+        if (dlgCfg.style !== 'off') dialoguePass(tpl.content, !!(opts && opts.streaming));
+        if (dlgCfg.cadence) cadencePass(tpl.content);
+      } catch (e) { console.warn('[constellation]', e && e.message || e); }
+    }
     sanitizeFragment(tpl.content);
     return tpl.innerHTML;
   }
-  return { render, escape: escapeHtml };
+  return { render, escape: escapeHtml, setDialogue };
 })();

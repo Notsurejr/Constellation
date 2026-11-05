@@ -290,6 +290,25 @@
           </select>
         </label>
         <label class="field">
+          <span>Dialogue voice <em class="hint-inline">how spoken lines stand apart in replies — nothing the model has to do</em></span>
+          <select id="dialogueStyleInput">
+            <option value="off">Off — dialogue matches narration</option>
+            <option value="chiaroscuro">Chiaroscuro — narration recedes, speech steps into the light</option>
+            <option value="glass">Glass — spoken lines on dark-glass pills</option>
+            <option value="editorial">Editorial — oversized quotes, margin callout bars</option>
+            <option value="acoustic">Acoustic — warm-to-cool gradient speech, soundwave underline</option>
+            <option value="dramatis">Dramatis — narration turns italic editorial, speech stays upright</option>
+          </select>
+        </label>
+        <label class="field checkbox">
+          <input type="checkbox" id="cadenceMarksInput" />
+          <span>Cadence marks — em-dashes and ellipses get breathing room and a faint tint</span>
+        </label>
+        <label class="field checkbox">
+          <input type="checkbox" id="streamInkInput" />
+          <span>Streaming ink — new words materialize as the reply flows in (needs a flow rate above Instant)</span>
+        </label>
+        <label class="field">
           <span>Accent color <em class="hint-inline">recolors the stars' light</em></span>
           <input type="color" id="accentInput" value="#9fb8ff" />
         </label>

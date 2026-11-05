@@ -1928,3 +1928,83 @@ input.num::-webkit-outer-spin-button, input.num::-webkit-inner-spin-button { opa
 }
 .chronicle-cfg-prompt:focus { border-color: var(--accent-dim); }
 .chronicle-cfg .chronicle-model { width: 100%; box-sizing: border-box; }
+
+/* ---- Dialogue voices (Appearance → Dialogue voice; assistant replies only) ----
+   .dlg spans are wrapped natively by md.js from paired quotes; .q are the marks.
+   All five are display-only and mutually exclusive via a body-level class. */
+/* 1 · Chiaroscuro — narration recedes ~30% softer than the demo (long-form comfort),
+      speech steps forward */
+body.dlg-chiaroscuro .msg.assistant .body p,
+body.dlg-chiaroscuro .msg.assistant .body li { color: #8f98ae; }
+body.dlg-chiaroscuro .msg.assistant .body .dlg {
+  color: #f6f1e4; font-weight: 500;
+  text-shadow: 0 0 18px rgba(246, 231, 200, 0.16);
+}
+body.dlg-chiaroscuro .msg.assistant .body .dlg .q { color: #d3c69f; }
+
+/* 2 · Glass — each wrapped line its own dark-glass pill */
+body.dlg-glass .msg.assistant .body .dlg {
+  color: #eff2f9; font-weight: 460;
+  background: linear-gradient(180deg, rgba(159,184,255,0.10) 0%, rgba(159,184,255,0.03) 100%);
+  border-top: 1px solid rgba(159,184,255,0.24);
+  border-bottom: 1px solid rgba(0,0,0,0.5);
+  border-radius: 5px; padding: 0.06em 0.3em;
+  box-decoration-break: clone; -webkit-box-decoration-break: clone;
+}
+body.dlg-glass .msg.assistant .body .dlg .q { color: var(--accent); }
+
+/* 3 · Editorial — oversized sunken opening quote, margin callout on dialogue-led blocks */
+body.dlg-editorial .msg.assistant .body .dlg { color: #efe6cf; font-weight: 470; }
+body.dlg-editorial .msg.assistant .body .dlg > .q:first-child {
+  font-size: 1.7em; line-height: 0; position: relative; top: 0.22em;
+  margin-right: 0.04em; color: var(--accent); opacity: 0.8; font-weight: 400;
+}
+body.dlg-editorial .msg.assistant .body .dlg > .q:last-child { color: var(--accent); opacity: 0.6; }
+body.dlg-editorial .msg.assistant .body p.has-lead-dlg,
+body.dlg-editorial .msg.assistant .body li.has-lead-dlg {
+  border-left: 2px solid rgba(159,184,255,0.30); padding-left: 14px;
+}
+
+/* 4 · Acoustic — warm-to-cool gradient fill + 1px soundwave underline.
+      -webkit-text-fill-color: transparent INHERITS into children, so color-word spans and
+      grammar spans explicitly opt back in (edge case #3) — their tints stay visible. */
+body.dlg-acoustic .msg.assistant .body .dlg {
+  background:
+    linear-gradient(90deg, #f6e7c8 0%, #ffdca8 50%, #c9dcff 100%) no-repeat,
+    linear-gradient(90deg, rgba(246,231,200,0.5), rgba(159,184,255,0.4), rgba(246,231,200,0.1)) bottom / 100% 1px no-repeat;
+  -webkit-background-clip: text, border-box; background-clip: text, border-box;
+  -webkit-text-fill-color: transparent;
+  font-weight: 500; padding-bottom: 3px;
+  box-decoration-break: clone; -webkit-box-decoration-break: clone;
+}
+body.dlg-acoustic .msg.assistant .body .dlg .q { -webkit-text-fill-color: currentColor; color: var(--accent); }
+body.dlg-acoustic .msg.assistant .body .dlg .colorword,
+body.dlg-acoustic .msg.assistant .body .dlg [class^="g-"],
+body.dlg-acoustic .msg.assistant .body .dlg [class*=" g-"] { -webkit-text-fill-color: currentColor; }
+
+/* 5 · Dramatis — narration turns italic editorial, speech stays upright prose */
+body.dlg-dramatis .msg.assistant .body p,
+body.dlg-dramatis .msg.assistant .body li {
+  font-family: 'Newsreader', var(--font-prose-live, 'Literata'), Georgia, serif;
+  font-style: italic; color: #99a3ba;
+}
+body.dlg-dramatis .msg.assistant .body .dlg {
+  font-family: var(--font-prose-live, 'Literata'), Georgia, serif;
+  font-style: normal; color: #f5f1e8; font-weight: 510;
+}
+body.dlg-dramatis .msg.assistant .body .dlg .q { color: #dcb87a; }
+
+/* Cadence marks — em/en-dashes and ellipses get breathing room and a faint tint */
+body.cadence-on .msg.assistant .body .cadence {
+  color: var(--accent); opacity: 0.75; padding: 0 0.18em; font-weight: 300;
+}
+
+/* Streaming ink — new words materialize (blur + candle glow → settled). The span carries
+   an inline NEGATIVE animation-delay equal to the word's age behind the reveal cursor,
+   so the 40ms re-renders resume the curve mid-flight instead of restarting it (edge #1). */
+@keyframes tokIn {
+  0%   { opacity: 0; filter: blur(5px); text-shadow: 0 0 16px rgba(255, 214, 150, 0.55); }
+  60%  { opacity: 1; filter: blur(0); }
+  100% { opacity: 1; filter: none; text-shadow: none; }
+}
+.tok-in { display: inline; animation: tokIn 480ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
