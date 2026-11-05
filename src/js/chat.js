@@ -13,6 +13,7 @@ Constellation.chat = (function () {
   const ctxMeter = document.getElementById('ctxMeter');
   const topModel = document.getElementById('topModel');
   const compose = Constellation.compose;   // src/js/compose.js — pure request assembly (system, macros, fence, lore, trim)
+  const sculpt = Constellation.sculpt;     // src/js/sculpt.js — per-message editing: edit/sculpt/think-edit/variants/fork
 
   let roleplayPrompt = '';
   let projectInstructions = '';
@@ -375,6 +376,26 @@ Constellation.chat = (function () {
     if (cfg.hasKey) setStatus('connected', 'ok');   // model lives in the top-bar dropdown next to this pill
     else setStatus('add your API key in Settings', 'err');
 
+    // The sculpt module (message editing/variants) owns no state — it reaches ours through
+    // these hooks. Getters survive conversation reassignment on chat switches.
+    sculpt.init({
+      conv: () => conversation,
+      busy: () => busy,
+      persist: persist,
+      meter: updateContextMeter,
+      renderBodyHTML: renderBodyHTML,
+      enhanceCodeBlocks: enhanceCodeBlocks,
+      updateMeta: updateMeta,
+      applyBookmarkGlyph: applyBookmarkGlyph,
+      addLoreIndicator: addLoreIndicator,
+      addMessage: addMessage,
+      streamReply: streamReply,
+      fileChipEl: fileChipEl,
+      toggleBookmark: toggleBookmark,
+      continueReply: continueReply,
+      forkBundle: () => ({ system: roleplayPrompt, project: projectInstructions, gen: genSnapshot() }),
+    });
+
     bind();
   }
 
@@ -434,7 +455,7 @@ Constellation.chat = (function () {
       pfInput.addEventListener('input', window.autoGrowPrefill);
       pfInput.addEventListener('keydown', (e) => { if (e.key === 'Escape') { pfRow.hidden = true; inputEl.focus(); } });
     }
-    messagesEl.addEventListener('click', onMessageClick);
+    messagesEl.addEventListener('click', (e) => sculpt.onMessageClick(e));
     messagesEl.addEventListener('scroll', () => { updateJumpBtn(); updateReadProgress(); if (window.Constellation && window.Constellation.colorfx) window.Constellation.colorfx.scan(messagesEl); }, { passive: true });
     window.addEventListener('resize', updateReadProgress);
     if (jumpBtn) jumpBtn.addEventListener('click', () => { scrollToBottom(); updateJumpBtn(); });
@@ -809,14 +830,6 @@ Constellation.chat = (function () {
     if (hint) hint.remove();
   }
 
-  function actionBtn(action, text) {
-    const b = document.createElement('button');
-    b.className = 'msg-action';
-    b.type = 'button';
-    b.dataset.action = action;
-    b.textContent = text;
-    return b;
-  }
 
   // Lorebook transparency log: a collapsible "🌍 N world entries used" note on a reply showing
   // exactly which lorebook entries fired for that turn. Snapshotted onto the message so it survives
@@ -879,7 +892,7 @@ Constellation.chat = (function () {
       const editBtn = document.createElement('button');
       editBtn.type = 'button'; editBtn.className = 'think-edit-btn'; editBtn.textContent = '✎';
       editBtn.title = 'Edit this reasoning — the model treats it as its own prior thinking (steers the next reply)';
-      editBtn.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); startThinkEdit(el, thinkDetails); });
+      editBtn.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); sculpt.startThinkEdit(el, thinkDetails); });
       sum.appendChild(editBtn);
       thinkDetails.appendChild(sum);
       thinkBody = document.createElement('div');
@@ -889,7 +902,7 @@ Constellation.chat = (function () {
       if (reasoning) {            // restore a saved thinking block (closed by default)
         thinkDetails.hidden = false;
         thinkBody.textContent = reasoning;
-        syncThinkEditedMark(el, reasoning);
+        sculpt.syncThinkEditedMark(el, reasoning);
       }
     }
 
@@ -918,14 +931,14 @@ Constellation.chat = (function () {
 
     const actions = document.createElement('div');
     actions.className = 'msg-actions';
-    if (role === 'user') actions.appendChild(actionBtn('edit', '✎ Edit'));
-    else {
-      actions.appendChild(actionBtn('regen', '↻ Retry'));
-      actions.appendChild(actionBtn('sculpt', '✎ Sculpt'));
+    if (role === 'user') actions.appendChild(sculpt.actionBtn('edit', '✎ Edit'));
+    if (role !== 'user') {
+      actions.appendChild(sculpt.actionBtn('regen', '↻ Retry'));
+      actions.appendChild(sculpt.actionBtn('sculpt', '✎ Sculpt'));
     }
-    actions.appendChild(actionBtn('fork', '⑂ Fork'));
-    actions.appendChild(actionBtn('copy', '⎘ Copy'));
-    actions.appendChild(actionBtn('bookmark', '☆'));
+    actions.appendChild(sculpt.actionBtn('fork', '⑂ Fork'));
+    actions.appendChild(sculpt.actionBtn('copy', '⎘ Copy'));
+    actions.appendChild(sculpt.actionBtn('bookmark', '☆'));
     el.appendChild(actions);
     applyBookmarkGlyph(el);
     if (role === 'assistant' && lore && lore.length) addLoreIndicator(el, lore);
@@ -986,7 +999,7 @@ Constellation.chat = (function () {
       thinkDetails = el.querySelector('.think-block');
       thinkBody = thinkDetails ? thinkDetails.querySelector('.think-body') : null;
       meta = el.querySelector('.msg-meta');
-      variantCi = convIndexForEl(el);
+      variantCi = sculpt.convIndexForEl(el);
       body.innerHTML = ''; body.classList.add('caret'); body.style.color = '';
       if (thinkDetails) { thinkDetails.hidden = true; thinkDetails.open = false; }
       if (thinkBody) thinkBody.textContent = '';
@@ -1144,7 +1157,7 @@ Constellation.chat = (function () {
         if (finishReason === 'length') {   // hit the max-length cap -> offer to continue from the cutoff
           el.classList.add('continuable');
           const acts = el.querySelector('.msg-actions');
-          if (acts && !acts.querySelector('[data-action="continue"]')) acts.appendChild(actionBtn('continue', '↪ Continue'));
+          if (acts && !acts.querySelector('[data-action="continue"]')) acts.appendChild(sculpt.actionBtn('continue', '↪ Continue'));
         }
         busy = false;
         restoreSendBtn();
@@ -1155,7 +1168,7 @@ Constellation.chat = (function () {
         if (window.Constellation && window.Constellation.sessions) {
           window.Constellation.sessions.saveCurrent(conversation.slice(1), roleplayPrompt, projectInstructions, genSnapshot(), usage, systemFiles, projectFiles);   // persist the chat + instructions + settings + usage + files
         }
-        syncThinkEditedMark(el, thinkBuf || '');
+        sculpt.syncThinkEditedMark(el, thinkBuf || '');
         // Exact context size: ask GLM's tokenizer what this conversation actually costs. Estimate
         // (chars÷4) stays the display until this returns; non-GLM/no-key/failure keeps it forever.
         if (window.api && window.api.tokenizerCount) {
@@ -1163,7 +1176,7 @@ Constellation.chat = (function () {
             if (r && r.ok && typeof r.tokens === 'number') { contextExact = r.tokens; updateContextMeter(); }
           }).catch(() => {});
         }
-        if (variantTarget) renderVariantNav(el);
+        if (variantTarget) sculpt.renderVariantNav(el);
         if (finishAnchor) { restoreScrollAnchor(finishAnchor); requestAnimationFrame(() => restoreScrollAnchor(finishAnchor)); }
         if (!rafId) rafId = requestAnimationFrame(pump);   // flush any buffered tail at the flow rate
       },
@@ -1176,7 +1189,7 @@ Constellation.chat = (function () {
         const friendly = friendlyError(message);
         if (window.Constellation && window.Constellation.toast) window.Constellation.toast(friendly, 9000);   // linger: errors are read in hindsight
         if (variantTarget) {
-          renderActiveVariant(el);   // regen failed — restore the existing active take
+          sculpt.renderActiveVariant(el);   // regen failed — restore the existing active take
         } else {
           el.remove();   // remove the placeholder entirely: an error bubble with no conversation
                          // entry desynced every index-based operation after it (edit/fork/bookmarks)
@@ -1228,16 +1241,6 @@ Constellation.chat = (function () {
     sendBtn.textContent = '➤';
     sendBtn.title = 'Send (Enter)';
     currentRequest = null;
-  }
-  // Copy a message's raw markdown source (falls back to visible text).
-  function copyMessage(el) {
-    const body = el.querySelector('.body');
-    // NOTE: a freshly-streamed reply's element is created with __raw='' — empty must fall through
-    // to the rendered text, or long fresh replies copy as blank (the old "hit or miss").
-    const text = el.__raw ? el.__raw : (body ? body.textContent : '');
-    if (window.api && window.api.writeClipboard) window.api.writeClipboard(text);   // main-process clipboard (handles large text reliably)
-    const btn = el.querySelector('[data-action="copy"]');
-    if (btn) { const orig = btn.textContent; btn.textContent = '✓ Copied'; setTimeout(() => { btn.textContent = orig; }, 1200); }
   }
 
   // ---- bookmarks (star a passage; jump back to it from the Bookmarks overlay) ----
@@ -1302,384 +1305,6 @@ Constellation.chat = (function () {
     streamReply();
   }
 
-  // ---- per-message actions: edit (user) / regenerate (assistant) ----
-
-  function onMessageClick(e) {
-    const btn = e.target.closest('.msg-action');
-    if (!btn) return;
-    const el = e.target.closest('.msg');
-    if (!el || busy) return;
-    if (messagesEl.querySelector('.msg[data-editing="1"]')) return;   // an edit is already open
-    const action = btn.dataset.action;
-    if (action === 'edit') startEdit(el);
-    else if (action === 'sculpt') startSculpt(el);
-    else if (action === 'regen') regenerate(el);
-    else if (action === 'fork') forkFromEl(el);
-    else if (action === 'copy') copyMessage(el);
-    else if (action === 'bookmark') toggleBookmark(el);
-    else if (action === 'continue') continueReply(el);
-  }
-
-  // Branch a NEW chat off the clicked message: snapshot the conversation up to and including it
-  // (the current chat is untouched) and hand it to sessions to create the fork.
-  function forkFromEl(el) {
-    const msgs = Array.from(messagesEl.querySelectorAll('.msg'));
-    const idx = msgs.indexOf(el);
-    if (idx === -1) return;
-    // conversation[0] is the system message (no DOM element), so DOM idx -> conversation[idx+1].
-    const prefix = conversation.slice(1, idx + 2)
-      .map((m) => ({ role: m.role, content: m.content, files: m.files, reasoning: m.reasoning, edited: !!m.edited, orig: m.orig, rOrig: m.rOrig, variants: m.variants, vActive: m.vActive, lore: m.lore }));
-    if (window.Constellation && window.Constellation.sessions && window.Constellation.sessions.forkFrom) {
-      window.Constellation.sessions.forkFrom({ messages: prefix, system: roleplayPrompt, project: projectInstructions, gen: genSnapshot() });
-    }
-  }
-
-  function truncateFromEl(el) {
-    const msgs = Array.from(messagesEl.querySelectorAll('.msg'));
-    const idx = msgs.indexOf(el);
-    if (idx === -1) return;
-    for (let i = msgs.length - 1; i >= idx; i--) msgs[i].remove();
-    conversation.length = idx + 1;
-  }
-  // conversation[0] is the system message (no DOM node), so a .msg at DOM index i is conversation[i+1].
-  function convIndexForEl(el) {
-    const msgs = Array.from(messagesEl.querySelectorAll('.msg'));
-    return msgs.indexOf(el) + 1;
-  }
-  // Remove messages strictly AFTER el (keep el) — used when re-rolling a reply, so anything that
-  // followed it (responses to the old take) is dropped while the message itself stays for variants.
-  function truncateAfterEl(el) {
-    const msgs = Array.from(messagesEl.querySelectorAll('.msg'));
-    const idx = msgs.indexOf(el);
-    if (idx === -1) return;
-    for (let i = msgs.length - 1; i > idx; i--) msgs[i].remove();
-    conversation.length = idx + 2;   // keep through conversation[idx+1] (= msgs[idx] = el)
-  }
-
-  // A thin-stroke SVG eye (slash when hidden) — the context-visibility toggle for attachments.
-  function eyeSvg(off) {
-    const NS = 'http://www.w3.org/2000/svg';
-    const s = document.createElementNS(NS, 'svg');
-    s.setAttribute('viewBox', '0 0 24 24');
-    s.classList.add('eye-ico');
-    const almond = document.createElementNS(NS, 'path');
-    almond.setAttribute('d', 'M2.5 12 C5.5 6.9 9 5 12 5 S18.5 6.9 21.5 12 C18.5 17.1 15 19 12 19 S5.5 17.1 2.5 12 Z');
-    almond.setAttribute('fill', 'none'); almond.setAttribute('stroke', 'currentColor'); almond.setAttribute('stroke-width', '1.5');
-    const iris = document.createElementNS(NS, 'circle');
-    iris.setAttribute('cx', '12'); iris.setAttribute('cy', '12'); iris.setAttribute('r', '3.1');
-    iris.setAttribute('fill', 'none'); iris.setAttribute('stroke', 'currentColor'); iris.setAttribute('stroke-width', '1.5');
-    s.appendChild(almond); s.appendChild(iris);
-    if (off) {
-      const slash = document.createElementNS(NS, 'line');
-      slash.setAttribute('x1', '4.5'); slash.setAttribute('y1', '19.5'); slash.setAttribute('x2', '19.5'); slash.setAttribute('y2', '4.5');
-      slash.setAttribute('stroke', 'currentColor'); slash.setAttribute('stroke-width', '1.5');
-      s.appendChild(slash);
-    }
-    return s;
-  }
-
-  // Re-render a sent message's passive attachment chips (after eye/X changes in edit mode).
-  function refreshMsgFileChips(el) {
-    const fc = el.querySelector('.msg-files');
-    if (!fc) return;
-    fc.replaceChildren();
-    for (const f of (el.__files || [])) fc.appendChild(fileChipEl(f, false));
-  }
-
-  // Attachment controls while editing a user prompt: the eye and × overlay the chips themselves
-  // (no separate list). Eye = hide from context (stays in chat, stops being sent); × = delete
-  // from the chat entirely. Both take effect immediately.
-  function applyAttachEditControls(el) {
-    const files = el.__files || [];
-    const fc = el.querySelector('.msg-files');
-    if (!fc || !files.length) return;
-    const chips = Array.from(fc.children).filter((c) => c.classList && c.classList.contains('attach-chip'));
-    chips.forEach((chip, i) => {
-      const f = files[i];
-      if (!f) return;
-      chip.classList.add('editing');
-      chip.querySelectorAll('.attach-eye, .attach-x').forEach((b) => b.remove());
-      const eye = document.createElement('button');
-      eye.type = 'button'; eye.className = 'attach-eye';
-      eye.title = f.excluded ? 'Hidden from context — click to send with future calls' : 'Sent with every call — click to hide from context (stays in chat)';
-      eye.appendChild(eyeSvg(!!f.excluded));
-      eye.addEventListener('click', () => {
-        f.excluded = !f.excluded; persist();
-        chip.classList.toggle('excluded', !!f.excluded);
-        applyAttachEditControls(el);   // refresh the eye state
-        updateContextMeter();
-      });
-      const x = document.createElement('button');
-      x.type = 'button'; x.className = 'attach-x'; x.title = 'Delete from this chat'; x.textContent = '×';
-      x.addEventListener('click', () => {
-        const idx = files.indexOf(f);
-        if (idx !== -1) files.splice(idx, 1);
-        persist();
-        if (!files.length) { fc.remove(); }
-        else { refreshMsgFileChips(el); applyAttachEditControls(el); }
-        updateContextMeter();
-      });
-      chip.appendChild(eye);
-      chip.appendChild(x);
-    });
-  }
-
-  // Edit ended (cancel path — save path rebuilds the message): drop the overlay controls.
-  function clearAttachEditControls(el) {
-    const fc = el.querySelector('.msg-files');
-    if (!fc) return;
-    fc.querySelectorAll('.attach-chip.editing').forEach((chip) => {
-      chip.classList.remove('editing');
-      chip.querySelectorAll('.attach-eye, .attach-x').forEach((b) => b.remove());
-    });
-  }
-
-  function startEdit(el) {
-    const body = el.querySelector('.body');
-    if (!body || el.dataset.editing === '1') return;
-    const original = (el.__raw != null ? el.__raw : body.textContent);   // edit the raw markdown source
-    el.dataset.editing = '1';
-    el.classList.add('editing');   // widen the bubble so the edit box has room
-
-    const ta = document.createElement('textarea');
-    ta.className = 'edit-area';
-    ta.value = original;
-    body.replaceChildren(ta);
-    applyAttachEditControls(el);   // eye/X overlay the attachment chips — edit mode only
-
-    // Size the edit box to fit its contents and keep growing as you type.
-    const growEdit = () => {
-      ta.style.height = 'auto';
-      ta.style.height = Math.min(ta.scrollHeight, Math.round(window.innerHeight * 0.6)) + 'px';
-    };
-    ta.addEventListener('input', growEdit);
-    growEdit();
-    requestAnimationFrame(growEdit);
-
-    const bar = document.createElement('div');
-    bar.className = 'edit-bar';
-    const save = actionBtn('commit', 'Save & resend');
-    const cancel = actionBtn('cancel', 'Cancel');
-    bar.appendChild(save);
-    bar.appendChild(cancel);
-    el.querySelector('.msg-actions').replaceWith(bar);
-
-    ta.focus();
-    ta.setSelectionRange(ta.value.length, ta.value.length);
-
-    save.addEventListener('click', () => {
-      const typed = ta.value.trim();
-      const v = compose.MACRO_HINT.test(typed) ? compose.applySendMacros(typed, conversation.filter((m) => m.role === 'user').length) : typed;   // resend = a fresh send: new macros freeze anew
-      const files = el.__files || [];   // keep the message's existing attachments on resend
-      el.dataset.editing = '';
-      if (!v && !files.length) { restoreMessage(el, original); return; }
-      truncateFromEl(el);
-      addMessage('user', v, files);
-      conversation.push({ role: 'user', content: v, files: files.length ? files : undefined });
-      streamReply();
-    });
-    cancel.addEventListener('click', () => restoreMessage(el, original));
-  }
-
-  function restoreMessage(el, original) {
-    el.dataset.editing = '';
-    el.classList.remove('editing');
-    clearAttachEditControls(el);   // chips return to display-only (excluded state stays)
-    const body = el.querySelector('.body');
-    if (body) { body.classList.add('md'); body.innerHTML = renderBodyHTML(original); enhanceCodeBlocks(body); }
-    const bar = el.querySelector('.edit-bar');
-    if (bar) {
-      const actions = document.createElement('div');
-      actions.className = 'msg-actions';
-      actions.appendChild(actionBtn('edit', '✎ Edit'));
-      actions.appendChild(actionBtn('fork', '⑂ Fork'));
-      actions.appendChild(actionBtn('copy', '⎘ Copy'));
-      actions.appendChild(actionBtn('bookmark', '☆'));
-      bar.replaceWith(actions);
-      applyBookmarkGlyph(el);
-    }
-  }
-
-  // ---- sculpt: edit the model's prose in place. No resend, nothing after it changes — the
-  // conversation (and the model's future context) simply carries your wording from here on.
-  // The model's original is kept on the message (m.orig) so the edit can be studied, and so an
-  // optional "teach from edits" mode can show the model how you bend its voice.
-  // ---- reasoning editor (steering) ----
-  // The model treats history's reasoning_content as its own prior thinking. Editing it in place
-  // changes what it "remembers having thought" — a durable steer on every future reply. The
-  // original is kept (m.rOrig) for fidelity and restore, exactly like sculpt keeps m.orig.
-  function syncThinkEditedMark(el, current) {
-    const m = conversation[convIndexForEl(el)];
-    const lbl = el.querySelector('.think-lbl');
-    if (!lbl) return;
-    const edited = !!(m && m.rOrig && m.rOrig !== current);
-    lbl.textContent = edited ? '✦ Thinking ·✎' : '✦ Thinking';
-  }
-
-  function startThinkEdit(el, thinkDetails) {
-    const m = conversation[convIndexForEl(el)];
-    const thinkBody = thinkDetails.querySelector('.think-body');
-    if (!m || !m.reasoning || !thinkBody || thinkDetails.dataset.editing === '1') return;
-    thinkDetails.dataset.editing = '1';
-    const original = m.reasoning;
-    const ta = document.createElement('textarea');
-    ta.className = 'think-edit';
-    ta.value = original;
-    thinkBody.replaceChildren(ta);
-    const bar = document.createElement('div');
-    bar.className = 'edit-bar';
-    const save = actionBtn('commit', 'Save reasoning');
-    const cancel = actionBtn('cancel', 'Cancel');
-    bar.appendChild(save); bar.appendChild(cancel);
-    thinkBody.appendChild(bar);
-    ta.focus();
-    const finish = () => { thinkDetails.dataset.editing = ''; };
-    save.addEventListener('click', () => {
-      m.rOrig = m.rOrig || original;   // first edit keeps the model's own words
-      m.reasoning = ta.value;
-      persist();
-      thinkBody.replaceChildren();
-      thinkBody.textContent = ta.value;
-      syncThinkEditedMark(el, ta.value);
-      updateContextMeter();
-      finish();
-      if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Reasoning steered — the model remembers this version');
-    });
-    cancel.addEventListener('click', () => {
-      thinkBody.replaceChildren();
-      thinkBody.textContent = original;
-      finish();
-    });
-  }
-
-  function startSculpt(el) {    const body = el.querySelector('.body');
-    if (!body || el.dataset.editing === '1') return;
-    const original = (el.__raw != null ? el.__raw : body.textContent);
-    el.dataset.editing = '1';
-    el.classList.add('editing');
-
-    const ta = document.createElement('textarea');
-    ta.className = 'edit-area';
-    ta.value = original;
-    body.replaceChildren(ta);
-    const growEdit = () => {
-      ta.style.height = 'auto';
-      ta.style.height = Math.min(ta.scrollHeight, Math.round(window.innerHeight * 0.6)) + 'px';
-    };
-    ta.addEventListener('input', growEdit);
-    growEdit();
-
-    const bar = document.createElement('div');
-    bar.className = 'edit-bar';
-    const save = actionBtn('commit', 'Save sculpted prose');
-    const cancel = actionBtn('cancel', 'Cancel');
-    bar.appendChild(save);
-    bar.appendChild(cancel);
-    el.querySelector('.msg-actions').replaceWith(bar);
-    ta.focus();
-    ta.setSelectionRange(ta.value.length, ta.value.length);
-
-    save.addEventListener('click', () => {
-      const v = ta.value.trim();
-      const m = conversation[convIndexForEl(el)];
-      if (!m) { restoreSculpt(el, original); return; }
-      if (v && v !== original) {
-        if (!m.orig) m.orig = original;   // first take stays on record; re-sculpts just move the target
-        m.content = v;
-        m.edited = true;
-        if (Array.isArray(m.variants) && m.variants[m.vActive || 0]) m.variants[m.vActive || 0].content = v;
-      }
-      persist();
-      renderSculpted(el, v || original, !!(m && m.edited));
-    });
-    cancel.addEventListener('click', () => restoreSculpt(el, original));
-  }
-  function restoreSculpt(el, original) {
-    el.dataset.editing = '';
-    el.classList.remove('editing');
-    const m = conversation[convIndexForEl(el)];
-    renderSculpted(el, original, !!(m && m.edited));
-  }
-  function renderSculpted(el, content, edited) {
-    el.__raw = content;
-    const body = el.querySelector('.body');
-    if (body) {
-      body.classList.add('md');
-      body.innerHTML = renderBodyHTML(content);
-      enhanceCodeBlocks(body);
-      if (window.Constellation && window.Constellation.colorfx) window.Constellation.colorfx.tagColors(body);
-    }
-    const bar = el.querySelector('.edit-bar');
-    if (bar) {
-      const actions = document.createElement('div');
-      actions.className = 'msg-actions';
-      actions.appendChild(actionBtn('regen', '↻ Retry'));
-      actions.appendChild(actionBtn('sculpt', '✎ Sculpt'));
-      actions.appendChild(actionBtn('fork', '⑂ Fork'));
-      actions.appendChild(actionBtn('copy', '⎘ Copy'));
-      actions.appendChild(actionBtn('bookmark', '☆'));
-      bar.replaceWith(actions);
-      applyBookmarkGlyph(el);
-    }
-    const metaEl = el.querySelector('.msg-meta');
-    if (metaEl) updateMeta(metaEl, body ? body.textContent : '', edited);
-  }
-
-  function regenerate(el) {
-    if (busy) return;
-    truncateAfterEl(el);   // keep this reply, drop anything after it; we're adding another take
-    streamReply(el);
-  }
-
-  // ---- regenerate variants: keep multiple takes of a reply, flip between them ----
-  // Re-render a message's active variant (content + thinking + meta + lore log + nav).
-  function renderActiveVariant(el) {
-    const m = conversation[convIndexForEl(el)];
-    if (!m) return;
-    el.__raw = m.content || '';   // keep copy/edit on the active variant's raw source
-    const body = el.querySelector('.body');
-    if (body) { body.classList.remove('caret'); body.style.color = ''; body.innerHTML = renderBodyHTML(m.content || ''); enhanceCodeBlocks(body); }
-    const think = el.querySelector('.think-block');
-    if (think) {
-      if (m.reasoning) { think.hidden = false; think.open = false; const tb = think.querySelector('.think-body'); if (tb) tb.textContent = m.reasoning; }
-      else think.hidden = true;
-    }
-    const metaEl = el.querySelector('.msg-meta'); if (metaEl) updateMeta(metaEl, body ? body.textContent : '', !!m.edited);
-    const oldLore = el.querySelector('.lore-used'); if (oldLore) oldLore.remove();
-    if (m.lore && m.lore.length) addLoreIndicator(el, m.lore);
-    renderVariantNav(el);
-  }
-  // Add/refresh the ‹ n/total › control (only shown when there's more than one take).
-  function renderVariantNav(el) {
-    const m = conversation[convIndexForEl(el)];
-    if (!m || !Array.isArray(m.variants) || m.variants.length < 2) { const nav = el.querySelector('.variant-nav'); if (nav) nav.remove(); return; }
-    let nav = el.querySelector('.variant-nav');
-    if (!nav) {
-      nav = document.createElement('div'); nav.className = 'variant-nav';
-      const prev = document.createElement('button'); prev.type = 'button'; prev.className = 'variant-arrow'; prev.textContent = '‹'; prev.title = 'Previous take';
-      prev.addEventListener('click', () => switchVariant(el, -1));
-      const label = document.createElement('span'); label.className = 'variant-label';
-      const next = document.createElement('button'); next.type = 'button'; next.className = 'variant-arrow'; next.textContent = '›'; next.title = 'Next take';
-      next.addEventListener('click', () => switchVariant(el, 1));
-      nav.appendChild(prev); nav.appendChild(label); nav.appendChild(next);
-      const acts = el.querySelector('.msg-actions');
-      if (acts) el.insertBefore(nav, acts); else el.appendChild(nav);
-    }
-    nav.querySelector('.variant-label').textContent = ((m.vActive || 0) + 1) + '/' + m.variants.length;
-  }
-  function switchVariant(el, dir) {
-    if (busy) return;
-    const m = conversation[convIndexForEl(el)];
-    if (!m || !Array.isArray(m.variants) || m.variants.length < 2) return;
-    let n = (m.vActive || 0) + dir;
-    if (n < 0) n = m.variants.length - 1;
-    if (n >= m.variants.length) n = 0;
-    m.vActive = n;
-    const v = m.variants[n] || {};
-    m.content = v.content || ''; m.reasoning = v.reasoning; m.lore = v.lore;   // mirror active → what gets sent/continued
-    renderActiveVariant(el);
-    persist();
-  }
 
   // ---- the "what was sent" inspector: click the ◐ meter to see the exact last request ----
   function viewLastRequest() {
@@ -1786,7 +1411,7 @@ Constellation.chat = (function () {
       conversation = [{ role: 'system', content: compose.buildSystem({ roleplayPrompt: roleplayPrompt, systemFiles: systemFiles, projectFiles: projectFiles, immersion: opts.immersion }) }].concat(turns);
       for (const m of turns) {
         const r = addMessage(m.role, m.content, m.files, m.reasoning, m.lore, { edited: m.edited });
-        if (m.role === 'assistant' && Array.isArray(m.variants) && m.variants.length > 1 && r && r.el) renderVariantNav(r.el);
+        if (m.role === 'assistant' && Array.isArray(m.variants) && m.variants.length > 1 && r && r.el) sculpt.renderVariantNav(r.el);
       }
       bulkScroll = false;
       scrollToBottom();           // land at the latest message in one move (no top→bottom snap)
@@ -1853,5 +1478,5 @@ Constellation.chat = (function () {
     }
   }
 
-  return { init, setPrompts, getPrompts, getOptions, persist, setOptions, setActiveLore, setPhraseBans, setDraft, scrollToMatch, scrollToMessage, refreshBookmarkGlyphs, reset, loadSession, getUserWriting, recentMessages, getState, testRetrieve, testBans, dryRun, applyDialogue, testCompose: (list) => compose.toApiMessages(opts, projectInstructions, null, list) };
+  return { init, setPrompts, getPrompts, getOptions, persist, setOptions, setActiveLore, setPhraseBans, setDraft, scrollToMatch, scrollToMessage, refreshBookmarkGlyphs, reset, loadSession, getUserWriting, recentMessages, getState, testRetrieve, testBans, dryRun, applyDialogue, testCompose: (list) => compose.toApiMessages(opts, projectInstructions, null, list || conversation) };   // bare call = the live conversation (probe convention)
 })();

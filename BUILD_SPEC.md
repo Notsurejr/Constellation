@@ -65,7 +65,7 @@ Constellation.chat = (function () { ... })();
 
 **Boot order** (`app.js`, on `DOMContentLoaded`): apply saved appearance → `settings.init()` → `sessions.init()` → `craft.init()` → `bookmarks.init()` → `lorebook.init()` → `cast.init()` (characters/personas) → `cliBridge.init()` → `chat.init()` → focus the input.
 
-**Renderer modules** (`src/js/`): `app` (boot), `chat` (conversation, streaming, sculpt, attachments, reasoning), `compose` (pure request assembly: system message, macros, project fence, lore section, sliding window — extracted from chat), `settings`, `sessions` (sidebar), `craft`, `characters` (Cast panel + start-chat compile), `cardcompile` (pure card→prompt engine), `lorebook` (panel), `engines` (shared lore/ban engine: BM25 + cosine + budget), `md` (markdown + immersion grammar + sanitizer), `bookmarks` (Story Constellations), `constellations` + `story-sky` (sky map / mood weather), `chronicle`, `mood`, `sigils`, `colorfx` (color-word tinting), `starfield`, `cli-bridge` (lab relay).
+**Renderer modules** (`src/js/`): `app` (boot), `chat` (conversation, streaming, attachments, reasoning), `compose` (pure request assembly: system message, macros, project fence, lore section, sliding window — extracted from chat), `sculpt` (per-message editing via hooks: edit-and-resend, sculpt, reasoning steering, regen variants, fork, copy), `settings`, `sessions` (sidebar), `craft`, `characters` (Cast panel + start-chat compile), `cardcompile` (pure card→prompt engine), `lorebook` (panel), `engines` (shared lore/ban engine: BM25 + cosine + budget), `md` (markdown + immersion grammar + sanitizer), `bookmarks` (Story Constellations), `constellations` + `story-sky` (sky map / mood weather), `chronicle`, `mood`, `sigils`, `colorfx` (color-word tinting), `starfield`, `cli-bridge` (lab relay).
 
 ---
 
@@ -84,7 +84,7 @@ Constellation/
 │   ├── lib/marked.umd.js     # vendored markdown parser (local <script>)
 │   ├── fonts/                # bundled reading fonts (OFL): Literata, Newsreader, Lora, Atkinson
 │   ├── styles/{theme,app}.css
-│   └── js/                   # the 20 renderer modules listed in §2
+│   └── js/                   # the 21 renderer modules listed in §2
 ├── config/                   # shipped defaults (modes + project text are packaged)
 │   ├── modes/{roleplay,creative,craft}.txt
 │   ├── project.txt
