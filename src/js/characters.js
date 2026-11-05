@@ -72,67 +72,176 @@ Constellation.cast = (function () {
     if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Imported ' + (ok.length - upd) + ' character' + ((ok.length - upd) === 1 ? '' : 's') + (upd ? ', updated ' + upd : '') + (bad ? ' — ' + bad + ' failed' : ''));
   }
 
-  function characterCard(c) {
-    const card = el('div', 'cast-card');
-    const head = el('div', 'cast-card-head');
+  // ---- the gallery: portrait tiles, judged by face + tags; the full card lives one click in ----
+  function avatarInto(parent, c, cls) {
     if (c.avatar) {
       const img = document.createElement('img');
-      img.className = 'cast-avatar'; img.src = c.avatar; img.alt = c.name;
-      head.appendChild(img);
+      img.className = cls; img.src = c.avatar; img.alt = c.name;
+      parent.appendChild(img);
     } else {
-      head.appendChild(el('div', 'cast-avatar cast-avatar-blank', esc(c.name).slice(0, 1).toUpperCase() || '?'));
+      parent.appendChild(el('div', cls + ' cast-avatar-blank', esc(c.name).slice(0, 1).toUpperCase() || '?'));
     }
-    const meta = el('div', 'cast-card-meta');
-    meta.appendChild(el('div', 'cast-card-name', esc(c.name)));
-    const sub = el('div', 'cast-card-sub');
+  }
+
+  let castQuery = '';        // name-or-tag search
+  let detailCard = null;     // open card → the detail view replaces the grid
+
+  function tile(c) {
+    const t = document.createElement('button');
+    t.type = 'button'; t.className = 'cast-tile';
+    avatarInto(t, c, 'cast-tile-art');
+    t.appendChild(el('div', 'cast-tile-name', esc(c.name)));
+    const bits = [];
+    if (c.creator) bits.push('by ' + esc(c.creator));
+    if (greetingCount(c) > 1) bits.push(greetingCount(c) + ' greetings');
+    if (bits.length) t.appendChild(el('div', 'cast-tile-by', bits.join(' · ')));
+    if (c.tags && c.tags.length) {
+      const tags = el('div', 'cast-tile-tags');
+      c.tags.slice(0, 3).forEach((tg, i) => { if (i) tags.appendChild(document.createTextNode(' ')); tags.appendChild(el('span', 'cast-tile-tag', esc(tg))); });
+      if (c.tags.length > 3) tags.appendChild(el('span', 'cast-tile-more', '+' + (c.tags.length - 3)));
+      t.appendChild(tags);
+    }
+    t.addEventListener('click', () => { detailCard = c; render(); });
+    return t;
+  }
+
+  function filteredCharacters() {
+    const q = castQuery.trim().toLowerCase();
+    if (!q) return characters;
+    return characters.filter((c) => {
+      if (String(c.name || '').toLowerCase().includes(q)) return true;
+      return (c.tags || []).some((t) => String(t).toLowerCase().includes(q));
+    });
+  }
+
+  function renderGridInto(host) {
+    host.replaceChildren();
+    if (!characters.length) {
+      host.appendChild(el('div', 'cast-empty', 'No characters yet. Import a character card (chara_card_v2 JSON — JanitorAI/Chub export) to begin.'));
+      return;
+    }
+    const list = filteredCharacters();
+    if (!list.length) {
+      host.appendChild(el('div', 'cast-empty', 'No cards match "' + castQuery + '".'));
+      return;
+    }
+    const grid = el('div', 'cast-grid');
+    list.forEach((c) => grid.appendChild(tile(c)));
+    host.appendChild(grid);
+  }
+
+  // One card section, markdown-rendered — the same pipeline chat bodies use.
+  function detailSection(label, mdText) {
+    const s = el('div', 'cast-detail-sec');
+    s.appendChild(el('div', 'cast-detail-lbl', label));
+    const body = el('div', 'cast-detail-md md');
+    body.innerHTML = (window.Constellation && window.Constellation.md) ? window.Constellation.md.render(mdText) : esc(mdText);
+    s.appendChild(body);
+    return s;
+  }
+
+  // The full card as the model will receive it: fields markdown-rendered, {{char}}/{{user}}
+  // substituted with the character's name and the DEFAULT persona's name.
+  function renderDetail(c, host) {
+    const cc = CC();
+    const persona = personas.find((p) => p.default) || personas[0];
+    const userName = persona ? persona.name : 'You';
+    const sub = (t) => (cc ? cc.substitute(t, c.name, userName) : esc(t));
+
+    const view = el('div', 'cast-detail');
+
+    const bar = el('div', 'cast-detail-bar');
+    const back = el('button', 'btn ghost', '← Back to cast');
+    back.addEventListener('click', () => { detailCard = null; render(); });
+    const startTop = el('button', 'btn', 'Start chat');
+    startTop.addEventListener('click', () => openStart(c));
+    bar.appendChild(back); bar.appendChild(startTop);
+    view.appendChild(bar);
+
+    const head = el('div', 'cast-detail-head');
+    avatarInto(head, c, 'cast-detail-art');
+    const meta = el('div', 'cast-detail-meta');
+    meta.appendChild(el('div', 'cast-detail-name', esc(c.name)));
     const bits = [];
     if (c.creator) bits.push('by ' + esc(c.creator));
     bits.push(greetingCount(c) + (greetingCount(c) === 1 ? ' greeting' : ' greetings'));
     if (c.characterBook) bits.push('embedded lorebook');
     if (c.systemPrompt || c.postHistory) bits.push('card directives available');
     else if (c.hasSystemPrompt || c.hasPhi) bits.push('card directives — re-import to load');
-    sub.textContent = bits.join(' · ');
-    meta.appendChild(sub);
-    if (c.tags && c.tags.length) meta.appendChild(el('div', 'cast-card-tags', c.tags.slice(0, 6).join(' · ')));
+    meta.appendChild(el('div', 'cast-detail-sub', bits.join(' · ')));
+    meta.appendChild(el('div', 'cast-detail-note', 'Rendered as the model receives it — {{user}} shown as ' + esc(userName) + ', your default persona.'));
+    if (c.tags && c.tags.length) {
+      const tags = el('div', 'cast-tile-tags cast-detail-tags');
+      c.tags.slice(0, 10).forEach((tg, i) => { if (i) tags.appendChild(document.createTextNode(' ')); tags.appendChild(el('span', 'cast-tile-tag', esc(tg))); });
+      meta.appendChild(tags);
+    }
     head.appendChild(meta);
-    card.appendChild(head);
+    view.appendChild(head);
 
-    const body = el('div', 'cast-card-desc');
-    const parts = [esc(c.description).replace(/\s+/g, ' ').slice(0, 220) + (esc(c.description).length > 220 ? '…' : '')];
-    if (c.scenario && String(c.scenario).trim()) parts.push('Scenario: ' + esc(c.scenario).replace(/\s+/g, ' ').slice(0, 160));
+    const scroll = el('div', 'cast-detail-scroll');
+    if (String(c.description || '').trim()) scroll.appendChild(detailSection('Description', sub(c.description)));
+    if (String(c.personality || '').trim()) scroll.appendChild(detailSection('Personality', sub(c.personality)));
+    if (String(c.scenario || '').trim()) scroll.appendChild(detailSection('Scenario', sub(c.scenario)));
+    if (String(c.mesExample || '').trim()) scroll.appendChild(detailSection('Example dialogue — voice reference, not events', sub(c.mesExample)));
     const greets = [c.firstMes].concat(c.altGreetings || []).filter((g) => g && String(g).trim());
-    greets.slice(0, 2).forEach((g, i) => parts.push('Greeting ' + (i + 1) + ': ' + esc(g).replace(/\s+/g, ' ').slice(0, 140) + (esc(g).length > 140 ? '…' : '')));
-    body.textContent = parts.join('\n');
-    body.style.whiteSpace = 'pre-line';
-    body.hidden = true;
-    card.appendChild(body);
+    greets.slice(0, 2).forEach((g, i) => scroll.appendChild(detailSection(i === 0 ? 'Greeting' : 'Alternate ' + (i + 2), sub(g))));
+    if (greets.length > 2) {
+      const wrap = el('div', 'cast-detail-sec');
+      const holder = el('div', 'cast-detail-more');
+      const more = el('button', 'btn ghost', 'Show all ' + greets.length + ' greetings');
+      let open = false;
+      more.addEventListener('click', () => {
+        open = !open;
+        holder.replaceChildren();
+        if (open) greets.slice(2).forEach((g, j) => holder.appendChild(detailSection('Alternate ' + (j + 3), sub(g))));
+        more.textContent = open ? 'Hide extra greetings' : 'Show all ' + greets.length + ' greetings';
+      });
+      wrap.appendChild(more); wrap.appendChild(holder);
+      scroll.appendChild(wrap);
+    }
+    if (!scroll.childNodes.length) scroll.appendChild(el('div', 'cast-empty', 'This card carries no descriptive fields.'));
+    view.appendChild(scroll);
 
-    const acts = el('div', 'cast-card-actions');
-    const start = el('button', 'btn', 'Start chat');
-    start.addEventListener('click', () => openStart(c));
-    const more = el('button', 'btn ghost', 'Details');
-    more.addEventListener('click', () => { body.hidden = !body.hidden; more.textContent = body.hidden ? 'Details' : 'Less'; });
-    const del = el('button', 'btn ghost', 'Delete');
+    const foot = el('div', 'cast-detail-foot');
+    const del = el('button', 'btn ghost', 'Remove card');
     del.addEventListener('click', async () => {
       try { await window.api.deleteCharacter(c.id); } catch (e) { console.warn('[constellation]', e && e.message || e); }
+      detailCard = null;
       await loadAll(); render();
     });
-    acts.appendChild(start); acts.appendChild(more); acts.appendChild(del);
-    card.appendChild(acts);
-    return card;
+    const startB = el('button', 'btn', 'Start chat');
+    startB.addEventListener('click', () => openStart(c));
+    foot.appendChild(del); foot.appendChild(startB);
+    view.appendChild(foot);
+
+    host.classList.add('cast-detailing');
+    host.appendChild(view);
   }
 
   function render() {
     if (!overlay) return;
     const host = overlay.querySelector('.cast-body');
     host.replaceChildren();
+    host.classList.remove('cast-detailing');
+    if (detailCard) {
+      // a refresh may have reloaded records while a detail was open — match by id, fall back to the held copy
+      const c = characters.find((x) => x.id === detailCard.id) || detailCard;
+      detailCard = c;
+      renderDetail(c, host);
+      return;
+    }
 
     const pwrap = el('div', 'cast-personas');
     host.appendChild(pwrap);
     renderPersonas(pwrap);
 
-    const chead = el('div', 'cast-subhead', 'Characters');
-    const imp = el('button', 'btn cast-import', 'Import cards…');
+    const bar = el('div', 'cast-toolbar');
+    const search = document.createElement('input');
+    search.type = 'search'; search.className = 'cast-search'; search.placeholder = 'Search by name or tag';
+    search.value = castQuery;
+    search.addEventListener('input', () => { castQuery = search.value; renderGridInto(gridHost); });
+    bar.appendChild(search);
+    const imp = el('button', 'btn ghost cast-import', 'Import cards…');
     imp.addEventListener('click', async () => {
       try {
         const r = await window.api.importCharacters();
@@ -140,14 +249,13 @@ Constellation.cast = (function () {
         await loadAll(); render();
       } catch (e) { console.warn('[constellation]', e && e.message || e); }
     });
-    chead.appendChild(imp);
-    host.appendChild(chead);
+    bar.appendChild(imp);
+    host.appendChild(bar);
 
-    if (!characters.length) {
-      host.appendChild(el('div', 'cast-empty', 'No characters yet. Import a character card (chara_card_v2 JSON — JanitorAI/Chub export) to begin.'));
-      return;
-    }
-    characters.forEach((c) => host.appendChild(characterCard(c)));
+    host.appendChild(el('div', 'cast-subhead', 'Characters'));
+    const gridHost = el('div', 'cast-grid-host');
+    host.appendChild(gridHost);
+    renderGridInto(gridHost);
   }
 
   // ---- the start screen: greeting + base + persona + editable compiled preview ----
@@ -353,7 +461,7 @@ Constellation.cast = (function () {
   function init() {
     const btn = document.getElementById('castBtn');
     if (btn) btn.addEventListener('click', open);
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (startScr) closeStart(); else if (overlay) close(); } });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (startScr) closeStart(); else if (overlay && detailCard) { detailCard = null; render(); } else if (overlay) close(); } });
   }
 
   return { init: init, open: open, close: close, refresh: function () { if (overlay) loadAll().then(render); } };

@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.11.4 — The Gallery
+
+### New
+
+- **The Cast panel is now a card gallery.** Characters stand as portrait tiles — avatar,
+  name, creator, tags; no auto-summarized blurbs. Click a tile to open the full card,
+  rendered exactly as the model receives it: description, personality, scenario, example
+  dialogue, and greetings in real markdown, with `{{char}}`/`{{user}}` already substituted
+  (your default persona's name stands in for `{{user}}`). Many greetings collapse behind a
+  "show all" toggle. Start chat lives in the detail view; search filters tiles by name or
+  tag; Escape walks back (detail → gallery → close). Drop PNG/JSON imports anywhere on the
+  panel, as before.
+
 ## v0.11.3 — The Flight Recorder
 
 ### New
