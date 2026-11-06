@@ -4,38 +4,26 @@
    Each --something is a value (color/font). Change them freely.
    ============================================================ */
 
-/* Google Literata (SIL OFL 1.1) — bundled so the app's typeface doesn't depend
-   on whatever fonts a machine happens to have installed. */
+/* Bundled fonts (all SIL OFL) — the app's type never depends on what a machine has installed.
+   The three serifs ship as VARIABLE fonts (weight 200-900 in one file), so intermediate
+   weights render truly — dialogue voices, strong, and any future weight play were snapping
+   to 400/600 with the old static pairs. Atkinson has no variable cut; its statics stay. */
 @font-face {
   font-family: 'Literata';
-  font-style: normal; font-weight: 400; font-display: swap;
-  src: url('../fonts/literata-400.woff2') format('woff2');
+  font-style: normal; font-weight: 200 900; font-display: swap;
+  src: url('../fonts/literata-var.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Literata';
-  font-style: normal; font-weight: 600; font-display: swap;
-  src: url('../fonts/literata-600.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Literata';
-  font-style: italic; font-weight: 400; font-display: swap;
-  src: url('../fonts/literata-400i.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Literata';
-  font-style: italic; font-weight: 600; font-display: swap;
-  src: url('../fonts/literata-600i.woff2') format('woff2');
+  font-style: italic; font-weight: 200 900; font-display: swap;
+  src: url('../fonts/literata-var-italic.woff2') format('woff2');
 }
 
-/* Reading fonts (all SIL OFL) — selectable in Settings → Appearance. Literata stays the default. */
-@font-face { font-family: 'Newsreader'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/newsreader-400.woff2') format('woff2'); }
-@font-face { font-family: 'Newsreader'; font-style: normal; font-weight: 600; font-display: swap; src: url('../fonts/newsreader-600.woff2') format('woff2'); }
-@font-face { font-family: 'Newsreader'; font-style: italic; font-weight: 400; font-display: swap; src: url('../fonts/newsreader-400i.woff2') format('woff2'); }
-@font-face { font-family: 'Newsreader'; font-style: italic; font-weight: 600; font-display: swap; src: url('../fonts/newsreader-600i.woff2') format('woff2'); }
-@font-face { font-family: 'Lora'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/lora-400.woff2') format('woff2'); }
-@font-face { font-family: 'Lora'; font-style: normal; font-weight: 600; font-display: swap; src: url('../fonts/lora-600.woff2') format('woff2'); }
-@font-face { font-family: 'Lora'; font-style: italic; font-weight: 400; font-display: swap; src: url('../fonts/lora-400i.woff2') format('woff2'); }
-@font-face { font-family: 'Lora'; font-style: italic; font-weight: 600; font-display: swap; src: url('../fonts/lora-600i.woff2') format('woff2'); }
+/* Reading fonts — selectable in Settings → Appearance. Literata stays the default. */
+@font-face { font-family: 'Newsreader'; font-style: normal; font-weight: 200 800; font-display: swap; src: url('../fonts/newsreader-var.woff2') format('woff2'); }
+@font-face { font-family: 'Newsreader'; font-style: italic; font-weight: 200 800; font-display: swap; src: url('../fonts/newsreader-var-italic.woff2') format('woff2'); }
+@font-face { font-family: 'Lora'; font-style: normal; font-weight: 400 700; font-display: swap; src: url('../fonts/lora-var.woff2') format('woff2'); }
+@font-face { font-family: 'Lora'; font-style: italic; font-weight: 400 700; font-display: swap; src: url('../fonts/lora-var-italic.woff2') format('woff2'); }
 @font-face { font-family: 'Atkinson Hyperlegible'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/atkinson-400.woff2') format('woff2'); }
 @font-face { font-family: 'Atkinson Hyperlegible'; font-style: normal; font-weight: 700; font-display: swap; src: url('../fonts/atkinson-700.woff2') format('woff2'); }
 @font-face { font-family: 'Atkinson Hyperlegible'; font-style: italic; font-weight: 400; font-display: swap; src: url('../fonts/atkinson-400i.woff2') format('woff2'); }
