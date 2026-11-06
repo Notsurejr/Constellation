@@ -291,7 +291,7 @@ Constellation.sessions = (function () {
     currentLore = Array.isArray(s.lore) ? s.lore : [];
     if (window.Constellation.storySky) window.Constellation.storySky.setChat(s.id, s.title || 'Untitled');   // this chat's constellation takes the margin
     if (window.Constellation.chronicle) window.Constellation.chronicle.setChat(s.id, s.gen);   // its chronicle is ready behind the right tab (gen carries the model choice)
-    Constellation.chat.loadSession(s.messages || [], system, project, gen, s.usage, s.systemFiles, s.projectFiles);
+    Constellation.chat.loadSession(s.messages || [], system, project, gen, s.usage, s.systemFiles, s.projectFiles, s.character || null);
     applyLore();   // apply this chat's enabled lorebooks to retrieval
     // Restore this chat's saved draft (if any), and — if we arrived via search — jump to the match.
     try { const drafts = await window.api.loadDrafts(); if (Constellation.chat.setDraft) Constellation.chat.setDraft(drafts[id] || ''); } catch (e) { console.warn('[constellation]', e && e.message || e); }
@@ -318,7 +318,7 @@ Constellation.sessions = (function () {
     try {
       const title = (deriveTitle(bundle.messages) || 'Fork') + ' · fork';
       const parentId = currentId, parentTitle = currentTitle;   // remember where this fork branched from
-      const res = await window.api.saveSession({ id: null, title, messages: bundle.messages, system: bundle.system, project: bundle.project, gen: bundle.gen, parentId, parentTitle });
+      const res = await window.api.saveSession({ id: null, title, messages: bundle.messages, system: bundle.system, project: bundle.project, gen: bundle.gen, parentId, parentTitle, character: bundle.character || null });   // cast forks keep the card (badge + macro eligibility)
       await load(res.id);   // create + switch into the new fork
       // The fork inherits the parent chronicle (facts + read-position + summary) — a fork
       // mid-story must not silently lose the reader reference it branched with.

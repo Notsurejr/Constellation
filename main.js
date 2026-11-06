@@ -591,7 +591,7 @@ ipcMain.handle('sessions:load', (_e, id) => {
   if (!safeId(id)) return { id: null, title: 'Untitled', messages: [] };
   try {
     const d = JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, id + '.json'), 'utf8'));
-    return { id: d.id, title: d.title, messages: d.messages || [], system: d.system, project: d.project, systemFiles: d.systemFiles || [], projectFiles: d.projectFiles || [], gen: d.gen, usage: d.usage, parentId: d.parentId, parentTitle: d.parentTitle, lore: Array.isArray(d.lore) ? d.lore : [] };
+    return { id: d.id, title: d.title, messages: d.messages || [], system: d.system, project: d.project, systemFiles: d.systemFiles || [], projectFiles: d.projectFiles || [], gen: d.gen, usage: d.usage, parentId: d.parentId, parentTitle: d.parentTitle, lore: Array.isArray(d.lore) ? d.lore : [], character: d.character || null };   // character = cast-chat marker (badge + macro eligibility)
   } catch (e) { return { id, title: 'Untitled', messages: [] }; }
 });
 

@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.11.5 — Cargo Untouched
+
+### Fixed
+
+- **Send-time macros now fire in Cast chats only.** Pasted documentation, changelogs, and
+  prompt examples that merely *mention* macro syntax (`{{roll:1d20}}` in a help file, say)
+  now arrive exactly as typed in every regular chat — no dice silently rolling behind the
+  text. A chat started from a Cast card opted into the engine; forks of Cast chats keep
+  that eligibility.
+
+### New
+
+- **Display filters grew a Settings panel.** Settings → Writing lists every rule from
+  `config\display-filters.txt` as a checkbox — tick to hide its matches, untick to show
+  them, applied instantly with no restart. A rule editor sits beneath for writing rules
+  in-app; invalid regex lines appear greyed with a note and are skipped. The file stays
+  the single source of truth (still hand-editable), and toggling simply marks the rule
+  with `#` there — in both directions.
+
 ## v0.11.4 — The Gallery
 
 ### New

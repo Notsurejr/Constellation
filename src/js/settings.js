@@ -71,6 +71,7 @@ Constellation.settings = (function () {
       if ($('dialogueStyleInput')) $('dialogueStyleInput').value = cfg.dialogueStyle || 'off';
       if ($('cadenceMarksInput')) $('cadenceMarksInput').checked = cfg.cadenceMarks === true;
       if ($('streamInkInput')) $('streamInkInput').checked = cfg.streamInk === true;
+      loadDisplayFiltersPane();
       applyTypography(cfg.fontFamily || 'Literata', lh, cfg.proseMeasure || 'off');
       if ($('teachEditsInput')) $('teachEditsInput').checked = cfg.teachEdits === true;
       if ($('preservedThinkingInput')) $('preservedThinkingInput').checked = cfg.preservedThinking !== false;
@@ -113,6 +114,49 @@ Constellation.settings = (function () {
     if (!el) return;
     el.classList.add('show');
     setTimeout(() => el.classList.remove('show'), 1200);
+  }
+
+  // ---- Display filters pane: rules as checkboxes (toggling persists into the file itself
+  // and re-renders instantly — no Notepad, no restart) + a plain editor for authoring.
+  function loadDisplayFiltersPane() {
+    const chat = window.Constellation && window.Constellation.chat;
+    if (!chat) return;
+    const list = $('filterRulesList');
+    if (list) {
+      list.replaceChildren();
+      const rules = chat.displayFiltersRules ? chat.displayFiltersRules() : [];
+      if (!rules.length) {
+        const none = document.createElement('div');
+        none.className = 'filter-none';
+        none.textContent = 'No rules yet — write one below (or in config\\display-filters.txt) and it appears here.';
+        list.appendChild(none);
+      }
+      rules.forEach((r, i) => {
+        const row = document.createElement('label');
+        row.className = 'filter-rule' + (r.valid ? '' : ' invalid');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = !!r.enabled;
+        if (!r.valid) cb.disabled = true;
+        cb.addEventListener('change', async () => {
+          if (chat.toggleDisplayFilter) { await chat.toggleDisplayFilter(i); flash('displayFiltersSaved'); }
+          loadDisplayFiltersEditor();   // the file changed — keep the editor honest
+        });
+        const label = document.createElement('span');
+        label.className = 'filter-rule-src';
+        label.textContent = r.src.trim();
+        row.appendChild(cb);
+        row.appendChild(label);
+        if (!r.valid) { const w = document.createElement('em'); w.className = 'filter-rule-warn'; w.textContent = 'invalid regex — skipped'; row.appendChild(w); }
+        list.appendChild(row);
+      });
+    }
+    loadDisplayFiltersEditor();
+  }
+  async function loadDisplayFiltersEditor() {
+    const ed = $('displayFiltersEditor');
+    if (!ed) return;
+    try { ed.value = await window.api.loadDisplayFilters(); } catch (e) { ed.value = ''; }
   }
 
   // Persist the current editors to the active roleplay/project files and apply them live.
@@ -701,6 +745,15 @@ Constellation.settings = (function () {
     $('backupBtn').addEventListener('click', backupExport);
     $('restoreBtn').addEventListener('click', backupRestore);
     const bmdb = $('backupMdBtn'); if (bmdb) bmdb.addEventListener('click', backupExportMarkdown);
+    const dfb = $('saveDisplayFiltersBtn'); if (dfb) dfb.addEventListener('click', async () => {
+      const ed = $('displayFiltersEditor');
+      if (!ed) return;
+      await window.api.saveDisplayFilters(ed.value);
+      const chat = window.Constellation && window.Constellation.chat;
+      if (chat && chat.reloadDisplayFilters) await chat.reloadDisplayFilters();
+      loadDisplayFiltersPane();
+      flash('displayFiltersSaved');
+    });
     const dbg = $('diagBtn'); if (dbg) dbg.addEventListener('click', () => { if (window.Constellation && window.Constellation.diag) window.Constellation.diag.captureAndSave(); });
     if ($('mdThinkingInput')) $('mdThinkingInput').addEventListener('change', saveTogglesNow);
     document.addEventListener('keydown', (e) => {

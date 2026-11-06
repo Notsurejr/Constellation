@@ -192,7 +192,7 @@ Constellation.sculpt = (function () {
     save.addEventListener('click', () => {
       const typed = ta.value.trim();
       const cp = window.Constellation.compose;
-      const v = cp.MACRO_HINT.test(typed) ? cp.applySendMacros(typed, H.conv().filter((m) => m.role === 'user').length) : typed;   // resend = a fresh send: new macros freeze anew
+      const v = H.macrosOn() && cp.MACRO_HINT.test(typed) ? cp.applySendMacros(typed, H.conv().filter((m) => m.role === 'user').length) : typed;   // resend = a fresh send: new macros freeze anew (cast chats only)
       const files = el.__files || [];   // keep the message's existing attachments on resend
       el.dataset.editing = '';
       if (!v && !files.length) { restoreMessage(el, original); return; }

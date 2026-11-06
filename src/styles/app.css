@@ -2008,3 +2008,12 @@ body.cadence-on .msg.assistant .body .cadence {
   100% { opacity: 1; filter: none; text-shadow: none; }
 }
 .tok-in { display: inline; animation: tokIn 480ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+/* ---- Display filters pane (Settings → Writing): rules as live checkboxes ---- */
+.filter-rules { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 10px; }
+.filter-rule { display: flex; align-items: center; gap: 10px; padding: 6px 10px; background: rgba(255,255,255,0.025); border: 1px solid var(--panel-border); border-radius: 8px; cursor: pointer; }
+.filter-rule input[type="checkbox"] { flex: none; }
+.filter-rule-src { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.filter-rule.invalid { opacity: 0.55; cursor: default; }
+.filter-rule-warn { margin-left: auto; font-size: 11px; color: var(--text-faint); font-style: italic; flex: none; }
+.filter-none { color: var(--text-dim); font-size: 12.5px; padding: 4px 2px; }

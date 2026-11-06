@@ -255,6 +255,17 @@
         </div>
       </div>
 
+      <div class="settings-section">
+        <h2>Display filters <em class="hint-inline">global · display-only</em></h2>
+        <div class="hint">Regex rules that change what messages <em>look</em> like on screen — tick a rule to hide its matches, untick to show them. Applies instantly, no restart. The stored chat, the model's context, and exports always keep the real text. Rules live in <em>config\display-filters.txt</em> (editable below or by hand): one per line, <em>/pattern/flags => replacement</em>, a bare pattern deletes its matches, <em>#</em> comments.</div>
+        <div class="filter-rules" id="filterRulesList"></div>
+        <textarea id="displayFiltersEditor" rows="5" placeholder="/\\[STATE t\\d+\\].*/g => ⚙ t$1&#10;/unwanted-phrase/&#10;# a comment"></textarea>
+        <div class="settings-actions">
+          <span class="saved-tag" id="displayFiltersSaved">saved ✓</span>
+          <button class="btn" id="saveDisplayFiltersBtn">Save filters</button>
+        </div>
+      </div>
+
         </div>
         <div class="settings-pane" data-pane="appearance">
       <div class="settings-section">

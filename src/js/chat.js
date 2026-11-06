@@ -19,6 +19,7 @@ Constellation.chat = (function () {
   let projectInstructions = '';
   let conversation = [];   // { role, content, files? } — conversation[0] is always the system message
   let busy = false;
+  let currentCharacter = null;   // cast chats carry their card; macros fire ONLY in these chats
   let currentRequest = null;   // active stream id, so the Stop button can cancel it
   let lastRequest = null;      // the exact payload of the most recent send (for the ◐ inspector)
   let activePrefill = '';      // reasoning seed for THIS send only ("lead its thinking" drawer)
@@ -393,7 +394,8 @@ Constellation.chat = (function () {
       fileChipEl: fileChipEl,
       toggleBookmark: toggleBookmark,
       continueReply: continueReply,
-      forkBundle: () => ({ system: roleplayPrompt, project: projectInstructions, gen: genSnapshot() }),
+      macrosOn: () => !!opts.castMacros,
+      forkBundle: () => ({ system: roleplayPrompt, project: projectInstructions, gen: genSnapshot(), character: currentCharacter }),
     });
 
     bind();
@@ -612,20 +614,29 @@ Constellation.chat = (function () {
   // across turns instead of re-deriving everything from scratch each time. The reasoning we stored
   // is the exact, unedited concatenation of the model's own reasoning_content deltas.
 
-  // ---- Display filters (P1): display-only regex rules from config/display-filters.txt.
+  // ---- Display filters: display-only regex rules from config/display-filters.txt.
   // Format: one rule per line — /pattern/flags => replacement  (bare pattern = delete).
-  // '#' lines are comments; invalid lines are skipped. DISPLAY-ONLY: applied to rendered
-  // message bodies; the stored text, the model's context, and exports keep the raw source.
-  let displayFilters = null;   // null = not yet loaded; [] = loaded, no valid rules
+  // '#' lines are comments; a commented-OUT rule ('# /…') is a disabled rule — the Settings
+  // panel toggles rules by rewriting that marker, so no Notepad, no restart. DISPLAY-ONLY:
+  // applied to rendered message bodies; the stored text, the model's context, and exports
+  // keep the raw source.
+  let displayFilters = null;   // null = not yet loaded; [] = loaded, no rules
   function parseDisplayFilters(text) {
     const rules = [];
     for (const line of String(text || '').split('\n')) {
       const l = line.trim();
-      if (!l || l.startsWith('#')) continue;
-      const m = l.match(/^\/(.+)\/([gimsu]*)(?:\s*=>\s*([\s\S]*))?$/);
-      if (!m) { console.warn('[constellation] display filter: unparsed line: ' + l.slice(0, 80)); continue; }
-      try { rules.push({ re: new RegExp(m[1], m[2]), repl: m[3] != null ? m[3] : '' }); }
-      catch (e) { console.warn('[constellation] display filter: bad regex: ' + l.slice(0, 80)); }
+      if (!l) continue;
+      const disabled = l.startsWith('#');
+      const body = disabled ? l.replace(/^#\s?/, '') : l;
+      if (!body.startsWith('/')) {
+        if (!disabled) console.warn('[constellation] display filter: unparsed line: ' + l.slice(0, 80));
+        continue;   // plain comments and stray lines are not rules
+      }
+      const m = body.match(/^\/(.+)\/([gimsu]*)(?:\s*=>\s*([\s\S]*))?$/);
+      const base = { src: line, enabled: !disabled, label: body };
+      if (!m) { rules.push(Object.assign(base, { valid: false })); continue; }
+      try { rules.push(Object.assign(base, { valid: true, re: new RegExp(m[1], m[2]), repl: m[3] != null ? m[3] : '' })); }
+      catch (e) { console.warn('[constellation] display filter: bad regex: ' + l.slice(0, 80)); rules.push(Object.assign(base, { valid: false })); }
     }
     return rules;
   }
@@ -636,8 +647,37 @@ Constellation.chat = (function () {
   function applyDisplayFilters(text) {
     if (!displayFilters || !displayFilters.length) return text;
     let out = text;
-    for (const r of displayFilters) out = out.replace(r.re, r.repl);
+    for (const r of displayFilters) if (r.enabled && r.valid) out = out.replace(r.re, r.repl);
     return out;
+  }
+  // ---- Settings panel bridge: list rules, toggle one (persisted into the file itself),
+  // reload + re-render live. Toggling rewrites the '# ' marker on that line — the file
+  // stays the single source of truth and remains hand-editable in both directions.
+  function displayFiltersRules() {
+    return displayFilters ? displayFilters.map((r) => ({ src: r.src, enabled: r.enabled, valid: r.valid })) : [];
+  }
+  async function toggleDisplayFilter(index) {
+    try {
+      const text = await window.api.loadDisplayFilters();
+      let ruleIdx = -1;
+      const lines = String(text || '').split('\n').map((line) => {
+        const l = line.trim();
+        if (!l) return line;
+        const disabled = l.startsWith('#');
+        const body = disabled ? l.replace(/^#\s?/, '') : l;
+        if (!body.startsWith('/')) return line;   // comments/strays don't count
+        ruleIdx++;
+        if (ruleIdx !== index) return line;
+        return disabled ? line.replace(/^(\s*)#\s?/, '$1') : line.replace(/^(\s*)/, '$1# ');
+      });
+      await window.api.saveDisplayFilters(lines.join('\n'));
+      await loadDisplayFilters();
+      rerenderAllBodies();
+    } catch (e) { console.warn('[constellation]', e && e.message || e); }
+  }
+  async function reloadDisplayFilters() {
+    await loadDisplayFilters();
+    rerenderAllBodies();
   }
   function renderBodyHTML(content, opts) { return Constellation.md.render(applyDisplayFilters(content), opts); }
 
@@ -774,7 +814,7 @@ Constellation.chat = (function () {
   }
   // ---- CLI bridge handlers (Shape A) — non-destructive inspection/tests ----
   function getState() {
-    return { model: opts.model, thinking: !!opts.thinking, reasoningEffort: opts.reasoningEffort || 'max', temperature: opts.temperature, topP: opts.topP, maxTokens: opts.maxTokens, contextWindow: opts.contextWindow, sendAttachments: opts.sendAttachments !== false, messageCount: Math.max(0, conversation.length - 1), activeLore: activeLore.length, banRules: phraseBanRules.length };
+    return { model: opts.model, thinking: !!opts.thinking, reasoningEffort: opts.reasoningEffort || 'max', temperature: opts.temperature, topP: opts.topP, maxTokens: opts.maxTokens, contextWindow: opts.contextWindow, sendAttachments: opts.sendAttachments !== false, messageCount: Math.max(0, conversation.length - 1), activeLore: activeLore.length, banRules: phraseBanRules.length, castMacros: !!opts.castMacros };
   }
   async function testRetrieve(q) {
     const lc = await Constellation.engines.lore.buildLoreContext(activeLore, String(q || ''), loreEmbedFn());
@@ -1218,7 +1258,7 @@ Constellation.chat = (function () {
     // stored message (the drawer's copy gets scratched), so history forever shows the
     // number the model actually saw. System + fence macros keep refreshing by design —
     // {{turn}} at turn 7 should say 7.
-    const outText = compose.MACRO_HINT.test(text) ? compose.applySendMacros(text, conversation.filter((m) => m.role === 'user').length) : text;
+    const outText = opts.castMacros && compose.MACRO_HINT.test(text) ? compose.applySendMacros(text, conversation.filter((m) => m.role === 'user').length) : text;
     addMessage('user', outText, files);
     conversation.push({ role: 'user', content: outText, files: files.length ? files : undefined });
     inputEl.value = '';
@@ -1378,6 +1418,8 @@ Constellation.chat = (function () {
   function reset() {
     conversation = [{ role: 'system', content: compose.buildSystem({ roleplayPrompt: roleplayPrompt, systemFiles: systemFiles, projectFiles: projectFiles, immersion: opts.immersion }) }];
     usage = { tokens: 0, requests: 0 };
+    currentCharacter = null;
+    opts.castMacros = false;   // macros are a cast-chat feature; a fresh chat never substitutes
     pendingFiles = [];
     lastRequest = null;   // the inspector shows per-chat sends; switching chats clears it
     renderChips();
@@ -1399,11 +1441,16 @@ Constellation.chat = (function () {
   // Load a saved chat. The DOM swap runs inside a View Transition so the old thread dissolves into
   // the new one (a real crossfade, not a dip-to-black). Per-message auto-scroll is suppressed during
   // the bulk render so there's no vertical snap; we land once at the latest message.
-  function loadSession(msgs, system, project, gen, incomingUsage, systemFiles, projectFiles) {
+  function loadSession(msgs, system, project, gen, incomingUsage, systemFiles, projectFiles, character) {
     if (system !== undefined || project !== undefined) setPrompts({ roleplay: system, project, systemFiles, projectFiles });
     if (gen) setOptions(gen);   // restore THIS chat's generation settings
     const swap = () => {
       reset();
+      // Cast chats (and only cast chats) get send-time macros — a chat started from a card
+      // opted into the engine; everything else must relay macro SYNTAX verbatim (changelogs,
+      // prompt examples, documentation) without the dice rolling behind the reader's back.
+      currentCharacter = character || null;
+      opts.castMacros = !!character;
       usage = incomingUsage || { tokens: 0, requests: 0 };   // restore this chat's cumulative usage
       bulkScroll = true;
       const turns = (msgs || []).filter((m) => m.role === 'user' || m.role === 'assistant')
@@ -1478,5 +1525,5 @@ Constellation.chat = (function () {
     }
   }
 
-  return { init, setPrompts, getPrompts, getOptions, persist, setOptions, setActiveLore, setPhraseBans, setDraft, scrollToMatch, scrollToMessage, refreshBookmarkGlyphs, reset, loadSession, getUserWriting, recentMessages, getState, testRetrieve, testBans, dryRun, applyDialogue, testCompose: (list) => compose.toApiMessages(opts, projectInstructions, null, list || conversation) };   // bare call = the live conversation (probe convention)
+  return { init, setPrompts, getPrompts, getOptions, persist, setOptions, setActiveLore, setPhraseBans, setDraft, scrollToMatch, scrollToMessage, refreshBookmarkGlyphs, reset, loadSession, getUserWriting, recentMessages, getState, testRetrieve, testBans, dryRun, applyDialogue, displayFiltersRules, toggleDisplayFilter, reloadDisplayFilters, testCompose: (list) => compose.toApiMessages(opts, projectInstructions, null, list || conversation) };   // bare call = the live conversation (probe convention)
 })();

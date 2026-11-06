@@ -181,28 +181,32 @@ Constellation.compose = (function () {
         break;
       }
     }
-    // Send-time macros: TWO surfaces with TWO lifetimes. SYSTEM + fence macros refresh
-    // every send ({{turn}} must say the current turn); MESSAGE-BODY macros are frozen by
-    // the send path BEFORE this point (the stored text holds the resolved value — a
-    // rolled die never re-rolls). This pass catches what's left live: the system copy and
-    // any macro still standing in the newest user turn (dry-runs, probes, future callers).
-    // Chats that never write a macro are byte-identical: only matches are rewritten.
-    const turns = list.filter((m) => m.role === 'user').length;
-    if (out[0] && out[0].role === 'system' && MACRO_HINT.test(out[0].content)) {
-      out[0] = { role: 'system', content: applySendMacros(out[0].content, turns) };
-    }
-    for (let i = out.length - 1; i >= 0; i--) {
-      if (out[i].role !== 'user') continue;
-      if (typeof out[i].content === 'string' && MACRO_HINT.test(out[i].content)) {
-        out[i] = { role: 'user', content: applySendMacros(out[i].content, turns) };
-      } else if (Array.isArray(out[i].content)) {
-        const t = out[i].content.find((p) => p && p.type === 'text');
-        if (t && MACRO_HINT.test(String(t.text || ''))) {
-          const copy = out[i].content.map((p) => p === t ? { type: 'text', text: applySendMacros(String(t.text || ''), turns) } : p);
-          out[i] = { role: 'user', content: copy };
-        }
+    // Send-time macros — CAST CHATS ONLY (opts.castMacros; set from the chat's character
+    // field). Regular chats NEVER substitute: pasted documentation, changelogs, and prompt
+    // examples that merely mention macro syntax must arrive exactly as typed. Within an
+    // opted-in chat: TWO surfaces with TWO lifetimes. SYSTEM + fence macros refresh every
+    // send ({{turn}} must say the current turn); MESSAGE-BODY macros are frozen by the
+    // send path BEFORE this point (the stored text holds the resolved value — a rolled die
+    // never re-rolls). This pass catches what's left live: the system copy and any macro
+    // still standing in the newest user turn (dry-runs, probes, future callers).
+    if (opts.castMacros) {
+      const turns = list.filter((m) => m.role === 'user').length;
+      if (out[0] && out[0].role === 'system' && MACRO_HINT.test(out[0].content)) {
+        out[0] = { role: 'system', content: applySendMacros(out[0].content, turns) };
       }
-      break;   // newest user turn only
+      for (let i = out.length - 1; i >= 0; i--) {
+        if (out[i].role !== 'user') continue;
+        if (typeof out[i].content === 'string' && MACRO_HINT.test(out[i].content)) {
+          out[i] = { role: 'user', content: applySendMacros(out[i].content, turns) };
+        } else if (Array.isArray(out[i].content)) {
+          const t = out[i].content.find((p) => p && p.type === 'text');
+          if (t && MACRO_HINT.test(String(t.text || ''))) {
+            const copy = out[i].content.map((p) => p === t ? { type: 'text', text: applySendMacros(String(t.text || ''), turns) } : p);
+            out[i] = { role: 'user', content: copy };
+          }
+        }
+        break;   // newest user turn only
+      }
     }
     return out;
   }
