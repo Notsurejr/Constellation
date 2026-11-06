@@ -161,6 +161,14 @@
           <span>Project depth <em class="hint-inline">messages from the bottom — 0 rides the newest message, where attention is sharpest</em></span>
           <input type="number" id="projectDepthInput" min="0" max="12" step="1" value="0" />
         </label>
+        <label class="field">
+          <span>Project fence tag <em class="hint-inline">this chat — rename the &lt;tag&gt; the instructions ride in, so your system instructions can reference it by name</em></span>
+          <input type="text" id="projectFenceInput" maxlength="40" placeholder="project_instructions" />
+        </label>
+        <label class="field">
+          <span>Lore fence tag <em class="hint-inline">global — how depth-injected lorebook entries are labeled on the wire</em></span>
+          <input type="text" id="loreTagInput" maxlength="40" placeholder="lore" />
+        </label>
         <div class="attachments" id="projectFilesTray" hidden></div>
         <button class="btn" id="projectFileBtn" type="button" title="Attach .md/.txt — contents are added to this chat's project instructions">＋ Attach file</button>
         <div class="settings-actions">

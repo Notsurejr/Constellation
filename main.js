@@ -194,6 +194,7 @@ const SETTINGS_SPEC = [
   ['chat_layout', 'chatLayout', 'enum', 'folio', ['folio', 'bubbles']],
   ['glass_style', 'glassStyle', 'enum', 'gradient', ['gradient', 'frost', 'tinted', 'smoked', 'shelf', 'vignette']],
   ['project_depth', 'projectDepth', 'clampedInt', 0, 0, 12],
+  ['lore_tag', 'loreTag', 'str', 'lore'],
   ['send_attachments', 'sendAttachments', 'onoff', true],
   ['sidebar_sort', 'sidebarSort', 'enum', 'recent', ['recent', 'name', 'size']],
   ['flare_intensity', 'flareIntensity', 'clampedFloat', 0.5, 0, 1],
@@ -595,11 +596,11 @@ ipcMain.handle('sessions:load', (_e, id) => {
   if (!safeId(id)) return { id: null, title: 'Untitled', messages: [] };
   try {
     const d = JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, id + '.json'), 'utf8'));
-    return { id: d.id, title: d.title, messages: d.messages || [], system: d.system, project: d.project, systemFiles: d.systemFiles || [], projectFiles: d.projectFiles || [], gen: d.gen, usage: d.usage, parentId: d.parentId, parentTitle: d.parentTitle, lore: Array.isArray(d.lore) ? d.lore : [], character: d.character || null };   // character = cast-chat marker (badge + macro eligibility)
+    return { id: d.id, title: d.title, messages: d.messages || [], system: d.system, project: d.project, systemFiles: d.systemFiles || [], projectFiles: d.projectFiles || [], gen: d.gen, usage: d.usage, parentId: d.parentId, parentTitle: d.parentTitle, lore: Array.isArray(d.lore) ? d.lore : [], character: d.character || null, projectFence: d.projectFence || null };   // character = cast-chat marker (badge + macro eligibility)
   } catch (e) { return { id, title: 'Untitled', messages: [] }; }
 });
 
-ipcMain.handle('sessions:save', (_e, { id, title, messages, system, project, gen, usage, parentId, parentTitle, systemFiles, projectFiles, lore, character }) => {
+ipcMain.handle('sessions:save', (_e, { id, title, messages, system, project, gen, usage, parentId, parentTitle, systemFiles, projectFiles, lore, character, projectFenceTag }) => {
   fs.mkdirSync(SESSIONS_DIR, { recursive: true });
   id = safeId(id) || 's_' + Date.now() + '_' + Math.floor(Math.random() * 1e9);   // invalid/absent id → fresh one, never trusted
   const file = path.join(SESSIONS_DIR, id + '.json');
@@ -607,6 +608,7 @@ ipcMain.handle('sessions:save', (_e, { id, title, messages, system, project, gen
   try { const ex = JSON.parse(fs.readFileSync(file, 'utf8')); pinned = !!ex.pinned; pId = ex.parentId; pTitle = ex.parentTitle; folder = ex.folder || null; pLore = Array.isArray(ex.lore) ? ex.lore : null; wasHidden = !!ex.hidden; pChar = ex.character || null; } catch (e) {}
   const data = {
     id, title: title || 'Untitled', messages: messages || [], system, project, systemFiles: systemFiles || [], projectFiles: projectFiles || [], gen, usage, pinned, hidden: wasHidden,
+    projectFence: /^[A-Za-z0-9_-]{1,40}$/.test(String(projectFenceTag || '')) ? String(projectFenceTag) : null,
     parentId: parentId !== undefined ? parentId : pId, parentTitle: parentTitle !== undefined ? parentTitle : pTitle,
     folder, lore: Array.isArray(lore) ? lore : (pLore || []),
     character: character !== undefined ? character : pChar,   // { id, name } — seeds the sidebar badge

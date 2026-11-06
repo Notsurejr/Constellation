@@ -222,11 +222,18 @@ Constellation.chat = (function () {
   // (filesBlock / immersionBlock / buildSystem now live in Constellation.compose —
   // buildSystem({ roleplayPrompt, systemFiles, projectFiles, immersion }).)
 
-  function setPrompts({ roleplay, project, systemFiles: sFiles, projectFiles: pFiles }) {
+  // The project fence tag is PER-CHAT (your system instructions can reference it by name);
+  // the lore fence tag is GLOBAL. Tags must be plain fence-safe words.
+  const safeTag = (t, fallback) => /^[A-Za-z0-9_-]{1,40}$/.test(String(t || '').trim()) ? String(t).trim() : fallback;
+  let projectFenceTag = 'project_instructions';
+
+  function setPrompts({ roleplay, project, systemFiles: sFiles, projectFiles: pFiles, projectFenceTag: pTag }) {
     if (roleplay !== undefined) roleplayPrompt = (roleplay || '').trim();
     if (project !== undefined) projectInstructions = (project || '').trim();
     if (sFiles !== undefined) systemFiles = Array.isArray(sFiles) ? sFiles : [];
     if (pFiles !== undefined) projectFiles = Array.isArray(pFiles) ? pFiles : [];
+    if (pTag !== undefined) projectFenceTag = safeTag(pTag, 'project_instructions');
+    opts.projectFenceTag = projectFenceTag;
     const sys = compose.buildSystem({ roleplayPrompt: roleplayPrompt, systemFiles: systemFiles, projectFiles: projectFiles, immersion: opts.immersion });
     if (conversation[0] && conversation[0].role === 'system') conversation[0].content = sys;
     else conversation.unshift({ role: 'system', content: sys });
@@ -372,6 +379,8 @@ Constellation.chat = (function () {
     opts.cadenceMarks = cfg.cadenceMarks === true;
     opts.streamInk = cfg.streamInk === true;
     opts.projectDepth = Math.max(0, Math.min(12, parseInt(cfg.projectDepth, 10) || 0));   // global: which floor the project fence rides
+    opts.loreTag = /^[A-Za-z0-9_-]{1,40}$/.test(String(cfg.loreTag || '').trim()) ? String(cfg.loreTag).trim() : 'lore';   // global lore fence word
+    opts.projectFenceTag = 'project_instructions';   // per-chat; setPrompts/loadSession refine it
     setPhraseBans(cfg.phraseBans || '');
     loadDisplayFilters();   // display-only regex rules (config/display-filters.txt); fire-and-forget
     applyDialogue();        // dialogue voice + cadence: config to md.js, class on <body>
@@ -398,7 +407,7 @@ Constellation.chat = (function () {
       filterBtn: filterBtn,
       toggleRawView: toggleRawView,
       macrosOn: () => !!opts.castMacros,
-      forkBundle: () => ({ system: roleplayPrompt, project: projectInstructions, gen: genSnapshot(), character: currentCharacter }),
+      forkBundle: () => ({ system: roleplayPrompt, project: projectInstructions, gen: genSnapshot(), character: currentCharacter, projectFenceTag: projectFenceTag }),
     });
 
     bind();
@@ -1245,7 +1254,7 @@ Constellation.chat = (function () {
         inputEl.focus();
         usage.tokens += Math.round(((full || bodyBuf).length + (thinkBuf || '').length) / 4);   // count the reply's tokens too
         if (window.Constellation && window.Constellation.sessions) {
-          window.Constellation.sessions.saveCurrent(conversation.slice(1), roleplayPrompt, projectInstructions, genSnapshot(), usage, systemFiles, projectFiles);   // persist the chat + instructions + settings + usage + files
+          window.Constellation.sessions.saveCurrent(conversation.slice(1), roleplayPrompt, projectInstructions, genSnapshot(), usage, systemFiles, projectFiles, projectFenceTag);   // persist the chat + instructions + settings + usage + files
         }
         sculpt.syncThinkEditedMark(el, thinkBuf || '');
         // Exact context size: ask GLM's tokenizer what this conversation actually costs. Estimate
@@ -1480,8 +1489,8 @@ Constellation.chat = (function () {
   // Load a saved chat. The DOM swap runs inside a View Transition so the old thread dissolves into
   // the new one (a real crossfade, not a dip-to-black). Per-message auto-scroll is suppressed during
   // the bulk render so there's no vertical snap; we land once at the latest message.
-  function loadSession(msgs, system, project, gen, incomingUsage, systemFiles, projectFiles, character) {
-    if (system !== undefined || project !== undefined) setPrompts({ roleplay: system, project, systemFiles, projectFiles });
+  function loadSession(msgs, system, project, gen, incomingUsage, systemFiles, projectFiles, character, projectFence) {
+    if (system !== undefined || project !== undefined) setPrompts({ roleplay: system, project, systemFiles, projectFiles, projectFenceTag: projectFence });
     if (gen) setOptions(gen);   // restore THIS chat's generation settings
     const swap = () => {
       reset();
@@ -1518,7 +1527,7 @@ Constellation.chat = (function () {
   }
 
   // The active chat's instructions — Settings reads these so the editors show what THIS chat uses.
-  function getPrompts() { return { roleplay: roleplayPrompt, project: projectInstructions, systemFiles, projectFiles }; }
+  function getPrompts() { return { roleplay: roleplayPrompt, project: projectInstructions, systemFiles, projectFiles, projectFenceTag }; }
 
   // The active chat's generation settings — Settings + Craft read these so they reflect THIS chat.
   function getOptions() { return Object.assign({}, opts); }

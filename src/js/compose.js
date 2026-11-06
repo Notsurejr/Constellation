@@ -157,8 +157,9 @@ Constellation.compose = (function () {
         const d = Math.max(1, Math.min(12, it.depth || 0));
         const target = out[Math.max(1, out.length - d)];
         if (!target) continue;
+        const ltag = /^[A-Za-z0-9_-]{1,40}$/.test(String(opts.loreTag || '').trim()) ? String(opts.loreTag).trim() : 'lore';   // global fence word (Appearance/Writing), default 'lore'
         const tag = String(it.label || 'world').replace(/[<>&]/g, '');
-        const fence = '\n\n<lore:' + tag + '>\n' + it.text + '\n</lore:' + tag + '>';
+        const fence = '\n\n<' + ltag + ':' + tag + '>\n' + it.text + '\n</' + ltag + ':' + tag + '>';
         if (typeof target.content === 'string') target.content += fence;
         else if (Array.isArray(target.content)) {
           const t = target.content.find((p) => p && p.type === 'text');
@@ -186,6 +187,12 @@ Constellation.compose = (function () {
     // block survives context trimming because trimForApi always keeps the latest turn, and
     // its cost is counted because the window estimate runs on what this returns.
     if (projectInstructions) {
+      // Fence tag is PER-CHAT (renameable so your system instructions can tie in by name);
+      // sanitized to a fence-safe word, falling back to the classic tag.
+      const safeTag = (t, fallback) => /^[A-Za-z0-9_-]{1,40}$/.test(String(t || '').trim()) ? String(t).trim() : fallback;
+      const ptag = safeTag(opts.projectFenceTag, 'project_instructions');
+      const fence = '\n\n<' + ptag + '>\n' + projectInstructions + '\n</' + ptag + '>';
+      const marker = '<' + ptag + '>';
       // Depth 0 (default) = the newest user turn — the bottom bun, the strongest attention.
       // A configured depth raises the fence N messages from the bottom; the target snaps to
       // the nearest user turn at or above that floor (the fence only ever rides user turns).
@@ -193,13 +200,12 @@ Constellation.compose = (function () {
       let targetIdx = out.length - 1 - depth;
       while (targetIdx > 0 && out[targetIdx].role !== 'user') targetIdx--;
       if (targetIdx >= 1) {
-        const fence = '\n\n<project_instructions>\n' + projectInstructions + '\n</project_instructions>';
         const target = out[targetIdx];
         if (typeof target.content === 'string') {
-          if (target.content.indexOf('<project_instructions>') === -1) target.content += fence;
+          if (target.content.indexOf(marker) === -1) target.content += fence;
         } else if (Array.isArray(target.content)) {
           const t = target.content.find((p) => p && p.type === 'text');
-          if (t) { if (String(t.text || '').indexOf('<project_instructions>') === -1) t.text = String(t.text || '') + fence; }
+          if (t) { if (String(t.text || '').indexOf(marker) === -1) t.text = String(t.text || '') + fence; }
           else target.content.push({ type: 'text', text: fence.trim() });
         }
       }
