@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.11.6 — The Whole Window
+
+### Fixed
+
+- **Chats with attachments rendered truncated** (v0.11.5 regression): loading a chat died
+  silently on the first message carrying an attachment, so the window showed only the
+  messages before it while the conversation, the context meter, and the session file held
+  the whole chat. Fixed, plus a guard: one broken message can never again swallow the
+  messages after it.
+- **Edit-and-resend now asks before it cuts.** The button shows what a resend would take
+  ("Save & resend · cuts 3") and, when anything follows, requires a hold (~0.7s, a fill
+  sweeps the button) — a quick click explains instead of cutting.
+
+### New
+
+- **Save in place** (edit mode): swap the text of an earlier message and keep everything
+  after it — the chat continues from the end as if you'd written it that way. The old
+  full resend (text + everything after it replaced) stays, behind the hold.
+
+### How macros behave when edited (Cast chats)
+
+An already-fired macro no longer exists as a macro — at send it became part of history
+(`{{roll:2d6}}` is stored as, say, `9`). Editing that message edits the **9**, like any
+text; it never re-rolls behind your back. To roll again, type the macro fresh in the
+edit — on resend it freezes to a new value, deliberately. Regular chats never substitute
+anything, so editing there is plain text all the way down.
+
 ## v0.11.5 — Cargo Untouched
 
 ### Fixed
