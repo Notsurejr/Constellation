@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — The Observatory Look
+## v0.11.7 — The Observatory Look
 
 ### New
 
