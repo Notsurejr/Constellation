@@ -180,8 +180,15 @@ Constellation.sculpt = (function () {
 
     const bar = document.createElement('div');
     bar.className = 'edit-bar';
-    const save = actionBtn('commit', 'Save & resend');
+    // How many later messages a resend would cut — the destructive path asks for a HOLD
+    // when it would take anything; a quick click explains instead of cutting.
+    const msgsAll = Array.from(messagesEl().querySelectorAll('.msg'));
+    const cutCount = Math.max(0, msgsAll.length - 1 - msgsAll.indexOf(el));
+    const inPlace = actionBtn('commit-inplace', 'Save in place');
+    const save = actionBtn('commit', cutCount > 0 ? ('Save & resend · cuts ' + cutCount) : 'Save & resend');
+    if (cutCount > 0) save.classList.add('hold-confirm');
     const cancel = actionBtn('cancel', 'Cancel');
+    bar.appendChild(inPlace);
     bar.appendChild(save);
     bar.appendChild(cancel);
     el.querySelector('.msg-actions').replaceWith(bar);
@@ -189,7 +196,7 @@ Constellation.sculpt = (function () {
     ta.focus();
     ta.setSelectionRange(ta.value.length, ta.value.length);
 
-    save.addEventListener('click', () => {
+    const doResend = () => {
       const typed = ta.value.trim();
       const cp = window.Constellation.compose;
       const v = H.macrosOn() && cp.MACRO_HINT.test(typed) ? cp.applySendMacros(typed, H.conv().filter((m) => m.role === 'user').length) : typed;   // resend = a fresh send: new macros freeze anew (cast chats only)
@@ -200,8 +207,43 @@ Constellation.sculpt = (function () {
       H.addMessage('user', v, files);
       H.conv().push({ role: 'user', content: v, files: files.length ? files : undefined });
       H.streamReply();
+    };
+
+    // Save in place: swap the text of THIS message, keep everything after it. The chat
+    // continues from the end as if you'd written it that way the first time.
+    inPlace.addEventListener('click', () => {
+      const v = ta.value.trim();
+      const m = H.conv()[convIndexForEl(el)];
+      el.dataset.editing = '';
+      if (!v || !m) { restoreMessage(el, original); return; }
+      m.content = v;
+      restoreMessage(el, v);   // re-renders the body + rebuilds the action bar
+      H.persist();
+      H.meter();
     });
-    cancel.addEventListener('click', () => restoreMessage(el, original));
+
+    // Destructive resend: hold ~0.7s to confirm (a fill sweeps the button); a quick click
+    // only explains. When nothing follows the message, a plain click resends as before.
+    let holdTimer = null, firedByHold = false;
+    const cancelHold = () => { if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } save.classList.remove('holding'); };
+    save.addEventListener('pointerdown', () => {
+      if (cutCount <= 0) return;
+      firedByHold = false;
+      save.classList.add('holding');
+      holdTimer = setTimeout(() => { firedByHold = true; cancelHold(); doResend(); }, 700);
+    });
+    save.addEventListener('pointerup', cancelHold);
+    save.addEventListener('pointerleave', cancelHold);
+    save.addEventListener('click', () => {
+      if (firedByHold) { firedByHold = false; return; }
+      if (cutCount > 0) {
+        save.title = 'Hold to confirm';
+        if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Hold the button to confirm — resending here cuts ' + cutCount + ' later message' + (cutCount === 1 ? '' : 's') + '. Use Save in place to keep them.', 6000);
+        return;
+      }
+      doResend();
+    });
+    cancel.addEventListener('click', () => { cancelHold(); restoreMessage(el, original); });
   }
 
   function restoreMessage(el, original) {
@@ -422,6 +464,7 @@ Constellation.sculpt = (function () {
   return {
     init: init,
     actionBtn: actionBtn,
+    eyeSvg: eyeSvg,
     onMessageClick: onMessageClick,
     convIndexForEl: convIndexForEl,
     startThinkEdit: startThinkEdit,

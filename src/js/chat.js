@@ -550,13 +550,13 @@ Constellation.chat = (function () {
       eye.type = 'button'; eye.className = 'attach-eye-inline';
       const setTitle = () => { eye.title = f.excluded ? 'Hidden from context — click to send with future calls' : 'Sent with every call — click to hide from context (the conversation stays)'; };
       setTitle();
-      eye.appendChild(eyeSvg(!!f.excluded));
+      eye.appendChild(sculpt.eyeSvg(!!f.excluded));   // eyeSvg lives in sculpt.js since the split
       eye.addEventListener('click', (ev) => {
         ev.stopPropagation();
         f.excluded = !f.excluded;
         persist();
         chip.classList.toggle('excluded', !!f.excluded);
-        eye.replaceChildren(eyeSvg(!!f.excluded));
+        eye.replaceChildren(sculpt.eyeSvg(!!f.excluded));
         setTitle();
         updateContextMeter();
       });
@@ -1457,8 +1457,14 @@ Constellation.chat = (function () {
         .map((m) => ({ role: m.role, content: m.content, files: m.files, reasoning: m.reasoning, lore: m.lore, edited: m.edited, orig: m.orig, rOrig: m.rOrig, variants: m.variants, vActive: m.vActive }));
       conversation = [{ role: 'system', content: compose.buildSystem({ roleplayPrompt: roleplayPrompt, systemFiles: systemFiles, projectFiles: projectFiles, immersion: opts.immersion }) }].concat(turns);
       for (const m of turns) {
-        const r = addMessage(m.role, m.content, m.files, m.reasoning, m.lore, { edited: m.edited });
-        if (m.role === 'assistant' && Array.isArray(m.variants) && m.variants.length > 1 && r && r.el) sculpt.renderVariantNav(r.el);
+        // One bad message must never eat the rest of the chat: the view-transition wrapper
+        // swallows exceptions from this loop, so a mid-list throw rendered truncated chats
+        // with no visible error (v0.11.5's eyeSvg bug did exactly that). Render on; the
+        // message stays in the conversation either way.
+        try {
+          const r = addMessage(m.role, m.content, m.files, m.reasoning, m.lore, { edited: m.edited });
+          if (m.role === 'assistant' && Array.isArray(m.variants) && m.variants.length > 1 && r && r.el) sculpt.renderVariantNav(r.el);
+        } catch (e) { console.warn('[constellation] message render failed (kept in context):', e && e.message || e); }
       }
       bulkScroll = false;
       scrollToBottom();           // land at the latest message in one move (no top→bottom snap)

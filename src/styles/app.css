@@ -2017,3 +2017,12 @@ body.cadence-on .msg.assistant .body .cadence {
 .filter-rule.invalid { opacity: 0.55; cursor: default; }
 .filter-rule-warn { margin-left: auto; font-size: 11px; color: var(--text-faint); font-style: italic; flex: none; }
 .filter-none { color: var(--text-dim); font-size: 12.5px; padding: 4px 2px; }
+
+/* Edit bar: the destructive resend asks for a hold — a fill sweeps the button while held. */
+.msg-action.hold-confirm { position: relative; overflow: hidden; }
+.msg-action.hold-confirm.holding::after {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 0;
+  background: rgba(217, 119, 119, 0.30); pointer-events: none;
+  animation: holdfill 0.7s linear forwards;
+}
+@keyframes holdfill { from { width: 0; } to { width: 100%; } }
