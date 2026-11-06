@@ -371,6 +371,7 @@ Constellation.chat = (function () {
     opts.dialogueStyle = cfg.dialogueStyle || 'off';
     opts.cadenceMarks = cfg.cadenceMarks === true;
     opts.streamInk = cfg.streamInk === true;
+    opts.projectDepth = Math.max(0, Math.min(12, parseInt(cfg.projectDepth, 10) || 0));   // global: which floor the project fence rides
     setPhraseBans(cfg.phraseBans || '');
     loadDisplayFilters();   // display-only regex rules (config/display-filters.txt); fire-and-forget
     applyDialogue();        // dialogue voice + cadence: config to md.js, class on <body>
@@ -394,6 +395,8 @@ Constellation.chat = (function () {
       fileChipEl: fileChipEl,
       toggleBookmark: toggleBookmark,
       continueReply: continueReply,
+      filterBtn: filterBtn,
+      toggleRawView: toggleRawView,
       macrosOn: () => !!opts.castMacros,
       forkBundle: () => ({ system: roleplayPrompt, project: projectInstructions, gen: genSnapshot(), character: currentCharacter }),
     });
@@ -678,6 +681,30 @@ Constellation.chat = (function () {
   async function reloadDisplayFilters() {
     await loadDisplayFilters();
     rerenderAllBodies();
+  }
+  // One-click reveal: messages a rule actually touches get a 👁 Raw toggle in their action
+  // bar — no Settings visit to see what's really written, one click to flip back.
+  function hasFilterEffect(text) {
+    return !!(displayFilters && displayFilters.length) && applyDisplayFilters(text) !== text;
+  }
+  function filterBtn(el) {
+    if (!hasFilterEffect(String(el.__raw || ''))) return null;
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'msg-action'; b.dataset.action = 'rawview';
+    b.textContent = el.__rawView ? '👁 Filtered' : '👁 Raw';
+    b.title = 'Toggle the display filters for this message — the stored text never changes';
+    return b;
+  }
+  function toggleRawView(el) {
+    el.__rawView = !el.__rawView;
+    const body = el.querySelector('.body');
+    if (body && el.__raw != null) {
+      body.innerHTML = el.__rawView ? Constellation.md.render(el.__raw) : renderBodyHTML(el.__raw);
+      enhanceCodeBlocks(body);
+      if (window.Constellation && window.Constellation.colorfx) window.Constellation.colorfx.tagColors(body);
+    }
+    const btn = el.querySelector('[data-action="rawview"]');
+    if (btn) btn.textContent = el.__rawView ? '👁 Filtered' : '👁 Raw';
   }
   function renderBodyHTML(content, opts) { return Constellation.md.render(applyDisplayFilters(content), opts); }
 
@@ -978,6 +1005,7 @@ Constellation.chat = (function () {
     }
     actions.appendChild(sculpt.actionBtn('fork', '⑂ Fork'));
     actions.appendChild(sculpt.actionBtn('copy', '⎘ Copy'));
+    const fb = filterBtn(el); if (fb) actions.appendChild(fb);
     actions.appendChild(sculpt.actionBtn('bookmark', '☆'));
     el.appendChild(actions);
     applyBookmarkGlyph(el);
@@ -1092,12 +1120,18 @@ Constellation.chat = (function () {
         rafId = requestAnimationFrame(pump);
       } else {
         const _diagT0 = performance.now();
+        const pinned = !finishAnchor && atBottom();   // bottom-pinned readers: the final re-parse can shift content height — keep their eye on the same text
+        const prevH = messagesEl.scrollHeight;
         body.classList.remove('caret');
         renderPrefix(false, false);
         enhanceCodeBlocks(body);   // finished streaming -> add expand/collapse toggles
         if (window.Constellation && window.Constellation.colorfx) window.Constellation.colorfx.tagColors(body);   // tag colors in the finished reply
         if (finishAnchor) restoreScrollAnchor(finishAnchor);   // final render settled — put the reader's line back
-        else scrollToBottom();   // the final re-parse can SHRINK content (~code blocks tighten); a bottom-pinned reader would fall with the clamp — re-pin
+        else if (pinned) {
+          const dH = messagesEl.scrollHeight - prevH;
+          messagesEl.scrollTop += dH;   // compensate the height shift instead of hard re-pinning (the old visible jump)
+          if (window.Constellation && window.Constellation.diag) window.Constellation.diag.note('re-pin', 'dH ' + Math.round(dH));   // scroll-capture correlation
+        }
         if (window.Constellation && window.Constellation.diag) window.Constellation.diag.span('finish-render', performance.now() - _diagT0);
         rafId = null;
       }
@@ -1192,6 +1226,11 @@ Constellation.chat = (function () {
           }
         } else {
           conversation.push({ role: 'assistant', content: bodyBuf, reasoning: thinkBuf || undefined, lore: vLore });
+        }
+        if (window.Constellation && window.Constellation.diag) window.Constellation.diag.note('reply-finish', 'len ' + String(bodyBuf || '').length);   // scroll-capture correlation
+        if (hasFilterEffect(bodyBuf)) {
+          const acts = el.querySelector('.msg-actions');
+          if (acts && !acts.querySelector('[data-action="rawview"]')) { const fb = filterBtn(el); if (fb) acts.appendChild(fb); }
         }
         if (thinkDetails && thinkBuf && atBottom()) thinkDetails.open = false;   // fold thinking away once the answer is in — but NOT while the reader is scrolled up (the collapse would yank their view)
         if (finishReason === 'length') {   // hit the max-length cap -> offer to continue from the cutoff

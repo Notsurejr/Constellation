@@ -193,6 +193,7 @@ const SETTINGS_SPEC = [
   ['ui_font', 'uiFont', 'enum', 'Literata', ['Literata', 'Atkinson']],
   ['chat_layout', 'chatLayout', 'enum', 'folio', ['folio', 'bubbles']],
   ['glass_style', 'glassStyle', 'enum', 'gradient', ['gradient', 'frost', 'tinted', 'smoked', 'shelf', 'vignette']],
+  ['project_depth', 'projectDepth', 'clampedInt', 0, 0, 12],
   ['send_attachments', 'sendAttachments', 'onoff', true],
   ['sidebar_sort', 'sidebarSort', 'enum', 'recent', ['recent', 'name', 'size']],
   ['flare_intensity', 'flareIntensity', 'clampedFloat', 0.5, 0, 1],

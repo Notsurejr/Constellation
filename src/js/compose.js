@@ -145,9 +145,27 @@ Constellation.compose = (function () {
       return o;
     });
     // Lorebook: inject only the RELEVANT world context (constant entries + keyword matches + the
-    // top BM25 passages from big reference docs) as a clearly-labeled section.
-    if (loreCtx && loreCtx.body && out[0] && out[0].role === 'system') {
-      out[0] = { role: 'system', content: out[0].content + '\n\n# World\nBackground facts about this world (true; use as context):\n\n' + loreCtx.body };
+    // top BM25 passages from big reference docs) as a clearly-labeled section. Entries with a
+    // DEPTH set ride inside the message stack instead — N messages from the bottom, near the
+    // action — per the depth-injection design; the system pile keeps the rest.
+    if (loreCtx && loreCtx.items && loreCtx.items.length) {
+      const surfaceBody = (loreCtx.bodySurface != null ? loreCtx.bodySurface : loreCtx.body);
+      if (surfaceBody && out[0] && out[0].role === 'system') {
+        out[0] = { role: 'system', content: out[0].content + '\n\n# World\nBackground facts about this world (true; use as context):\n\n' + surfaceBody };
+      }
+      for (const it of loreCtx.items) {
+        const d = Math.max(1, Math.min(12, it.depth || 0));
+        const target = out[Math.max(1, out.length - d)];
+        if (!target) continue;
+        const tag = String(it.label || 'world').replace(/[<>&]/g, '');
+        const fence = '\n\n<lore:' + tag + '>\n' + it.text + '\n</lore:' + tag + '>';
+        if (typeof target.content === 'string') target.content += fence;
+        else if (Array.isArray(target.content)) {
+          const t = target.content.find((p) => p && p.type === 'text');
+          if (t) t.text += fence;
+          else target.content.push({ type: 'text', text: fence.trim() });
+        }
+      }
     }
     // The writer's hand (optional, off by default): your sculpted edits, shown to the model as the
     // voice it should lean toward. Disabled, edits stay entirely private to the story.
@@ -168,17 +186,22 @@ Constellation.compose = (function () {
     // block survives context trimming because trimForApi always keeps the latest turn, and
     // its cost is counted because the window estimate runs on what this returns.
     if (projectInstructions) {
-      const fence = '\n\n<project_instructions>\n' + projectInstructions + '\n</project_instructions>';
-      for (let i = out.length - 1; i >= 0; i--) {
-        if (out[i].role !== 'user') continue;
-        if (typeof out[i].content === 'string') {
-          if (out[i].content.indexOf('<project_instructions>') === -1) out[i].content += fence;
-        } else if (Array.isArray(out[i].content)) {
-          const t = out[i].content.find((p) => p && p.type === 'text');
+      // Depth 0 (default) = the newest user turn — the bottom bun, the strongest attention.
+      // A configured depth raises the fence N messages from the bottom; the target snaps to
+      // the nearest user turn at or above that floor (the fence only ever rides user turns).
+      const depth = Math.max(0, Math.min(12, opts.projectDepth || 0));
+      let targetIdx = out.length - 1 - depth;
+      while (targetIdx > 0 && out[targetIdx].role !== 'user') targetIdx--;
+      if (targetIdx >= 1) {
+        const fence = '\n\n<project_instructions>\n' + projectInstructions + '\n</project_instructions>';
+        const target = out[targetIdx];
+        if (typeof target.content === 'string') {
+          if (target.content.indexOf('<project_instructions>') === -1) target.content += fence;
+        } else if (Array.isArray(target.content)) {
+          const t = target.content.find((p) => p && p.type === 'text');
           if (t) { if (String(t.text || '').indexOf('<project_instructions>') === -1) t.text = String(t.text || '') + fence; }
-          else out[i].content.push({ type: 'text', text: fence.trim() });
+          else target.content.push({ type: 'text', text: fence.trim() });
         }
-        break;
       }
     }
     // Send-time macros — CAST CHATS ONLY (opts.castMacros; set from the chat's character

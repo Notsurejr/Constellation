@@ -14,6 +14,7 @@ Constellation.settings = (function () {
     const p = (Constellation.chat.getPrompts ? Constellation.chat.getPrompts() : { roleplay: '', project: '' });
     $('promptEditor').value = p.roleplay || '';
     $('projectEditor').value = p.project || '';
+    if ($('projectDepthInput')) $('projectDepthInput').value = (window.Constellation && window.Constellation.chat && window.Constellation.chat.getOptions) ? (window.Constellation.chat.getOptions().projectDepth || 0) : 0;
     edSystemFiles = (p.systemFiles || []).map((f) => ({ name: f.name, text: f.text }));
     edProjectFiles = (p.projectFiles || []).map((f) => ({ name: f.name, text: f.text }));
     renderFileTray('systemFilesTray', edSystemFiles);
@@ -168,6 +169,10 @@ Constellation.settings = (function () {
     const sys = $('promptEditor').value;
     const proj = $('projectEditor').value;
     Constellation.chat.setPrompts({ roleplay: sys, project: proj, systemFiles: edSystemFiles, projectFiles: edProjectFiles });
+    // Project depth is global (which floor the fence rides) — persist + apply live.
+    const depth = Math.max(0, Math.min(12, parseInt($('projectDepthInput') ? $('projectDepthInput').value : '0', 10) || 0));
+    await window.api.saveConfig({ project_depth: depth });
+    if (window.Constellation && window.Constellation.chat && window.Constellation.chat.setOptions) window.Constellation.chat.setOptions({ projectDepth: depth });
     Constellation.chat.persist();
   }
 
@@ -595,6 +600,7 @@ Constellation.settings = (function () {
     selectedPreset = p.id;
     $('promptEditor').value = p.system || '';
     $('projectEditor').value = p.project || '';
+    if ($('projectDepthInput')) $('projectDepthInput').value = (window.Constellation && window.Constellation.chat && window.Constellation.chat.getOptions) ? (window.Constellation.chat.getOptions().projectDepth || 0) : 0;
     $('presetName').value = p.name || '';
     await applyEditors();
     refreshPresets();

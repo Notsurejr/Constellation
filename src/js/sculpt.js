@@ -38,6 +38,7 @@ Constellation.sculpt = (function () {
     else if (action === 'regen') regenerate(el);
     else if (action === 'fork') forkFromEl(el);
     else if (action === 'copy') copyMessage(el);
+    else if (action === 'rawview') H.toggleRawView(el);
     else if (action === 'bookmark') H.toggleBookmark(el);
     else if (action === 'continue') H.continueReply(el);
   }
@@ -259,6 +260,7 @@ Constellation.sculpt = (function () {
       actions.appendChild(actionBtn('edit', '✎ Edit'));
       actions.appendChild(actionBtn('fork', '⑂ Fork'));
       actions.appendChild(actionBtn('copy', '⎘ Copy'));
+      const fb = H.filterBtn(el); if (fb) actions.appendChild(fb);
       actions.appendChild(actionBtn('bookmark', '☆'));
       bar.replaceWith(actions);
       H.applyBookmarkGlyph(el);
@@ -386,6 +388,7 @@ Constellation.sculpt = (function () {
       actions.appendChild(actionBtn('sculpt', '✎ Sculpt'));
       actions.appendChild(actionBtn('fork', '⑂ Fork'));
       actions.appendChild(actionBtn('copy', '⎘ Copy'));
+      const fb2 = H.filterBtn(el); if (fb2) actions.appendChild(fb2);
       actions.appendChild(actionBtn('bookmark', '☆'));
       bar.replaceWith(actions);
       H.applyBookmarkGlyph(el);

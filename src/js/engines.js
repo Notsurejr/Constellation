@@ -86,16 +86,17 @@
   //   query      — recent conversation text (the retrieval query)
   //   embedFn    — optional async (text) => unit vector | null, for semantic matching (null = BM25-only)
   async function buildLoreContext(activeLore, query, embedFn) {
-    const out = { body: '', items: [] };
+    const out = { body: '', items: [], bodySurface: '' };
     const enabled = [];
-    for (const lb of activeLore) for (const e of (lb.entries || [])) if (e && e.enabled) enabled.push(e);
+    const depthOf = new Map();   // entry depth injection: messages from the bottom (0 = the system pile)
+    for (const lb of activeLore) for (const e of (lb.entries || [])) if (e && e.enabled) { enabled.push(e); depthOf.set(eidOf(e), Math.max(0, Math.min(12, parseInt(e.depth, 10) || 0))); }
     if (!enabled.length) return finalizeLore(out);
     const queryTokens = loreTokenize(query);
     let budget = LORE_BUDGET_CHARS;
     const push = (label, text, eid) => {
       const piece = String(text || '').slice(0, budget);
       if (!piece.trim()) return;
-      out.items.push({ label, text: piece, eid: eid });
+      out.items.push({ label, text: piece, eid: eid, depth: depthOf.get(eid) || 0 });
       budget -= piece.length;
     };
     for (const e of enabled.filter((e) => e.constant)) { push(loreLabel(e), loreSource(e), eidOf(e)); if (budget <= 0) return finalizeLore(out); }
@@ -136,7 +137,11 @@
     }
     return finalizeLore(out);
   }
-  function finalizeLore(ctx) { ctx.body = ctx.items.map((it) => it.text).join('\n\n'); return ctx; }
+  function finalizeLore(ctx) {
+    ctx.body = ctx.items.map((it) => it.text).join('\n\n');
+    ctx.bodySurface = ctx.items.filter((it) => !(it.depth > 0)).map((it) => it.text).join('\n\n');   // depth-injected entries ride inside the stack instead of the system pile
+    return ctx;
+  }
 
   // ---------- Phrase bans ----------
   // Rules are `find = replace` lines (or `find =` to delete); matched at word boundaries, case-insensitive.

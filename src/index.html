@@ -157,6 +157,10 @@
         <h2>Project instructions <em class="hint-inline">this chat</em></h2>
         <div class="hint">Extra context or rules sent with every message in this chat (optional).</div>
         <textarea id="projectEditor" placeholder="e.g. This is a noir detective story set in 1940s LA…"></textarea>
+        <label class="field">
+          <span>Project depth <em class="hint-inline">messages from the bottom — 0 rides the newest message, where attention is sharpest</em></span>
+          <input type="number" id="projectDepthInput" min="0" max="12" step="1" value="0" />
+        </label>
         <div class="attachments" id="projectFilesTray" hidden></div>
         <button class="btn" id="projectFileBtn" type="button" title="Attach .md/.txt — contents are added to this chat's project instructions">＋ Attach file</button>
         <div class="settings-actions">

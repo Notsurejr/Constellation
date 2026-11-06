@@ -234,6 +234,18 @@ Constellation.lorebook = (function () {
     conCb.addEventListener('change', () => { e.constant = conCb.checked; scheduleSave(); });
     con.appendChild(conCb); con.appendChild(document.createTextNode(' Always include (no keyword needed)'));
     foot.appendChild(con);
+    // Depth injection: this entry lands INSIDE the message stack, N messages from the bottom,
+    // instead of the top-of-context system pile. 0 = the pile (classic behavior).
+    const dep = document.createElement('label'); dep.className = 'lore-constant';
+    dep.title = 'Depth injection — place this entry N messages from the bottom of the context (0 = keep it in the system pile)';
+    const depIn = document.createElement('input');
+    depIn.type = 'number'; depIn.min = '0'; depIn.max = '12'; depIn.step = '1';
+    depIn.value = String(Math.max(0, Math.min(12, parseInt(e.depth, 10) || 0)));
+    depIn.style.width = '52px';
+    depIn.addEventListener('change', () => { e.depth = Math.max(0, Math.min(12, parseInt(depIn.value, 10) || 0)); scheduleSave(); });
+    dep.appendChild(document.createTextNode('Depth:'));
+    dep.appendChild(depIn);
+    foot.appendChild(dep);
 
     row.appendChild(head); row.appendChild(content); row.appendChild(ftray); row.appendChild(addBtn); row.appendChild(foot);
     return row;
