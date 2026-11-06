@@ -65,7 +65,7 @@ Constellation.settings = (function () {
       if ($('colorWordsInput')) $('colorWordsInput').checked = cfg.colorWords !== false;
       if ($('moodSkyInput')) $('moodSkyInput').checked = cfg.moodSky !== false;
       if ($('fontFamilyInput')) $('fontFamilyInput').value = cfg.fontFamily || 'Literata';
-      if ($('uiFontInput')) $('uiFontInput').value = cfg.uiFont || 'Atkinson';
+      if ($('uiFontInput')) $('uiFontInput').value = cfg.uiFont || 'Literata';
       if ($('chatLayoutInput')) $('chatLayoutInput').value = cfg.chatLayout || 'folio';
       applyUiChrome();
       const lh = cfg.lineHeight != null ? cfg.lineHeight : 1.65;
@@ -420,7 +420,7 @@ Constellation.settings = (function () {
   // Interface chrome: which font the controls wear, and how replies sit in the column.
   // (Reading font / measure are the prose's own settings — these are the room they live in.)
   function applyUiChrome() {
-    const f = $('uiFontInput') ? $('uiFontInput').value : 'Atkinson';
+    const f = $('uiFontInput') ? $('uiFontInput').value : 'Literata';
     document.documentElement.style.setProperty('--font-ui', f === 'Literata'
       ? "'Literata', Georgia, 'Times New Roman', serif"
       : "'Atkinson Hyperlegible', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif");
@@ -780,7 +780,7 @@ Constellation.settings = (function () {
     (async () => {
       try {
         const cfg = await window.api.loadConfig();
-        if ($('uiFontInput')) $('uiFontInput').value = cfg.uiFont || 'Atkinson';
+        if ($('uiFontInput')) $('uiFontInput').value = cfg.uiFont || 'Literata';
         if ($('chatLayoutInput')) $('chatLayoutInput').value = cfg.chatLayout || 'folio';
       } catch (e) { console.warn('[constellation]', e && e.message || e); }
       applyUiChrome();

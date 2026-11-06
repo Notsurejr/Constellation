@@ -121,7 +121,7 @@ html, body {
   max-width: calc(var(--chat-col, 880px) * 0.75);
   min-width: 280px;   /* always wide enough to hold the hover action row (Edit/Fork/Copy/★) without spilling out, even for one-word messages */
   padding: 14px 18px;
-  border-radius: var(--radius);
+  border-radius: 8px;   /* sharper chat boxes (user call; --radius stays for the rest of the chrome) */
   background: linear-gradient(180deg, rgba(14,18,32,0.86) 0%, rgba(7,9,17,0.92) 100%);
   border: 1px solid var(--panel-border);
   border-top-color: rgba(185,205,255,0.22);
@@ -1664,12 +1664,13 @@ input.num::-webkit-outer-spin-button, input.num::-webkit-inner-spin-button { opa
   padding: 14px 10px 12px; background: rgba(255,255,255,0.015); border: 1px solid var(--panel-border);
   border-radius: 12px; cursor: pointer; font: inherit; color: inherit;
   transition: border-color .15s ease, background .15s ease, transform .15s ease;
+  overflow: hidden;   /* long creator URLs / names clip at the card edge, never past it */
 }
 .cast-tile:hover { border-color: var(--accent-dim); background: rgba(159,184,255,0.05); transform: translateY(-2px); }
 .cast-tile-art { width: 84px; height: 84px; border-radius: 16px; object-fit: cover; border: 1px solid var(--panel-border); }
 .cast-tile-art.cast-avatar-blank { font-size: 30px; }
-.cast-tile-name { font-size: 14px; color: var(--text); line-height: 1.3; }
-.cast-tile-by { font-size: 11px; color: var(--text-faint); }
+.cast-tile-name { font-size: 14px; color: var(--text); line-height: 1.3; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cast-tile-by { font-size: 11px; color: var(--text-faint); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }   /* long creator URLs must never leave the card */
 .cast-tile-tags { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin-top: 2px; }
 .cast-tile-tag { font-size: 10.5px; color: var(--accent-dim); background: rgba(159,184,255,0.08); border-radius: 8px; padding: 1px 7px; letter-spacing: .03em; }
 .cast-tile-more { font-size: 10.5px; color: var(--text-faint); align-self: center; }
@@ -1680,7 +1681,7 @@ input.num::-webkit-outer-spin-button, input.num::-webkit-inner-spin-button { opa
 .cast-detail-art { width: 96px; height: 96px; border-radius: 18px; object-fit: cover; border: 1px solid var(--panel-border); flex: none; }
 .cast-detail-art.cast-avatar-blank { font-size: 34px; }
 .cast-detail-name { font-size: 18px; color: var(--text); }
-.cast-detail-sub { font-size: 12px; color: var(--text-dim); margin-top: 3px; }
+.cast-detail-sub { font-size: 12px; color: var(--text-dim); margin-top: 3px; overflow-wrap: anywhere; }
 .cast-detail-note { font-size: 11.5px; color: var(--text-faint); margin-top: 4px; font-style: italic; }
 .cast-detail-tags { justify-content: flex-start; }
 .cast-detail-scroll { overflow-y: auto; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; padding: 4px 2px 8px; }
@@ -1953,61 +1954,51 @@ input.num::-webkit-outer-spin-button, input.num::-webkit-inner-spin-button { opa
 /* ---- Dialogue voices (Appearance → Dialogue voice; assistant replies only) ----
    .dlg spans are wrapped natively by md.js from paired quotes; .q are the marks.
    All five are display-only and mutually exclusive via a body-level class. */
-/* 1 · Chiaroscuro — narration recedes ~30% softer than the demo (long-form comfort),
-      speech steps forward */
+/* 1 · Chiaroscuro — narration takes one subtle step back; speech steps forward.
+      (No text-shadow anywhere on dialogue: glow on serif body text fogs the letter edges.) */
 body.dlg-chiaroscuro .msg.assistant .body p,
-body.dlg-chiaroscuro .msg.assistant .body li { color: #8f98ae; }
-body.dlg-chiaroscuro .msg.assistant .body .dlg {
-  color: #f6f1e4; font-weight: 500;
-  text-shadow: 0 0 18px rgba(246, 231, 200, 0.16);
-}
+body.dlg-chiaroscuro .msg.assistant .body li { color: #c2cadb; }
+body.dlg-chiaroscuro .msg.assistant .body .dlg { color: #f6f1e4; font-weight: 500; }
 body.dlg-chiaroscuro .msg.assistant .body .dlg .q { color: #d3c69f; }
 
-/* 2 · Glass — each wrapped line its own dark-glass pill */
+/* 2 · Glass — clean borderless pill. (Borders + box-decoration-break:clone drew a seam
+      line through every wrapped multi-line quote.) */
 body.dlg-glass .msg.assistant .body .dlg {
   color: #eff2f9; font-weight: 460;
-  background: linear-gradient(180deg, rgba(159,184,255,0.10) 0%, rgba(159,184,255,0.03) 100%);
-  border-top: 1px solid rgba(159,184,255,0.24);
-  border-bottom: 1px solid rgba(0,0,0,0.5);
-  border-radius: 5px; padding: 0.06em 0.3em;
+  background: rgba(159,184,255,0.085);
+  border-radius: 4px; padding: 0.06em 0.28em;
   box-decoration-break: clone; -webkit-box-decoration-break: clone;
 }
 body.dlg-glass .msg.assistant .body .dlg .q { color: var(--accent); }
 
-/* 3 · Editorial — oversized sunken opening quote, margin callout on dialogue-led blocks */
+/* 3 · Editorial — quotation marks on the normal baseline (the oversized sunken opening
+      mark sat crooked on the line); the margin callout stays. */
 body.dlg-editorial .msg.assistant .body .dlg { color: #efe6cf; font-weight: 470; }
-body.dlg-editorial .msg.assistant .body .dlg > .q:first-child {
-  font-size: 1.7em; line-height: 0; position: relative; top: 0.22em;
-  margin-right: 0.04em; color: var(--accent); opacity: 0.8; font-weight: 400;
-}
-body.dlg-editorial .msg.assistant .body .dlg > .q:last-child { color: var(--accent); opacity: 0.6; }
+body.dlg-editorial .msg.assistant .body .dlg .q { color: var(--accent); opacity: 0.8; font-weight: 600; }
 body.dlg-editorial .msg.assistant .body p.has-lead-dlg,
 body.dlg-editorial .msg.assistant .body li.has-lead-dlg {
   border-left: 2px solid rgba(159,184,255,0.30); padding-left: 14px;
 }
 
-/* 4 · Acoustic — warm-to-cool gradient fill + 1px soundwave underline.
-      -webkit-text-fill-color: transparent INHERITS into children, so color-word spans and
-      grammar spans explicitly opt back in (edge case #3) — their tints stay visible. */
+/* 4 · Acoustic — crisp solid speech with a hairline soundwave underline. (The old
+      background-clip:text gradient disabled subpixel antialiasing in Chromium — washed
+      out at body sizes.) */
 body.dlg-acoustic .msg.assistant .body .dlg {
-  background:
-    linear-gradient(90deg, #f6e7c8 0%, #ffdca8 50%, #c9dcff 100%) no-repeat,
-    linear-gradient(90deg, rgba(246,231,200,0.5), rgba(159,184,255,0.4), rgba(246,231,200,0.1)) bottom / 100% 1px no-repeat;
-  -webkit-background-clip: text, border-box; background-clip: text, border-box;
-  -webkit-text-fill-color: transparent;
-  font-weight: 500; padding-bottom: 3px;
+  color: #f6e8ca; font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: rgba(159,184,255,0.32);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
   box-decoration-break: clone; -webkit-box-decoration-break: clone;
 }
-body.dlg-acoustic .msg.assistant .body .dlg .q { -webkit-text-fill-color: currentColor; color: var(--accent); }
-body.dlg-acoustic .msg.assistant .body .dlg .colorword,
-body.dlg-acoustic .msg.assistant .body .dlg [class^="g-"],
-body.dlg-acoustic .msg.assistant .body .dlg [class*=" g-"] { -webkit-text-fill-color: currentColor; }
+body.dlg-acoustic .msg.assistant .body .dlg .q { color: var(--accent); }
 
-/* 5 · Dramatis — narration turns italic editorial, speech stays upright prose */
+/* 5 · Dramatis — narration turns italic editorial (one subtle step back), speech stays
+      upright prose */
 body.dlg-dramatis .msg.assistant .body p,
 body.dlg-dramatis .msg.assistant .body li {
   font-family: 'Newsreader', var(--font-prose-live, 'Literata'), Georgia, serif;
-  font-style: italic; color: #99a3ba;
+  font-style: italic; color: #c2cadb;
 }
 body.dlg-dramatis .msg.assistant .body .dlg {
   font-family: var(--font-prose-live, 'Literata'), Georgia, serif;
