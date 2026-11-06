@@ -236,15 +236,22 @@ html, body {
 @keyframes blink { 50% { opacity: 0; } }
 
 /* ---------- Composer ---------- */
+/* Composer capsule: floats centered like one more object in the sky — the stars wrap
+   around its corners. One fixed element, so its blur stays (the per-message blur is what went). */
 .composer {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 12px 22px 16px;
-  background: var(--panel-bg);
-  border-top: 1px solid var(--panel-border);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
+  width: min(var(--chat-col, 880px), calc(100% - 32px));
+  margin: 0 auto 14px;
+  padding: 12px 14px 14px;
+  background: rgba(8,11,20,0.82);
+  border: 1px solid var(--panel-border);
+  border-top-color: rgba(190,212,255,0.24);
+  border-radius: 16px;
+  box-shadow: 0 14px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
 }
 .composer-row { display: flex; gap: 10px; }
 .attachments:not([hidden]) {
@@ -568,13 +575,16 @@ html, body {
 .edit-bar .msg-action:hover { border-color: var(--accent-dim); }
 
 /* ---------- Collapsible "thinking" block ---------- */
+/* Reasoning as a recessed groove tucked beneath the prose — not a box inside a box. */
 .think-block {
   margin: 2px 0 12px;
   padding: 7px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--panel-border);
-  background: rgba(159,184,255,0.04);
+  border-radius: 2px 9px 9px 2px;
+  border: none;
+  border-left: 2px solid rgba(159,184,255,0.3);
+  background: rgba(0,0,0,0.28);
 }
+.think-block[open] { background: rgba(0,0,0,0.38); border-left-color: var(--accent); }
 .think-block summary {
   cursor: pointer;
   color: var(--text-dim);
@@ -589,8 +599,7 @@ html, body {
 .think-block summary:hover { color: var(--accent); }
 .think-body {
   margin-top: 8px;
-  padding-left: 10px;
-  border-left: 2px solid var(--panel-border);
+  padding-left: 10px;   /* the groove's own bar replaces the old nested border here */
   color: var(--text-faint);
   font-size: 13px;
   line-height: 1.6;
@@ -1496,8 +1505,10 @@ select option { background: #0b0e16; color: var(--text); }
 
 /* ---------- Immersion grammar — typographic registers inside message prose ---------- */
 /* Split field: origin/self flush-left italic; present/other flush-right bold. */
-.body .g-earth { text-align: left; font-style: italic; max-width: 88%; margin: 0 0 14px; text-wrap: balance; }
-.body .g-ship  { text-align: right; font-weight: 600; color: #aec6e8; max-width: 88%; margin: 0 0 14px auto; text-wrap: balance; }
+/* Origin/ship dual columns — each pole gets its own telemetry bar so the ragged
+   edge reads as intentional. */
+.body .g-earth { text-align: left; font-style: italic; color: #e8e0cf; max-width: 88%; margin: 0 0 14px; padding-left: 14px; border-left: 2px solid rgba(246,232,202,0.28); text-wrap: balance; }
+.body .g-ship  { text-align: right; font-weight: 600; color: #b8d0f0; max-width: 88%; margin: 0 0 14px auto; padding-right: 14px; border-right: 2px solid rgba(174,198,232,0.38); text-wrap: balance; }
 /* Cinematic establisher. */
 .body .g-slug {
   font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
@@ -1524,15 +1535,18 @@ select option { background: #0b0e16; color: var(--text); }
 /* The mark — a lamp-glow underline for the word a scene turns on. */
 .g-mark { background: linear-gradient(transparent 56%, rgba(159,184,255,0.42) 44%); box-decoration-break: clone; padding: 0 0.06em; }
 /* Gated text — hidden until hovered, clicked, or drag-selected. */
+/* Redacted text: a diagonal "classified" hatch so the reader knows it's interactive,
+   not a rendering glitch. Hover/click reveals (delegated .on toggle in chat.js). */
 .g-redact {
-  background: #20242e; color: #20242e; border-radius: 2px; padding: 0.02em 0.3em;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -2px 4px rgba(0,0,0,0.45);
-  cursor: pointer; transition: color .25s, background .25s, box-shadow .25s;
+  background: repeating-linear-gradient(-45deg, #1c202b, #1c202b 4px, #232836 4px, #232836 8px);
+  color: transparent; border-radius: 3px; padding: 0.04em 0.32em;
+  border: 1px solid rgba(159,184,255,0.12);
+  cursor: pointer; transition: color .22s, background .22s, border-color .22s;
   -webkit-tap-highlight-color: transparent; user-select: text;
 }
 .g-redact:hover, .g-redact:focus-visible, .g-redact.on {
-  background: transparent; color: var(--danger);
-  box-shadow: inset 0 0 0 1px rgba(255,155,155,0.3); outline: none;
+  background: rgba(255,155,155,0.08); color: var(--danger);
+  border-color: rgba(255,155,155,0.35); box-shadow: 0 0 12px rgba(255,155,155,0.15); outline: none;
 }
 .g-redact::selection, .g-redact *::selection { background: var(--danger); color: #000; }
 /* Messages-within-the-story. */
@@ -2033,3 +2047,27 @@ body.cadence-on .msg.assistant .body .cadence {
   animation: holdfill 0.7s linear forwards;
 }
 @keyframes holdfill { from { width: 0; } to { width: 100%; } }
+
+/* ---- Reading layout (Appearance → Reading layout) ----
+   Folio: the assistant's surface spans the reading column like a book page; the prose
+   inside stays capped by the user's prose-measure setting (.msg .body already reads
+   --prose-measure-live) and is centered within the page. Bubbles (default pre-folio)
+   = no class, everything as it always was. */
+body.layout-folio .msg.assistant { max-width: 100%; width: 100%; padding: 22px 28px; }
+body.layout-folio .msg.assistant .body { margin-left: auto; margin-right: auto; }
+
+/* ---- Topbar instrument harmony: one machined height + radius across the pills ---- */
+.top-model, .route-chip, .status { height: 28px; border-radius: 8px; font-size: 11.5px; }
+.top-model { display: inline-flex; align-items: center; padding: 0 10px; }
+.route-chip { display: inline-flex; align-items: center; }
+.status { padding: 0 10px; }
+
+/* ---- Composer capsule internals: quiet icon buttons, luminous send ---- */
+.btn-attach, .btn-sigil { border-color: transparent; background: rgba(255,255,255,0.03); }
+.btn-attach:hover, .btn-attach:active, .btn-sigil:hover, .btn-sigil.on { border-color: var(--panel-border); background: rgba(159,184,255,0.12); }
+.btn-send { border-top-color: rgba(190,212,255,0.35); background: linear-gradient(180deg, rgba(159,184,255,0.22) 0%, rgba(159,184,255,0.10) 100%); }
+#input { border-radius: 11px; background: rgba(0,0,0,0.42); }
+
+/* Form controls don't inherit fonts — without this, buttons and dropdowns ignore the
+   interface-font setting entirely (they were silently UA-Arial all along). */
+button, select { font-family: var(--font-ui); }

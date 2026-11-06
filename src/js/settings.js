@@ -65,6 +65,9 @@ Constellation.settings = (function () {
       if ($('colorWordsInput')) $('colorWordsInput').checked = cfg.colorWords !== false;
       if ($('moodSkyInput')) $('moodSkyInput').checked = cfg.moodSky !== false;
       if ($('fontFamilyInput')) $('fontFamilyInput').value = cfg.fontFamily || 'Literata';
+      if ($('uiFontInput')) $('uiFontInput').value = cfg.uiFont || 'Atkinson';
+      if ($('chatLayoutInput')) $('chatLayoutInput').value = cfg.chatLayout || 'folio';
+      applyUiChrome();
       const lh = cfg.lineHeight != null ? cfg.lineHeight : 1.65;
       if ($('lineHeightInput')) { $('lineHeightInput').value = lh; $('lineHeightVal').textContent = Number(lh).toFixed(2); }
       if ($('measureInput')) $('measureInput').value = cfg.proseMeasure || 'off';
@@ -414,6 +417,16 @@ Constellation.settings = (function () {
     document.documentElement.style.setProperty('--chat-col', chatWidth + 'px');
   }
 
+  // Interface chrome: which font the controls wear, and how replies sit in the column.
+  // (Reading font / measure are the prose's own settings — these are the room they live in.)
+  function applyUiChrome() {
+    const f = $('uiFontInput') ? $('uiFontInput').value : 'Atkinson';
+    document.documentElement.style.setProperty('--font-ui', f === 'Literata'
+      ? "'Literata', Georgia, 'Times New Roman', serif"
+      : "'Atkinson Hyperlegible', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif");
+    document.body.classList.toggle('layout-folio', ($('chatLayoutInput') ? $('chatLayoutInput').value : 'folio') === 'folio');
+  }
+
   // Push starfield density/twinkle live (boot, slider drag, and save all use this).
   function applyStarfield(density, twinkle) {
     if (window.Constellation && window.Constellation.starfield) {
@@ -449,7 +462,7 @@ Constellation.settings = (function () {
     const accent = $('accentInput').value;
     const starDensity = Number($('starDensityInput').value) / 100;
     const twinkleSpeed = Number($('twinkleInput').value) / 100;
-    await window.api.saveConfig({ font_scale: fontScale, chat_width: chatWidth, accent, star_density: starDensity, twinkle_speed: twinkleSpeed , font_family: ($('fontFamilyInput') ? $('fontFamilyInput').value : 'Literata'), line_height: parseFloat(($('lineHeightInput') ? $('lineHeightInput').value : 1.65)), prose_measure: ($('measureInput') ? $('measureInput').value : 'off'), dialogue_style: ($('dialogueStyleInput') ? $('dialogueStyleInput').value : 'off') });
+    await window.api.saveConfig({ font_scale: fontScale, chat_width: chatWidth, accent, star_density: starDensity, twinkle_speed: twinkleSpeed , font_family: ($('fontFamilyInput') ? $('fontFamilyInput').value : 'Literata'), line_height: parseFloat(($('lineHeightInput') ? $('lineHeightInput').value : 1.65)), prose_measure: ($('measureInput') ? $('measureInput').value : 'off'), dialogue_style: ($('dialogueStyleInput') ? $('dialogueStyleInput').value : 'off'), ui_font: ($('uiFontInput') ? $('uiFontInput').value : 'Atkinson'), chat_layout: ($('chatLayoutInput') ? $('chatLayoutInput').value : 'folio') });
     if (window.Constellation && window.Constellation.chat && window.Constellation.chat.applyDialogue) window.Constellation.chat.applyDialogue({ dialogueStyle: ($('dialogueStyleInput') ? $('dialogueStyleInput').value : 'off') });
     applyAppearanceVars(fontScale, chatWidth);
     applyAccent(accent);
@@ -692,6 +705,8 @@ Constellation.settings = (function () {
     });
     if ($('fontFamilyInput')) $('fontFamilyInput').addEventListener('change', () => { applyTypography($('fontFamilyInput').value, parseFloat($('lineHeightInput').value), $('measureInput').value); });
     if ($('dialogueStyleInput')) $('dialogueStyleInput').addEventListener('change', () => { if (window.Constellation && window.Constellation.chat && window.Constellation.chat.applyDialogue) window.Constellation.chat.applyDialogue({ dialogueStyle: $('dialogueStyleInput').value }); });   // live preview — Save persists
+    if ($('uiFontInput')) $('uiFontInput').addEventListener('change', applyUiChrome);   // live preview — Save persists
+    if ($('chatLayoutInput')) $('chatLayoutInput').addEventListener('change', applyUiChrome);
     if ($('cadenceMarksInput')) $('cadenceMarksInput').addEventListener('change', saveTogglesNow);   // toggles apply live AND persist immediately
     if ($('streamInkInput')) $('streamInkInput').addEventListener('change', saveTogglesNow);
     if ($('lineHeightInput')) $('lineHeightInput').addEventListener('input', () => { $('lineHeightVal').textContent = Number($('lineHeightInput').value).toFixed(2); applyTypography($('fontFamilyInput').value, parseFloat($('lineHeightInput').value), $('measureInput').value); });
@@ -759,6 +774,17 @@ Constellation.settings = (function () {
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && $('settingsOverlay').classList.contains('open')) close();
     });
+    // Chrome (interface font + layout) applies at BOOT, not only when the overlay opens —
+    // the open() path re-populates the selects from config each time, but the look must be
+    // right before Settings is ever touched.
+    (async () => {
+      try {
+        const cfg = await window.api.loadConfig();
+        if ($('uiFontInput')) $('uiFontInput').value = cfg.uiFont || 'Atkinson';
+        if ($('chatLayoutInput')) $('chatLayoutInput').value = cfg.chatLayout || 'folio';
+      } catch (e) { console.warn('[constellation]', e && e.message || e); }
+      applyUiChrome();
+    })();
   }
 
   return { init, syncEffortOptions };

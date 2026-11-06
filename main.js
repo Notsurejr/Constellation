@@ -190,6 +190,8 @@ const SETTINGS_SPEC = [
   ['dialogue_style', 'dialogueStyle', 'enum', 'off', ['off', 'chiaroscuro', 'glass', 'editorial', 'acoustic', 'dramatis']],
   ['cadence_marks', 'cadenceMarks', 'onoff', false],
   ['stream_ink', 'streamInk', 'onoff', false],
+  ['ui_font', 'uiFont', 'enum', 'Atkinson', ['Atkinson', 'Literata']],
+  ['chat_layout', 'chatLayout', 'enum', 'folio', ['folio', 'bubbles']],
   ['send_attachments', 'sendAttachments', 'onoff', true],
   ['sidebar_sort', 'sidebarSort', 'enum', 'recent', ['recent', 'name', 'size']],
   ['flare_intensity', 'flareIntensity', 'clampedFloat', 0.5, 0, 1],

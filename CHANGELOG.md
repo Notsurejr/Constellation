@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased — The Observatory Look
+
+### New
+
+- **Reading layout: Folio.** Replies now span the reading column like a book page — chapter
+  banners, drop caps, and centered interludes finally get their full stage — while your
+  prompts stay compact pills on the right and your line-length setting still caps the prose
+  itself. Prefer the old chat-bubble feel? Settings → Appearance → Reading layout → Bubbles.
+- **Interface font.** The chrome — buttons, dropdowns, labels — now wears Atkinson (already
+  bundled), crisp at small sizes, while the story keeps your reading font. Prefer the old
+  all-serif look? Appearance → Interface font → Literata. (Buttons and dropdowns previously
+  ignored font settings entirely — a browser quirk, now fixed.)
+- **The prompt box floats.** It's a centered capsule now, and the stars wrap around its
+  corners. Send stays luminous; attach and sigil glow quietly on hover.
+- **Small touches.** The thinking block is a recessed groove instead of a box-in-a-box; the
+  origin/ship columns carry telemetry bars; redacted text wears a diagonal classified hatch
+  (hover or click to reveal); the topbar pills match heights.
+
 ## v0.11.6 — The Whole Window
 
 ### Fixed
