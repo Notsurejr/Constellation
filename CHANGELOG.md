@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.11.8 — Harmony
+
+### New
+
+- **Everything follows your accent.** Sixty-five hardcoded periwinkle tints — the send
+  button box, your prompt bubbles, their borders, sliders, checkboxes, callout bars, radio
+  buttons, the glass top edges — now derive from the accent color you picked. Ember orange
+  harmonizes the whole chrome instead of clashing blue-on-orange.
+- **Message glass.** Appearance → Message glass picks the surface replies sit on:
+  Gradient (deep, solid, blur-free), Frosted (the classic translucent pane — blurs the
+  moving stars behind each message), Tinted frost, Smoked, Hairline shelf (stars shine
+  through), Lantern (lit from above). Switching is live; the frosted takes carry a real
+  GPU cost per message and are labeled as such.
+
+### Fixed
+
+- **The dialogue voices are crisp.** All glow shadows removed from spoken lines (glow fogs
+  serif letter edges); narration in Chiaroscuro and Dramatis lifted so color words don't
+  fight a murky background; Editorial's oversized opening quote back on the normal
+  baseline; Glass pills borderless (the old borders drew a seam through every wrapped
+  multi-line quote); Acoustic trades its washed-out gradient fill for crisp solid speech
+  with the hairline soundwave underline.
+- **Cast cards clip long creator URLs** instead of spilling past the card; blank
+  letter-avatars get a starlight vignette and a smaller upright monogram so they read as
+  intentional, not broken.
+- **Settings calmed down.** Hint text is quiet slate again (the setting name is the
+  loudest thing in the row); the slider bars no longer stretch the full modal width;
+  the thinking bar hugs its one line when closed and opens full-width for reading.
+- **Sharper corners on chat boxes** (8px), both reading layouts.
+
 ## v0.11.7 — The Observatory Look
 
 ### New
