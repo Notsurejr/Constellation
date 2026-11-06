@@ -42,7 +42,17 @@
   --text-faint: #5a6172;               /* faint text */
 
   --accent: #9fb8ff;                   /* starlight accent */
-  --accent-dim: rgba(159, 184, 255, 0.5);
+  --accent-dim: color-mix(in srgb, var(--accent) 50%, transparent);
+  /* Derived accent tints — every hardcoded periwinkle rgba now derives from YOUR accent,
+     so a warm ember shifts the whole chrome into harmony instead of clashing blue-on-orange. */
+  --accent-04: color-mix(in srgb, var(--accent) 4%, transparent);
+  --accent-08: color-mix(in srgb, var(--accent) 8%, transparent);
+  --accent-12: color-mix(in srgb, var(--accent) 12%, transparent);
+  --accent-16: color-mix(in srgb, var(--accent) 16%, transparent);
+  --accent-25: color-mix(in srgb, var(--accent) 25%, transparent);
+  --accent-40: color-mix(in srgb, var(--accent) 40%, transparent);
+  --accent-55: color-mix(in srgb, var(--accent) 55%, transparent);
+  --accent-65: color-mix(in srgb, var(--accent) 65%, transparent);
   --user-bubble: rgba(120, 145, 220, 0.16);
   --danger: #ff9b9b;
 

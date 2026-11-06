@@ -67,6 +67,7 @@ Constellation.settings = (function () {
       if ($('fontFamilyInput')) $('fontFamilyInput').value = cfg.fontFamily || 'Literata';
       if ($('uiFontInput')) $('uiFontInput').value = cfg.uiFont || 'Literata';
       if ($('chatLayoutInput')) $('chatLayoutInput').value = cfg.chatLayout || 'folio';
+      if ($('glassStyleInput')) $('glassStyleInput').value = cfg.glassStyle || 'gradient';
       applyUiChrome();
       const lh = cfg.lineHeight != null ? cfg.lineHeight : 1.65;
       if ($('lineHeightInput')) { $('lineHeightInput').value = lh; $('lineHeightVal').textContent = Number(lh).toFixed(2); }
@@ -419,12 +420,15 @@ Constellation.settings = (function () {
 
   // Interface chrome: which font the controls wear, and how replies sit in the column.
   // (Reading font / measure are the prose's own settings — these are the room they live in.)
+  const GLASS_CLASSES = ['glass-gradient', 'glass-frost', 'glass-tinted', 'glass-smoked', 'glass-shelf', 'glass-vignette'];
   function applyUiChrome() {
     const f = $('uiFontInput') ? $('uiFontInput').value : 'Literata';
     document.documentElement.style.setProperty('--font-ui', f === 'Literata'
       ? "'Literata', Georgia, 'Times New Roman', serif"
       : "'Atkinson Hyperlegible', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif");
     document.body.classList.toggle('layout-folio', ($('chatLayoutInput') ? $('chatLayoutInput').value : 'folio') === 'folio');
+    document.body.classList.remove.apply(document.body.classList, GLASS_CLASSES);
+    document.body.classList.add('glass-' + (($('glassStyleInput') ? $('glassStyleInput').value : 'gradient') || 'gradient'));
   }
 
   // Push starfield density/twinkle live (boot, slider drag, and save all use this).
@@ -462,7 +466,7 @@ Constellation.settings = (function () {
     const accent = $('accentInput').value;
     const starDensity = Number($('starDensityInput').value) / 100;
     const twinkleSpeed = Number($('twinkleInput').value) / 100;
-    await window.api.saveConfig({ font_scale: fontScale, chat_width: chatWidth, accent, star_density: starDensity, twinkle_speed: twinkleSpeed , font_family: ($('fontFamilyInput') ? $('fontFamilyInput').value : 'Literata'), line_height: parseFloat(($('lineHeightInput') ? $('lineHeightInput').value : 1.65)), prose_measure: ($('measureInput') ? $('measureInput').value : 'off'), dialogue_style: ($('dialogueStyleInput') ? $('dialogueStyleInput').value : 'off'), ui_font: ($('uiFontInput') ? $('uiFontInput').value : 'Atkinson'), chat_layout: ($('chatLayoutInput') ? $('chatLayoutInput').value : 'folio') });
+    await window.api.saveConfig({ font_scale: fontScale, chat_width: chatWidth, accent, star_density: starDensity, twinkle_speed: twinkleSpeed , font_family: ($('fontFamilyInput') ? $('fontFamilyInput').value : 'Literata'), line_height: parseFloat(($('lineHeightInput') ? $('lineHeightInput').value : 1.65)), prose_measure: ($('measureInput') ? $('measureInput').value : 'off'), dialogue_style: ($('dialogueStyleInput') ? $('dialogueStyleInput').value : 'off'), ui_font: ($('uiFontInput') ? $('uiFontInput').value : 'Atkinson'), chat_layout: ($('chatLayoutInput') ? $('chatLayoutInput').value : 'folio'), glass_style: ($('glassStyleInput') ? $('glassStyleInput').value : 'gradient') });
     if (window.Constellation && window.Constellation.chat && window.Constellation.chat.applyDialogue) window.Constellation.chat.applyDialogue({ dialogueStyle: ($('dialogueStyleInput') ? $('dialogueStyleInput').value : 'off') });
     applyAppearanceVars(fontScale, chatWidth);
     applyAccent(accent);
@@ -707,6 +711,7 @@ Constellation.settings = (function () {
     if ($('dialogueStyleInput')) $('dialogueStyleInput').addEventListener('change', () => { if (window.Constellation && window.Constellation.chat && window.Constellation.chat.applyDialogue) window.Constellation.chat.applyDialogue({ dialogueStyle: $('dialogueStyleInput').value }); });   // live preview — Save persists
     if ($('uiFontInput')) $('uiFontInput').addEventListener('change', applyUiChrome);   // live preview — Save persists
     if ($('chatLayoutInput')) $('chatLayoutInput').addEventListener('change', applyUiChrome);
+    if ($('glassStyleInput')) $('glassStyleInput').addEventListener('change', applyUiChrome);
     if ($('cadenceMarksInput')) $('cadenceMarksInput').addEventListener('change', saveTogglesNow);   // toggles apply live AND persist immediately
     if ($('streamInkInput')) $('streamInkInput').addEventListener('change', saveTogglesNow);
     if ($('lineHeightInput')) $('lineHeightInput').addEventListener('input', () => { $('lineHeightVal').textContent = Number($('lineHeightInput').value).toFixed(2); applyTypography($('fontFamilyInput').value, parseFloat($('lineHeightInput').value), $('measureInput').value); });
@@ -782,6 +787,7 @@ Constellation.settings = (function () {
         const cfg = await window.api.loadConfig();
         if ($('uiFontInput')) $('uiFontInput').value = cfg.uiFont || 'Literata';
         if ($('chatLayoutInput')) $('chatLayoutInput').value = cfg.chatLayout || 'folio';
+      if ($('glassStyleInput')) $('glassStyleInput').value = cfg.glassStyle || 'gradient';
       } catch (e) { console.warn('[constellation]', e && e.message || e); }
       applyUiChrome();
     })();
