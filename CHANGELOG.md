@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.11.9 — The Living Book
+
+### New
+
+- **The lorebook, remastered.** Entries collapse to one-line rows (title · keys · badges) and expand to a full editor with a control strip — this is the dense, powerful version of the panel:
+  - **Key logic** — inline operators in the Trigger words box: plain keys fire on any match, `+key` must also be present, `-key` suppresses the entry. No separate boxes.
+  - **Inline `[[pickups]]`** — wrap words in the lore prose itself (`[[Bolter]]`) and they become trigger keys; `[[+warp]]`/`[[-dead]]` are rules; `[[Astartes|Space Marine]]` registers aliases. Prose strips to clean text on the wire. For big documents, pickups and markdown headings fire their **own chunk** deterministically — your 40k encyclopedia answers section by section.
+  - **Priority (1–5)** — higher priority survives budget cuts first. **Per-entry scan depth** — how far back each entry listens. **Linger** — stay active N turns after the last match (the pronoun drop-off fix). **Cooldown** — rest N turns after firing.
+  - **The test bench** — paste a hypothetical message (or test against the live chat) and see exactly which entries Fired, which were Cut by budget/priority, and which were Suppressed, with the reasons.
+  - **⟦selection → key⟧** wraps selected text into a `[[pickup]]`; **⤓ Split by headings** turns one markdown document into per-section entries, each titled and keyed by its heading.
+  - SillyTavern imports map richer: `comment` → title, `secondary_keys` → `+must` keys, `priority` → priority, `@@keep_activate_after_match` → linger.
+- **Depth injection.** Lorebook entries and project instructions can ride *inside* the message stack — N messages from the bottom, nearest to where the model writes — instead of the top-of-context pile. Lorebook entries get a Depth field; project instructions get a Project depth setting (0 = the classic bottom bun). The injected fence's wording is yours too: **Project fence tag** is per-chat (rename it and your system instructions can reference it by name), **Lore fence tag** is global.
+- **The 👁 Raw toggle.** Messages a display filter touches get a one-click Raw button in the action bar — see what's actually written, click again to re-filter. The stored text and the model's context never change.
+
+### Fixed
+
+- The scroll-jump investigation: bottom-pinned readers now get height-delta compensation when the final render shifts content, instead of a hard re-pin (the visible jump when a reply finishes). The flight recorder also marks reply-finish and re-pin events so the next capture correlates exactly.
+
 ## v0.11.8 — Harmony
 
 ### New
