@@ -5,6 +5,7 @@ var Constellation = window.Constellation || (window.Constellation = {});
 
 Constellation.lorebook = (function () {
   function $(id) { return document.getElementById(id); }
+  function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   let lorebooks = {};          // id -> { id, name, entries, semantic }
   let selectedId = null;
   let saveTimer = null;
@@ -106,6 +107,50 @@ Constellation.lorebook = (function () {
     add.addEventListener('click', () => addEntry(s));
     addWrap.appendChild(add); editor.appendChild(addWrap);
 
+    // ---- the test bench: paste a hypothetical message (or run the live chat's recent
+    // window) and see exactly which entries fire, which are suppressed, and why ----
+    const bench = document.createElement('div'); bench.className = 'lore-bench';
+    bench.appendChild(el('div', 'lore-bench-head', 'Test bench'));
+    const benchText = document.createElement('textarea');
+    benchText.className = 'lore-content'; benchText.rows = 2;
+    benchText.placeholder = 'Paste a hypothetical message to test against this book — blank = use the current chat\'s recent messages';
+    const benchRow = document.createElement('div'); benchRow.className = 'settings-actions';
+    const benchRun = document.createElement('button'); benchRun.className = 'btn'; benchRun.type = 'button'; benchRun.textContent = 'Run bench';
+    benchRow.appendChild(benchRun); bench.appendChild(benchText); bench.appendChild(benchRow);
+    const benchOut = document.createElement('div'); benchOut.className = 'lore-bench-out';
+    bench.appendChild(benchOut);
+    benchRun.addEventListener('click', async () => {
+      if (!(window.Constellation && window.Constellation.chat && window.Constellation.chat.loreBench)) return;
+      benchRun.disabled = true; benchRun.textContent = 'Running…';
+      try {
+        const rep = await window.Constellation.chat.loreBench(benchText.value);
+        benchOut.replaceChildren();
+        const buckets = [
+          ['Fired', (rep.entries || []).filter((r) => r.included && !r.cut), 'lore-bench-fired'],
+          ['Cut by budget / priority', (rep.entries || []).filter((r) => r.cut), 'lore-bench-cut'],
+          ['Suppressed / no match', (rep.entries || []).filter((r) => !r.included && !r.cut), 'lore-bench-sup'],
+        ];
+        let shown = 0;
+        for (const [label, rows, cls] of buckets) {
+          const b = document.createElement('div'); b.className = 'lore-bench-bucket ' + cls;
+          b.appendChild(el('div', 'lore-bench-lbl', label + ' — ' + rows.length));
+          for (const r of rows) {
+            shown++;
+            const line = document.createElement('div'); line.className = 'lore-bench-row';
+            const bits = [r.title, r.how ? '(' + r.how + ')' : '', r.suppressed ? '— ' + r.suppressed : ''].filter(Boolean).join(' ');
+            line.textContent = bits;
+            line.title = r.preview || '';
+            b.appendChild(line);
+          }
+          benchOut.appendChild(b);
+        }
+        if (!shown) benchOut.appendChild(el('div', 'preset-empty', 'Nothing fired. Type a message containing one of your trigger words and run again.'));
+      } finally {
+        benchRun.disabled = false; benchRun.textContent = 'Run bench';
+      }
+    });
+    editor.appendChild(bench);
+
     const status = document.createElement('div'); status.className = 'hint'; status.id = 'lorebookIndexStatus'; status.textContent = indexStatusText();
     editor.appendChild(status);
   }
@@ -167,29 +212,146 @@ Constellation.lorebook = (function () {
     input.addEventListener('blur', commit);
   }
 
-  // A single editable entry (enabled + keywords + content + constant + files) within lorebook s.
+  // A single editable entry within lorebook s — collapsed to a one-line accordion row by
+  // default (title · keys preview · badges), expanding to the full editor on click.
   function entryEl(s, e, i) {
     const row = document.createElement('div');
-    row.className = 'lore-entry';
+    row.className = 'lore-entry collapsed';
     const head = document.createElement('div'); head.className = 'lore-head';
+
+    // ---- collapsed summary row ----
+    const sum = document.createElement('button'); sum.type = 'button'; sum.className = 'lore-sum';
     const en = document.createElement('input');
     en.type = 'checkbox'; en.className = 'lore-cb'; en.checked = !!e.enabled; en.title = 'Enable this entry';
     en.addEventListener('change', () => { e.enabled = en.checked; scheduleSave(); });
+    en.addEventListener('click', (ev) => ev.stopPropagation());
+    const titleFor = () => {
+      if (e.title && String(e.title).trim()) return String(e.title).trim();
+      const h = /^#{1,6}\s+(.+)$/m.exec(String(e.content || ''));
+      if (h) return h[1].trim();
+      if ((e.keys || []).length) return String(e.keys[0]);
+      return String(e.content || '').replace(/\s+/g, ' ').trim().slice(0, 40) || 'Untitled entry';
+    };
+    const badges = () => {
+      const b = [];
+      if (e.constant) b.push('constant');
+      if (parseInt(e.depth, 10) > 0) b.push('depth ' + parseInt(e.depth, 10));
+      if (parseInt(e.priority, 10) && parseInt(e.priority, 10) !== 3) b.push('prio ' + e.priority);
+      if (parseInt(e.linger, 10) > 0) b.push('linger ' + e.linger);
+      if (parseInt(e.cooldown, 10) > 0) b.push('cooldown ' + e.cooldown);
+      if (parseInt(e.scanDepth, 10) > 0) b.push('scan ' + e.scanDepth);
+      if ((e.files || []).length) b.push((e.files || []).length + ' file' + ((e.files || []).length === 1 ? '' : 's'));
+      return b;
+    };
+    const sumTitle = document.createElement('span'); sumTitle.className = 'lore-sum-title'; sumTitle.textContent = titleFor();
+    const sumKeys = document.createElement('span'); sumKeys.className = 'lore-sum-keys';
+    const sumKeysText = (e.keys || []).map((k) => k.trim()).filter(Boolean).join(', ');
+    sumKeys.textContent = sumKeysText ? sumKeysText : (String(e.content || '').includes('[[') ? '[[pickups]]' : 'smart — scored per passage');
+    sumKeys.title = sumKeys.textContent;
+    const sumBadges = document.createElement('span'); sumBadges.className = 'lore-sum-badges'; sumBadges.textContent = badges().join(' · ');
+    sum.appendChild(en); sum.appendChild(sumTitle); sum.appendChild(sumKeys); sum.appendChild(sumBadges);
+    const chev = document.createElement('span'); chev.className = 'lore-chev'; chev.textContent = '▾';
+    sum.appendChild(chev);
+
+    // ---- expanded editor ----
+    const body = document.createElement('div'); body.className = 'lore-body';
+    const titleRow = document.createElement('div'); titleRow.className = 'lore-head';
+    const titleLbl = document.createElement('span'); titleLbl.className = 'lore-key-lbl'; titleLbl.textContent = 'Title';
+    const title = document.createElement('input');
+    title.type = 'text'; title.className = 'lore-title'; title.value = e.title || '';
+    title.placeholder = 'optional — shown in the collapsed row and the bench';
+    title.addEventListener('input', () => { e.title = title.value; sumTitle.textContent = titleFor(); scheduleSave(); });
+    titleRow.appendChild(titleLbl); titleRow.appendChild(title);
+
+    const keyRow = document.createElement('div'); keyRow.className = 'lore-head';
     const keyLbl = document.createElement('span'); keyLbl.className = 'lore-key-lbl'; keyLbl.textContent = 'Trigger words';
     const keys = document.createElement('input');
     keys.type = 'text'; keys.className = 'lore-keys'; keys.value = (e.keys || []).join(', ');
-    keys.placeholder = 'blank = pull only the matching passage (best for big docs)';
-    keys.title = "Optional. If blank, only the relevant passage of this entry is pulled each turn.";
-    keys.addEventListener('input', () => { e.keys = String(keys.value).split(',').map((x) => x.trim()).filter(Boolean); scheduleSave(); });
+    keys.placeholder = 'comma = any · +key = must also match · -key = exclude · [[pickups]] in prose count too';
+    keys.title = 'Plain keys fire on any match. "+key" must also be present. "-key" suppresses the entry when present. Blank = pull only the matching passage (best for big docs).';
+    keys.addEventListener('input', () => { e.keys = String(keys.value).split(',').map((x) => x.trim()).filter(Boolean); sumKeys.textContent = (e.keys || []).join(', ') || (String(e.content || '').includes('[[') ? '[[pickups]]' : 'smart — scored per passage'); scheduleSave(); });
     const del = document.createElement('button');
     del.className = 'lore-del'; del.type = 'button'; del.title = 'Delete entry'; del.textContent = '×';
     del.addEventListener('click', () => { s.entries.splice(i, 1); render(); scheduleSave(); if (window.Constellation.toast) window.Constellation.toast('Entry deleted'); });
-    head.appendChild(en); head.appendChild(keyLbl); head.appendChild(keys); head.appendChild(del);
+    keyRow.appendChild(keyLbl); keyRow.appendChild(keys); keyRow.appendChild(del);
 
     const content = document.createElement('textarea');
     content.className = 'lore-content'; content.rows = 3; content.value = e.content || '';
-    content.placeholder = 'The world context to inject when a keyword appears…';
+    content.placeholder = 'The world context to inject when a keyword appears… [[wrap words]] to make them trigger keys inline.';
     content.addEventListener('input', () => { e.content = content.value; scheduleSave(); });
+
+    // Highlight-to-key: wrap the textarea selection in [[...]] (or insert [[ ]] at the caret).
+    const pickBtn = document.createElement('button');
+    pickBtn.className = 'btn lore-addfile'; pickBtn.type = 'button'; pickBtn.textContent = '⟦selection → key⟧';
+    pickBtn.title = 'Wrap the selected text in [[ ]] so it becomes a trigger key inline (aliases after a |)';
+    pickBtn.addEventListener('click', () => {
+      const s0 = content.selectionStart, e0 = content.selectionEnd;
+      const sel = content.value.slice(s0, e0);
+      const wrap = sel ? '[[' + sel + ']]' : '[[' + ']]';
+      content.value = content.value.slice(0, s0) + wrap + content.value.slice(e0);
+      e.content = content.value; scheduleSave();
+      content.focus();
+      content.setSelectionRange(s0 + 2, s0 + 2 + (sel ? sel.length : 0));
+    });
+
+    // Split-by-headings: one markdown section per entry, header → title + key.
+    const splitBtn = document.createElement('button');
+    splitBtn.className = 'btn lore-addfile'; splitBtn.type = 'button'; splitBtn.textContent = '⤓ Split by headings';
+    splitBtn.title = 'Split this entry into one entry per # / ## / ### section — each titled by its heading, with the heading as a trigger key';
+    splitBtn.addEventListener('click', () => {
+      const text = String(e.content || '');
+      const marks = [];
+      for (const m of text.matchAll(/^#{1,3}\s+(.+)$/gm)) marks.push({ at: m.index, end: m.index + m[0].length, title: m[1].trim() });
+      if (marks.length < 2) { if (window.Constellation.toast) window.Constellation.toast('No repeated headings to split on — this needs # / ## / ### section headers'); return; }
+      const sections = [];
+      for (let k = 0; k < marks.length; k++) {
+        const from = marks[k].end, to = k + 1 < marks.length ? marks[k + 1].at : text.length;
+        sections.push({ title: marks[k].title, body: (text.slice(from, to) || '').trim() });
+      }
+      if (marks[0].at > 0) {
+        const pre = text.slice(0, marks[0].at).trim();
+        if (pre) sections.unshift({ title: e.title || 'Introduction', body: pre, keepKeys: true });
+      }
+      const newEntries = sections.map((sec, k) => ({
+        id: 'l_' + Date.now() + '_' + k + '_' + Math.floor(Math.random() * 1e6),
+        enabled: e.enabled !== false,
+        keys: sec.keepKeys ? (e.keys || []).slice() : [sec.title],
+        title: sec.title,
+        content: sec.body,
+        constant: false,
+        depth: e.depth,
+        priority: e.priority,
+        scanDepth: e.scanDepth,
+        linger: e.linger,
+        cooldown: e.cooldown,
+      }));
+      s.entries.splice(i, 1, ...newEntries);
+      render(); scheduleSave();
+      if (window.Constellation.toast) window.Constellation.toast('Split into ' + newEntries.length + ' entries');
+    });
+
+    // ---- control strip: priority · scan depth · linger · cooldown · depth · constant ----
+    const strip = document.createElement('div'); strip.className = 'lore-strip';
+    const mkNum = (label, field, min, max, ph) => {
+      const w = document.createElement('label'); w.className = 'lore-ctl';
+      const l = document.createElement('span'); l.textContent = label; l.title = ph;
+      const n = document.createElement('input');
+      n.type = 'number'; n.min = String(min); n.max = String(max); n.step = '1';
+      n.value = e[field] != null && e[field] !== '' ? String(e[field]) : '';
+      n.placeholder = ph;
+      n.addEventListener('input', () => { const v = parseInt(n.value, 10); e[field] = (isNaN(v) || v < min) ? undefined : Math.min(max, v); if (field === 'depth' || field === 'priority' || field === 'linger' || field === 'cooldown' || field === 'scanDepth') sumBadges.textContent = badges().join(' · '); scheduleSave(); });
+      w.appendChild(l); w.appendChild(n);
+      return w;
+    };
+    strip.appendChild(mkNum('Priority', 'priority', 1, 5, '1–5 — higher survives budget cuts first (3 = normal)'));
+    strip.appendChild(mkNum('Depth', 'depth', 0, 12, '0 = system pile; N = injected N messages from the bottom'));
+    strip.appendChild(mkNum('Scan msgs', 'scanDepth', 1, 16, 'How many recent messages this entry scans its keys against (blank = global default 4)'));
+    strip.appendChild(mkNum('Linger', 'linger', 0, 99, 'Stay active N turns after the last match (blank = off)'));
+    strip.appendChild(mkNum('Cooldown', 'cooldown', 0, 99, 'Rest N turns after firing (blank = off)'));
+    const con = document.createElement('label'); con.className = 'lore-constant';
+    const conCb = document.createElement('input'); conCb.type = 'checkbox'; conCb.checked = !!e.constant;
+    conCb.addEventListener('change', () => { e.constant = conCb.checked; scheduleSave(); });
+    con.appendChild(conCb); con.appendChild(document.createTextNode(' Always include'));
 
     const ftray = document.createElement('div'); ftray.className = 'attachments lore-files';
     const renderEntryFiles = () => {
@@ -228,26 +390,19 @@ Constellation.lorebook = (function () {
       inp.click();
     });
 
-    const foot = document.createElement('div'); foot.className = 'lore-foot';
-    const con = document.createElement('label'); con.className = 'lore-constant';
-    const conCb = document.createElement('input'); conCb.type = 'checkbox'; conCb.checked = !!e.constant;
-    conCb.addEventListener('change', () => { e.constant = conCb.checked; scheduleSave(); });
-    con.appendChild(conCb); con.appendChild(document.createTextNode(' Always include (no keyword needed)'));
-    foot.appendChild(con);
-    // Depth injection: this entry lands INSIDE the message stack, N messages from the bottom,
-    // instead of the top-of-context system pile. 0 = the pile (classic behavior).
-    const dep = document.createElement('label'); dep.className = 'lore-constant';
-    dep.title = 'Depth injection — place this entry N messages from the bottom of the context (0 = keep it in the system pile)';
-    const depIn = document.createElement('input');
-    depIn.type = 'number'; depIn.min = '0'; depIn.max = '12'; depIn.step = '1';
-    depIn.value = String(Math.max(0, Math.min(12, parseInt(e.depth, 10) || 0)));
-    depIn.style.width = '52px';
-    depIn.addEventListener('change', () => { e.depth = Math.max(0, Math.min(12, parseInt(depIn.value, 10) || 0)); scheduleSave(); });
-    dep.appendChild(document.createTextNode('Depth:'));
-    dep.appendChild(depIn);
-    foot.appendChild(dep);
+    // ---- accordion behavior ----
+    sum.addEventListener('click', () => {
+      const open = row.classList.toggle('collapsed');
+      chev.textContent = open ? '▾' : '▴';
+    });
 
-    row.appendChild(head); row.appendChild(content); row.appendChild(ftray); row.appendChild(addBtn); row.appendChild(foot);
+    body.appendChild(titleRow); body.appendChild(keyRow); body.appendChild(content);
+    body.appendChild(ftray); body.appendChild(addBtn);
+    body.appendChild(pickBtn); body.appendChild(splitBtn);
+    body.appendChild(strip);
+    body.appendChild(con);
+    head.appendChild(sum);
+    row.appendChild(head); row.appendChild(body);
     return row;
   }
   function addEntry(s) {
@@ -312,5 +467,5 @@ Constellation.lorebook = (function () {
     const neu = $('lorebookNew'); if (neu) neu.addEventListener('click', newLorebook);
   }
 
-  return { init, open, close };
+  return { init, open, close, load, render };
 })();

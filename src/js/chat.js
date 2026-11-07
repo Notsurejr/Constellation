@@ -798,8 +798,20 @@ Constellation.chat = (function () {
   // (Lorebook retrieval engine — tokenizing, chunking, BM25, fusion — now lives in
   //  Constellation.engines.lore, shared with the CLI so both run identical code. loreQuery stays
   //  here because it reads this chat's conversation.)
-  function loreQuery() {
-    return conversation.filter((m) => m.role !== 'system').slice(-4).map((m) => m.content || '').join('\n');
+  function loreRecent(n) {
+    return conversation.filter((m) => m.role !== 'system').slice(-(n || 16)).map((m) => ({ role: m.role, content: m.content || '' }));
+  }
+  // Linger/cooldown state lives per chat (which entry fired when) — localStorage, keyed by
+  // session id. Ephemeral guidance, not story data.
+  function loreStateKey() {
+    const cid = (window.Constellation && window.Constellation.sessions && window.Constellation.sessions.chatId) ? window.Constellation.sessions.chatId() : null;
+    return 'constellation_loreState_' + (cid || 'default');
+  }
+  function loreState() {
+    try { return JSON.parse(localStorage.getItem(loreStateKey()) || '{}') || {}; } catch (e) { return {}; }
+  }
+  function loreStateSave(state) {
+    try { localStorage.setItem(loreStateKey(), JSON.stringify(state || {})); } catch (e) {}
   }
   // Build the world-context payload for this turn by delegating to the shared engine (so the CLI
   // and the app run identical retrieval). loreEmbedFn hands the semantic embedder to the engine.
@@ -809,7 +821,20 @@ Constellation.chat = (function () {
       : null;
   }
   async function buildLoreContext() {
-    return Constellation.engines.lore.buildLoreContext(activeLore, loreQuery(), loreEmbedFn());
+    const recent = loreRecent(16);
+    const report = await Constellation.engines.lore.buildLoreContext(activeLore, recent, loreEmbedFn(), { state: loreState(), scanDepth: 4 });
+    loreStateSave(report.state);
+    return report;
+  }
+  // The test bench: evaluate a hypothetical prompt (or the live chat's recent window) and
+  // return the full per-entry report — fired / suppressed / cut, with scores and reasons.
+  async function loreBench(customText) {
+    const recent = customText && String(customText).trim()
+      ? [{ role: 'user', content: String(customText) }].concat(loreRecent(15))
+      : loreRecent(16);
+    const report = await Constellation.engines.lore.buildLoreContext(activeLore, recent, loreEmbedFn(), { state: loreState(), scanDepth: 4 });
+    loreStateSave(report.state);
+    return report;
   }
   // Collect a streamed GLM reply into a string (no typewriter/DOM) — used by the dry-run test.
   function completeGlm(reqMsgs, optOverride) {
@@ -834,8 +859,8 @@ Constellation.chat = (function () {
       base = history.map((m) => ({ role: m && m.role === 'assistant' ? 'assistant' : (m && m.role === 'system' ? 'system' : 'user'), content: String((m && m.content) || ''), reasoning: m && m.reasoning ? String(m.reasoning) : undefined }));
     }
     const conv = base.concat([{ role: 'user', content: String(msg || '') }]);
-    const recentText = conv.filter((m) => m.role !== 'system').slice(-4).map((m) => m.content || '').join('\n');
-    const lc = await Constellation.engines.lore.buildLoreContext(activeLore, recentText, loreEmbedFn());
+    const recentMsgs = conv.filter((m) => m.role !== 'system').slice(-16).map((m) => ({ role: m.role, content: m.content || '' }));
+    const lc = await Constellation.engines.lore.buildLoreContext(activeLore, recentMsgs, loreEmbedFn(), { state: loreState(), scanDepth: 4 });
     let reqMsgs = compose.trimForApi(opts.contextWindow, compose.toApiMessages(opts, projectInstructions, lc, conv));
     const trimmedMessages = Math.max(0, conv.length - reqMsgs.filter((m) => m.role !== 'system').length);   // silent trimming misattributed to prompts is a lab's worst false positive
     if (system != null && String(system).length) {
@@ -1579,5 +1604,5 @@ Constellation.chat = (function () {
     }
   }
 
-  return { init, setPrompts, getPrompts, getOptions, persist, setOptions, setActiveLore, setPhraseBans, setDraft, scrollToMatch, scrollToMessage, refreshBookmarkGlyphs, reset, loadSession, getUserWriting, recentMessages, getState, testRetrieve, testBans, dryRun, applyDialogue, displayFiltersRules, toggleDisplayFilter, reloadDisplayFilters, testCompose: (list) => compose.toApiMessages(opts, projectInstructions, null, list || conversation) };   // bare call = the live conversation (probe convention)
+  return { init, setPrompts, getPrompts, getOptions, persist, setOptions, setActiveLore, setPhraseBans, setDraft, scrollToMatch, scrollToMessage, refreshBookmarkGlyphs, reset, loadSession, getUserWriting, recentMessages, getState, testRetrieve, testBans, dryRun, applyDialogue, loreBench, displayFiltersRules, toggleDisplayFilter, reloadDisplayFilters, testCompose: (list) => compose.toApiMessages(opts, projectInstructions, null, list || conversation) };   // bare call = the live conversation (probe convention)
 })();

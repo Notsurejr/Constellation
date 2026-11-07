@@ -63,13 +63,24 @@ Constellation.cardcompile = (function () {
     if (!book || !Array.isArray(book.entries) || !book.entries.length) return null;
     const entries = book.entries
       .filter((e) => e && e.content && String(e.content).trim())
-      .map((e, i) => ({
-        id: 'e' + (i + 1),
-        enabled: e.enabled !== false,
-        keys: Array.isArray(e.keys) ? e.keys.filter((k) => k && String(k).trim()).map(String) : [],
-        content: stripDecorators(e.content),
-        constant: !!e.constant,
-      }))
+      .map((e, i) => {
+        const keys = Array.isArray(e.keys) ? e.keys.filter((k) => k && String(k).trim()).map(String) : [];
+        // ST secondary_keys/selective → our inline +must / -not operators
+        if (Array.isArray(e.secondary_keys) && e.selective) {
+          for (const k of e.secondary_keys.filter((k) => k && String(k).trim()).map(String)) keys.push('+' + String(k).trim());
+        }
+        const keep = String(e.content || '').includes('@@keep_activate_after_match');
+        return {
+          id: 'e' + (i + 1),
+          enabled: e.enabled !== false,
+          keys: keys,
+          title: String(e.comment || e.name || '').trim() || undefined,
+          content: stripDecorators(e.content),
+          constant: !!e.constant,
+          priority: Math.max(1, Math.min(5, parseInt(e.priority, 10) || 3)),
+          linger: keep ? 99 : undefined,   // @@keep_activate_after_match → effectively sticky
+        };
+      })
       .filter((e) => e.content);
     if (!entries.length) return null;
     return { name: String(book.name || (card.name + ' — card book')), entries: entries };

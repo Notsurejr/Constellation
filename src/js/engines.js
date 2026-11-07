@@ -24,8 +24,9 @@
     return String(text || '').toLowerCase().split(/[^a-z0-9']+/).filter((w) => w.length >= 3 && !LORE_STOP.has(w));
   }
   function loreLabel(e) {
+    if (e.title) return String(e.title);
     if (e.keys && e.keys.length) return e.keys.join(', ');
-    return String(e.content || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+    return String(e.content || '').replace(/\[\[|\]\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 40);
   }
   function loreSource(e) {
     return [e.content || '', filesBlock(e.files)].filter(Boolean).join('\n\n').trim();
@@ -81,66 +82,203 @@
     let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i];
     return s;
   }
-  // Build the world-context payload for a turn: { body, items }.
+  // Build the world-context payload for a turn — ONE evaluator feeding both the wire and
+  // the test bench: { body, bodySurface, items, entries (per-entry diagnostics), state }.
   //   activeLore — lorebooks enabled for the chat (each { entries, semantic })
-  //   query      — recent conversation text (the retrieval query)
-  //   embedFn    — optional async (text) => unit vector | null, for semantic matching (null = BM25-only)
-  async function buildLoreContext(activeLore, query, embedFn) {
-    const out = { body: '', items: [], bodySurface: '' };
-    const enabled = [];
-    const depthOf = new Map();   // entry depth injection: messages from the bottom (0 = the system pile)
-    for (const lb of activeLore) for (const e of (lb.entries || [])) if (e && e.enabled) { enabled.push(e); depthOf.set(eidOf(e), Math.max(0, Math.min(12, parseInt(e.depth, 10) || 0))); }
-    if (!enabled.length) return finalizeLore(out);
-    const queryTokens = loreTokenize(query);
-    let budget = LORE_BUDGET_CHARS;
-    const push = (label, text, eid) => {
-      const piece = String(text || '').slice(0, budget);
-      if (!piece.trim()) return;
-      out.items.push({ label, text: piece, eid: eid, depth: depthOf.get(eid) || 0 });
-      budget -= piece.length;
-    };
-    for (const e of enabled.filter((e) => e.constant)) { push(loreLabel(e), loreSource(e), eidOf(e)); if (budget <= 0) return finalizeLore(out); }
-    if (query) {
-      const q = query.toLowerCase();
-      for (const e of enabled.filter((e) => !e.constant && (e.keys || []).length)) {
-        const keys = e.keys.map((k) => String(k).trim().toLowerCase()).filter(Boolean);
-        if (keys.some((k) => q.includes(k))) { push(loreLabel(e), loreSource(e), eidOf(e)); if (budget <= 0) return finalizeLore(out); }
-      }
+  //   recent     — the recent conversation as [{ role, content }] oldest-first (a bare
+  //                string still works: one-message window, legacy callers)
+  //   embedFn    — optional async (text) => unit vector | null, for semantic matching
+  //   opts       — { state (eid -> { lastActive, lastFired } turn numbers), scanDepth }
+  // Matching: constant entries always; keyed entries match their Trigger words against the
+  // recent window (plain = any, '+key' = required, '-key' = exclude); keyless "smart"
+  // entries are scored by BM25 + semantic and only their best passages fire. Inline
+  // [[...]] pickups register keys from the prose itself ([[Astartes|alt1, alt2]] adds
+  // aliases; [[+Warp]] / [[-dead]] are rules) and are stripped to clean prose on the wire.
+  // Priority survives budget cuts first; linger keeps an entry active N turns after its
+  // last match; cooldown rests it N turns after firing. Per-entry scan depth overrides the
+  // global window (max 16 messages).
+  const LORE_PICKUP_RE = /\[\[([^\[\]]+)\]\]/g;
+  function extractPickups(text) {
+    const keys = [];
+    const stripped = String(text || '').replace(LORE_PICKUP_RE, (_, inner) => {
+      inner = String(inner || '').trim();
+      if (!inner) return '';
+      const parts = inner.split('|');
+      const head = parts[0].trim();
+      const op = (head[0] === '+' || head[0] === '-') ? head[0] : '';
+      const word = op ? head.slice(1).trim() : head;
+      if (word) keys.push(op + word);
+      for (let i = 1; i < parts.length; i++) { const a = parts[i].trim(); if (a) keys.push(a); }
+      return word;
+    });
+    return { keys: keys, text: stripped };
+  }
+  function classifyKeys(rawKeys) {
+    const any = [], must = [], not = [];
+    for (const k of (rawKeys || [])) {
+      const s = String(k).trim();
+      if (!s) continue;
+      if (s[0] === '+' && s.length > 1) must.push(s.slice(1).toLowerCase());
+      else if (s[0] === '-' && s.length > 1) not.push(s.slice(1).toLowerCase());
+      else any.push(s.toLowerCase());
     }
-    const smart = enabled.filter((e) => !e.constant && !(e.keys || []).length);
-    if (smart.length && queryTokens.length) {
-      const docs = [];
-      for (const e of smart) {
-        const stored = Array.isArray(e.chunks) && e.chunks.length ? e.chunks : null;
-        const chunks = stored ? stored : chunkText(loreSource(e)).map((text) => ({ text }));
-        for (const ch of chunks) docs.push({ label: loreLabel(e), eid: eidOf(e), tokens: loreTokenize(ch.text), text: ch.text, vector: ch.vector });
+    return { any: any, must: must, not: not };
+  }
+  function headingKeys(text) {
+    const out = [];
+    for (const m of String(text || '').matchAll(/^#{1,6}\s+(.+)$/gm)) { const h = m[1].trim(); if (h) out.push(h); }
+    return out;
+  }
+  function loreKeyHit(keys, windowText) {
+    const w = String(windowText || '').toLowerCase();
+    return keys.some((k) => w.includes(String(k).toLowerCase()));
+  }
+  async function buildLoreContext(activeLore, recent, embedFn, opts) {
+    opts = opts || {};
+    const msgs = Array.isArray(recent) ? recent : [{ role: 'user', content: String(recent || '') }];
+    const turn = msgs.length;
+    const state = opts.state || {};
+    const defaultScan = Math.max(1, parseInt(opts.scanDepth, 10) || 4);
+    const winCache = {};
+    const winAt = (n) => {
+      n = Math.max(1, Math.min(16, n));
+      if (!winCache[n]) winCache[n] = msgs.slice(Math.max(0, msgs.length - n)).map((m) => m.content || '').join('\n').toLowerCase();
+      return winCache[n];
+    };
+    const out = { body: '', bodySurface: '', items: [], entries: [], state: {} };
+    const enabled = [];
+    for (const lb of activeLore || []) for (const e of (lb.entries || [])) if (e && e.enabled) enabled.push(e);
+    if (!enabled.length) return out;
+
+    const cands = [];   // include candidates — allocated against the budget priority-first
+    let seq = 0;
+    const consider = (e, rawText) => {
+      const eid = eidOf(e);
+      const st = state[eid] || {};
+      // Absent/stale state (lastActive > turn happens after a chat truncation) = never
+      // matched: large deltas, so linger/cooldown can't fire from nothing.
+      const sinceActive = (typeof st.lastActive === 'number' && st.lastActive <= turn) ? Math.max(0, turn - st.lastActive) : 99999;
+      const sinceFired = (typeof st.lastFired === 'number' && st.lastFired <= turn) ? Math.max(0, turn - st.lastFired) : 99999;
+      const priority = Math.max(1, Math.min(5, parseInt(e.priority, 10) || 3));
+      const rec = { eid: eid, title: loreLabel(e), how: null, suppressed: null, included: false, cut: false, priority: priority, seq: seq++, preview: String(rawText || '').replace(/\[\[|\]\]/g, '').slice(0, 180) };
+      out.entries.push(rec);
+      const coolN = Math.max(0, parseInt(e.cooldown, 10) || 0);
+      if (coolN > 0 && sinceFired <= coolN) rec.suppressed = 'cooldown — fired ' + sinceFired + ' turn' + (sinceFired === 1 ? '' : 's') + ' ago';
+      const pickups = extractPickups(rawText);
+      const cls = classifyKeys((e.keys || []).concat(pickups.keys));
+      const scan = Math.max(1, parseInt(e.scanDepth, 10) || defaultScan);
+      const w = winAt(scan);
+      const lingerN = Math.max(0, parseInt(e.linger, 10) || 0);
+      const lingering = lingerN > 0 && typeof st.lastActive === 'number' && sinceActive <= lingerN;
+      const hasBoxKeys = (e.keys || []).filter((k) => String(k).trim()).length > 0;
+      if (!rec.suppressed) {
+        if (e.constant) rec.how = 'constant';
+        else if (cls.not.length && cls.not.some((k) => w.includes(k))) rec.suppressed = '-not key in window';
+        else if (hasBoxKeys && cls.any.length && loreKeyHit(cls.any, w) && (!cls.must.length || cls.must.every((k) => w.includes(k)))) rec.how = cls.must.length ? 'keys (any + must)' : 'key match';
+        else if (hasBoxKeys && !cls.any.length && cls.must.length && cls.must.every((k) => w.includes(k))) rec.how = 'must keys';
+        else if (lingering) rec.how = 'lingering — matched ' + sinceActive + ' turns ago';
+        else if (hasBoxKeys) rec.suppressed = 'no key in scan window';
+        // else: keyless smart entry — its pickups are chunk-level signals, scored below
       }
+      return { rec: rec, text: pickups.text };
+    };
+    const fire = (rec, label, text, e) => {
+      cands.push({ label: label, text: text, eid: eidOf(e), depth: Math.max(0, Math.min(12, parseInt(e.depth, 10) || 0)), priority: rec.priority, seq: rec.seq, rec: rec });
+      rec.included = true;
+    };
+    // Pass 1 — constant + keyed entries (whole-text fire; pickups already folded into keys).
+    for (const e of enabled) {
+      const src = loreSource(e);
+      if (!src.trim()) continue;
+      if (!(e.constant || (e.keys || []).length)) continue;
+      const ev1 = consider(e, src);
+      if (ev1.rec.suppressed || !ev1.rec.how) continue;
+      fire(ev1.rec, loreLabel(e), ev1.text, e);
+    }
+    // Pass 2 — keyless smart entries: inline [[pickups]] and section headings fire their
+    // chunk deterministically; the rest are scored (BM25 + semantic), best passages only.
+    const smart = enabled.filter((e) => !e.constant && !(e.keys || []).length);
+    const docs = [];
+    const docRec = new Map(); const docEntry = new Map();
+    for (const e of smart) {
+      const src = loreSource(e);
+      if (!src.trim()) continue;
+      const ev2 = consider(e, src);
+      if (ev2.rec.suppressed) continue;
+      // Chunk the RAW source — inline pickups and headings are extracted PER CHUNK here,
+      // not at the entry level (a 40k encyclopedia fires one section, not the whole doc).
+      const stored = Array.isArray(e.chunks) && e.chunks.length ? e.chunks : null;
+      const chunks = stored ? stored : chunkText(src).map((text) => ({ text }));
+      let fired = false;
+      for (const ch of chunks) {
+        const chPick = extractPickups(ch.text);
+        const chKeys = chPick.keys.concat(headingKeys(ch.text));
+        const w0 = winAt(defaultScan);
+        const blocked = chKeys.some((k) => k[0] === '-' && w0.includes(k.slice(1).toLowerCase()));
+        if (blocked) continue;
+        const pickupHit = chKeys.filter((k) => k[0] !== '-').some((k) => w0.includes(k.replace(/^[+-]/, '').toLowerCase()));
+        if (pickupHit) {
+          // Deterministic: an inline pickup or a section heading in this chunk matches.
+          ev2.rec.how = 'chunk pickup';
+          fire(ev2.rec, loreLabel(e) + ' · ' + (headingKeys(ch.text)[0] || 'pickup'), chPick.text, e);
+          fired = true;
+        } else {
+          const doc = { label: loreLabel(e), eid: eidOf(e), tokens: loreTokenize(ch.text), text: chPick.text, vector: ch.vector };
+          docs.push(doc); docRec.set(doc, ev2.rec); docEntry.set(doc, e);
+        }
+      }
+      if (!fired && !ev2.rec.how) ev2.rec.how = 'awaiting score';
+    }
+    if (docs.length) {
+      const queryText = winAt(defaultScan);
+      const queryTokens = loreTokenize(queryText);
       const N = docs.length;
       const df = {};
       for (const d of docs) { const seen = new Set(d.tokens); for (const t of seen) df[t] = (df[t] || 0) + 1; }
       const qTerms = Array.from(new Set(queryTokens)).filter((t) => (df[t] || 0) > 0 && (df[t] / N) <= 0.5);
       let queryVec = null;
       if (embedFn && activeLore.some((lb) => lb.semantic) && docs.some((d) => d.vector)) {
-        try { queryVec = await embedFn(query); } catch (e) { queryVec = null; }
+        try { queryVec = await embedFn(queryText); } catch (e) { queryVec = null; }
         if (queryVec && !Array.isArray(queryVec)) queryVec = null;
       }
       const scored = bm25Scores(docs, qTerms).map((s) => ({ d: s.d, bm25: s.score, cos: queryVec && s.d.vector ? cosineSim(queryVec, s.d.vector) : 0 }));
-      const cands = scored.filter((s) => (qTerms.length && s.bm25 >= LORE_MIN_SCORE) || s.cos >= SEM_MIN_SIM);
-      if (cands.length) {
+      const scored2 = scored.filter((s) => (qTerms.length && s.bm25 >= LORE_MIN_SCORE) || s.cos >= SEM_MIN_SIM);
+      if (scored2.length) {
         const rrf = (rank) => 1 / (60 + rank);
-        cands.slice().sort((a, b) => b.bm25 - a.bm25).forEach((s, i) => { s.fused = (s.fused || 0) + (qTerms.length ? rrf(i + 1) : 0); });
-        cands.slice().sort((a, b) => b.cos - a.cos).forEach((s, i) => { s.fused = (s.fused || 0) + (queryVec && s.d.vector ? rrf(i + 1) : 0); });
-        cands.sort((a, b) => b.fused - a.fused);
+        scored2.slice().sort((a, b) => b.bm25 - a.bm25).forEach((s, i) => { s.fused = (s.fused || 0) + (qTerms.length ? rrf(i + 1) : 0); });
+        scored2.slice().sort((a, b) => b.cos - a.cos).forEach((s, i) => { s.fused = (s.fused || 0) + (queryVec && s.d.vector ? rrf(i + 1) : 0); });
+        scored2.sort((a, b) => b.fused - a.fused);
         let pulled = 0;
-        for (const s of cands) { if (budget <= 0 || pulled >= LORE_MAX_PASSAGES) break; push(s.d.label + ' · passage', s.d.text, s.d.eid); pulled++; }
+        for (const s of scored2) {
+          if (pulled >= LORE_MAX_PASSAGES) break;
+          const rec = docRec.get(s.d);
+          if (rec.suppressed) continue;
+          const howBits = [];
+          if (qTerms.length && s.bm25 >= LORE_MIN_SCORE) howBits.push('BM25 ' + s.bm25.toFixed(1));
+          if (s.cos >= SEM_MIN_SIM) howBits.push('sim ' + s.cos.toFixed(2));
+          if (!rec.how) rec.how = howBits.join(' · ') || 'scored passage';
+          fire(rec, s.d.label + ' · passage', s.d.text, docEntry.get(s.d));
+          pulled++;
+        }
       }
     }
-    return finalizeLore(out);
-  }
-  function finalizeLore(ctx) {
-    ctx.body = ctx.items.map((it) => it.text).join('\n\n');
-    ctx.bodySurface = ctx.items.filter((it) => !(it.depth > 0)).map((it) => it.text).join('\n\n');   // depth-injected entries ride inside the stack instead of the system pile
-    return ctx;
+    // Pass 3 — allocate the budget priority-first (higher priority survives the cut; ties
+    // fall back to retrieval order). Everything beyond the budget is marked cut, and only
+    // entries that actually made the wire update the linger/cooldown state.
+    cands.sort((a, b) => (b.priority - a.priority) || (a.seq - b.seq));
+    let used = 0;
+    for (const c of cands) {
+      const full = String(c.text || '');
+      const piece = full.slice(0, Math.max(0, LORE_BUDGET_CHARS - used));
+      if (!piece.trim()) { c.rec.cut = true; continue; }
+      out.items.push({ label: c.label, text: piece, eid: c.eid, depth: c.depth, priority: c.priority });
+      used += piece.length;
+      if (piece.length < full.length) c.rec.cut = true;   // partially trimmed by the cap
+    }
+    for (const c of cands) if (c.rec.included && !c.rec.cut) out.state[c.eid] = { lastActive: turn, lastFired: turn };
+    out.body = out.items.map((it) => it.text).join('\n\n');
+    out.bodySurface = out.items.filter((it) => !(it.depth > 0)).map((it) => it.text).join('\n\n');
+    return out;
   }
 
   // ---------- Phrase bans ----------
@@ -168,7 +306,7 @@
 
   return {
     filesBlock, simpleHash,
-    lore: { LORE_STOP, loreTokenize, loreLabel, loreSource, chunkText, bm25Scores, cosineSim, buildLoreContext, finalizeLore },
+    lore: { LORE_STOP, loreTokenize, loreLabel, loreSource, chunkText, bm25Scores, cosineSim, buildLoreContext, extractPickups, classifyKeys },
     bans: { parse: parsePhraseBans, apply: applyPhraseBans },
   };
 });
