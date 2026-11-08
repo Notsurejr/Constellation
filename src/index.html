@@ -174,8 +174,8 @@
           <input type="number" id="cardReinjectInput" min="0" max="12" step="1" value="0" />
         </label>
         <label class="field">
-          <span>Re-injection limit <em class="hint-inline">tokens — trims the recall copy; 0 sends the full block</em></span>
-          <input type="number" id="cardReinjectLimitInput" min="0" max="8192" step="128" value="0" />
+          <span>Re-inject at context size <em class="hint-inline">tokens — the recall fires only once the conversation is this large (0 = always, whenever the depth is set)</em></span>
+          <input type="number" id="cardReinjectAtInput" min="0" max="1000000" step="1000" value="0" />
         </label>
         <div class="attachments" id="projectFilesTray" hidden></div>
         <button class="btn" id="projectFileBtn" type="button" title="Attach .md/.txt — contents are added to this chat's project instructions">＋ Attach file</button>

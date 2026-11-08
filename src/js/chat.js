@@ -228,19 +228,19 @@ Constellation.chat = (function () {
   let projectFenceTag = 'project_instructions';
   // Card re-injection (cast chats): the compiled character/persona blocks re-enter the
   // stack at a chosen depth — the recall copy when the system-pile card "loses hold".
-  let cardBlock = null, personaBlock = null, cardReinject = 0, cardReinjectLimit = 0;
+  let cardBlock = null, personaBlock = null, cardReinject = 0, cardReinjectAt = 0;
 
-  function setPrompts({ roleplay, project, systemFiles: sFiles, projectFiles: pFiles, projectFenceTag: pTag, cardReinject: cRe, cardReinjectLimit: cLim }) {
+  function setPrompts({ roleplay, project, systemFiles: sFiles, projectFiles: pFiles, projectFenceTag: pTag, cardReinject: cRe, cardReinjectAt: cAt }) {
     if (roleplay !== undefined) roleplayPrompt = (roleplay || '').trim();
     if (project !== undefined) projectInstructions = (project || '').trim();
     if (sFiles !== undefined) systemFiles = Array.isArray(sFiles) ? sFiles : [];
     if (pFiles !== undefined) projectFiles = Array.isArray(pFiles) ? pFiles : [];
     if (pTag !== undefined) projectFenceTag = safeTag(pTag, 'project_instructions');
     if (cRe !== undefined) cardReinject = Math.max(0, Math.min(12, parseInt(cRe, 10) || 0));
-    if (cLim !== undefined) cardReinjectLimit = Math.max(0, Math.min(8192, parseInt(cLim, 10) || 0));
+    if (cAt !== undefined) cardReinjectAt = Math.max(0, Math.min(1000000, parseInt(cAt, 10) || 0));
     opts.projectFenceTag = projectFenceTag;
     opts.cardBlock = cardBlock; opts.personaBlock = personaBlock;
-    opts.cardReinject = cardReinject; opts.cardReinjectLimit = cardReinjectLimit;
+    opts.cardReinject = cardReinject; opts.cardReinjectAt = cardReinjectAt;
     const sys = compose.buildSystem({ roleplayPrompt: roleplayPrompt, systemFiles: systemFiles, projectFiles: projectFiles, immersion: opts.immersion });
     if (conversation[0] && conversation[0].role === 'system') conversation[0].content = sys;
     else conversation.unshift({ role: 'system', content: sys });
@@ -414,7 +414,7 @@ Constellation.chat = (function () {
       filterBtn: filterBtn,
       toggleRawView: toggleRawView,
       macrosOn: () => !!opts.castMacros,
-      forkBundle: () => ({ system: roleplayPrompt, project: projectInstructions, gen: genSnapshot(), character: currentCharacter, projectFenceTag: projectFenceTag, cardBlock: cardBlock, personaBlock: personaBlock, cardReinject: cardReinject, cardReinjectLimit: cardReinjectLimit }),
+      forkBundle: () => ({ system: roleplayPrompt, project: projectInstructions, gen: genSnapshot(), character: currentCharacter, projectFenceTag: projectFenceTag, cardBlock: cardBlock, personaBlock: personaBlock, cardReinject: cardReinject, cardReinjectAt: cardReinjectAt }),
     });
 
     bind();
@@ -1286,7 +1286,7 @@ Constellation.chat = (function () {
         inputEl.focus();
         usage.tokens += Math.round(((full || bodyBuf).length + (thinkBuf || '').length) / 4);   // count the reply's tokens too
         if (window.Constellation && window.Constellation.sessions) {
-          window.Constellation.sessions.saveCurrent(conversation.slice(1), roleplayPrompt, projectInstructions, genSnapshot(), usage, systemFiles, projectFiles, projectFenceTag, cardBlock, personaBlock, cardReinject, cardReinjectLimit);   // persist the chat + instructions + settings + usage + files
+          window.Constellation.sessions.saveCurrent(conversation.slice(1), roleplayPrompt, projectInstructions, genSnapshot(), usage, systemFiles, projectFiles, projectFenceTag, cardBlock, personaBlock, cardReinject, cardReinjectAt);   // persist the chat + instructions + settings + usage + files
         }
         sculpt.syncThinkEditedMark(el, thinkBuf || '');
         // Exact context size: ask GLM's tokenizer what this conversation actually costs. Estimate
@@ -1521,12 +1521,12 @@ Constellation.chat = (function () {
   // Load a saved chat. The DOM swap runs inside a View Transition so the old thread dissolves into
   // the new one (a real crossfade, not a dip-to-black). Per-message auto-scroll is suppressed during
   // the bulk render so there's no vertical snap; we land once at the latest message.
-  function loadSession(msgs, system, project, gen, incomingUsage, systemFiles, projectFiles, character, projectFence, cardBlk, personaBlk, cRe, cLim) {
+  function loadSession(msgs, system, project, gen, incomingUsage, systemFiles, projectFiles, character, projectFence, cardBlk, personaBlk, cRe, cAt) {
     cardBlock = typeof cardBlk === 'string' ? cardBlk : null;
     personaBlock = typeof personaBlk === 'string' ? personaBlk : null;
     cardReinject = Math.max(0, Math.min(12, parseInt(cRe, 10) || 0));
-    cardReinjectLimit = Math.max(0, Math.min(8192, parseInt(cLim, 10) || 0));
-    if (system !== undefined || project !== undefined) setPrompts({ roleplay: system, project, systemFiles, projectFiles, projectFenceTag: projectFence, cardReinject, cardReinjectLimit });
+    cardReinjectAt = Math.max(0, Math.min(1000000, parseInt(cAt, 10) || 0));
+    if (system !== undefined || project !== undefined) setPrompts({ roleplay: system, project, systemFiles, projectFiles, projectFenceTag: projectFence, cardReinject, cardReinjectAt });
     if (gen) setOptions(gen);   // restore THIS chat's generation settings
     const swap = () => {
       reset();
@@ -1563,7 +1563,7 @@ Constellation.chat = (function () {
   }
 
   // The active chat's instructions — Settings reads these so the editors show what THIS chat uses.
-  function getPrompts() { return { roleplay: roleplayPrompt, project: projectInstructions, systemFiles, projectFiles, projectFenceTag, cardReinject, cardReinjectLimit }; }
+  function getPrompts() { return { roleplay: roleplayPrompt, project: projectInstructions, systemFiles, projectFiles, projectFenceTag, cardReinject, cardReinjectAt }; }
 
   // The active chat's generation settings — Settings + Craft read these so they reflect THIS chat.
   function getOptions() { return Object.assign({}, opts); }

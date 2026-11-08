@@ -305,7 +305,7 @@ Constellation.sessions = (function () {
         }
       } catch (e) { console.warn('[constellation]', e && e.message || e); }
     }
-    Constellation.chat.loadSession(s.messages || [], system, project, gen, s.usage, s.systemFiles, s.projectFiles, s.character || null, s.projectFence || null, s.cardBlock || null, s.personaBlock || null, s.cardReinject || 0, s.cardReinjectLimit || 0);
+    Constellation.chat.loadSession(s.messages || [], system, project, gen, s.usage, s.systemFiles, s.projectFiles, s.character || null, s.projectFence || null, s.cardBlock || null, s.personaBlock || null, s.cardReinject || 0, s.cardReinjectAt || 0);
     applyLore();   // apply this chat's enabled lorebooks to retrieval
     // Restore this chat's saved draft (if any), and — if we arrived via search — jump to the match.
     try { const drafts = await window.api.loadDrafts(); if (Constellation.chat.setDraft) Constellation.chat.setDraft(drafts[id] || ''); } catch (e) { console.warn('[constellation]', e && e.message || e); }
@@ -314,11 +314,11 @@ Constellation.sessions = (function () {
     if (searchQuery && Constellation.chat.scrollToMatch) Constellation.chat.scrollToMatch(searchQuery);
   }
 
-  async function saveCurrent(messages, system, project, gen, usage, systemFiles, projectFiles, projectFenceTag, cardBlock, personaBlock, cardReinject, cardReinjectLimit) {
+  async function saveCurrent(messages, system, project, gen, usage, systemFiles, projectFiles, projectFenceTag, cardBlock, personaBlock, cardReinject, cardReinjectAt) {
     const _diagT0 = performance.now();
     try {
       const title = currentTitle || deriveTitle(messages);
-      const res = await window.api.saveSession({ id: currentId, title, messages, system, project, systemFiles, projectFiles, gen, usage, lore: currentLore, projectFenceTag: projectFenceTag || null, cardBlock: cardBlock || null, personaBlock: personaBlock || null, cardReinject: cardReinject || 0, cardReinjectLimit: cardReinjectLimit || 0 });
+      const res = await window.api.saveSession({ id: currentId, title, messages, system, project, systemFiles, projectFiles, gen, usage, lore: currentLore, projectFenceTag: projectFenceTag || null, cardBlock: cardBlock || null, personaBlock: personaBlock || null, cardReinject: cardReinject || 0, cardReinjectAt: cardReinjectAt || 0 });
       currentId = res.id;
       currentTitle = title;   // keep it across later auto-saves
       refresh();
@@ -332,7 +332,7 @@ Constellation.sessions = (function () {
     try {
       const title = (deriveTitle(bundle.messages) || 'Fork') + ' · fork';
       const parentId = currentId, parentTitle = currentTitle;   // remember where this fork branched from
-      const res = await window.api.saveSession({ id: null, title, messages: bundle.messages, system: bundle.system, project: bundle.project, gen: bundle.gen, parentId, parentTitle, character: bundle.character || null, projectFenceTag: bundle.projectFenceTag || null, cardBlock: bundle.cardBlock || null, personaBlock: bundle.personaBlock || null, cardReinject: bundle.cardReinject || 0, cardReinjectLimit: bundle.cardReinjectLimit || 0 });   // cast forks keep the card (badge + macro eligibility)
+      const res = await window.api.saveSession({ id: null, title, messages: bundle.messages, system: bundle.system, project: bundle.project, gen: bundle.gen, parentId, parentTitle, character: bundle.character || null, projectFenceTag: bundle.projectFenceTag || null, cardBlock: bundle.cardBlock || null, personaBlock: bundle.personaBlock || null, cardReinject: bundle.cardReinject || 0, cardReinjectAt: bundle.cardReinjectAt || 0 });   // cast forks keep the card (badge + macro eligibility)
       await load(res.id);   // create + switch into the new fork
       // The fork inherits the parent chronicle (facts + read-position + summary) — a fork
       // mid-story must not silently lose the reader reference it branched with.
