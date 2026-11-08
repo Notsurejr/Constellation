@@ -13,7 +13,8 @@ Constellation.chat = (function () {
   const ctxMeter = document.getElementById('ctxMeter');
   const topModel = document.getElementById('topModel');
   const compose = Constellation.compose;   // src/js/compose.js — pure request assembly (system, macros, fence, lore, trim)
-  const sculpt = Constellation.sculpt;     // src/js/sculpt.js — per-message editing: edit/sculpt/think-edit/variants/fork
+  const sculpt = Constellation.sculpt;   // src/js/sculpt.js — per-message editing: edit/sculpt/think-edit/variants/fork
+  const stream = Constellation.stream;     // src/js/stream.js — send→wire→reveal pipeline     // src/js/sculpt.js — per-message editing: edit/sculpt/think-edit/variants/fork
 
   let roleplayPrompt = '';
   let projectInstructions = '';
@@ -407,7 +408,7 @@ Constellation.chat = (function () {
       applyBookmarkGlyph: applyBookmarkGlyph,
       addLoreIndicator: addLoreIndicator,
       addMessage: addMessage,
-      streamReply: streamReply,
+      streamReply: (vt) => stream.streamReply(vt),
       fileChipEl: fileChipEl,
       toggleBookmark: toggleBookmark,
       continueReply: continueReply,
@@ -415,6 +416,46 @@ Constellation.chat = (function () {
       toggleRawView: toggleRawView,
       macrosOn: () => !!opts.castMacros,
       forkBundle: () => ({ system: roleplayPrompt, project: projectInstructions, gen: genSnapshot(), character: currentCharacter, projectFenceTag: projectFenceTag, cardBlock: cardBlock, personaBlock: personaBlock, cardReinject: cardReinject, cardReinjectAt: cardReinjectAt }),
+      streamReply: (vt) => stream.streamReply(vt),
+    });
+    // The stream module owns the send→wire→reveal pipeline; everything it touches from
+    // the chat closure arrives through these hooks (same pattern as sculpt).
+    stream.init({
+      busy: () => busy,
+      setBusy: (v) => { busy = v; },
+      getOpts: () => opts,
+      sendBtn: () => sendBtn,
+      statusText: () => statusEl.textContent,
+      messagesEl: () => messagesEl,
+      setStatus: setStatus,
+      maybeScroll: maybeScroll,
+      updateJumpBtn: updateJumpBtn,
+      atBottom: atBottom,
+      captureScrollAnchor: captureScrollAnchor,
+      restoreScrollAnchor: restoreScrollAnchor,
+      buildLoreContext: buildLoreContext,
+      addLoreIndicator: addLoreIndicator,
+      addMessage: addMessage,
+      renderBodyHTML: renderBodyHTML,
+      applyPhraseBans: applyPhraseBans,
+      enhanceCodeBlocks: enhanceCodeBlocks,
+      hasFilterEffect: hasFilterEffect,
+      filterBtn: filterBtn,
+      updateMeta: updateMeta,
+      takePrefill: () => { const s = activePrefill; activePrefill = ''; return s; },
+      setLastRequest: (lr) => { lastRequest = lr; },
+      setCurrentRequest: (id) => { currentRequest = id; },
+      cancelStream: cancelStream,
+      restoreSendBtn: restoreSendBtn,
+      addUsageTokens: (n) => { usage.tokens += n; },
+      addUsageRequest: () => { usage.requests++; },
+      getConv: () => conversation,
+      projectInstructions: () => projectInstructions,
+      persistTurn: persist,
+      updateContextMeter: updateContextMeter,
+      setContextExact: (n) => { contextExact = n; },
+      focusInput: () => inputEl.focus(),
+      friendlyError: friendlyError,
     });
 
     bind();
@@ -756,47 +797,6 @@ Constellation.chat = (function () {
   // its age behind the reveal cursor (age = charsBehind / cps × 1000ms), so every rebuilt
   // node re-enters the keyframe at the exact millisecond the previous tick left off —
   // continuous materialization with zero external state.
-  function inkEdge(body, cps) {
-    const win = Math.max(24, Math.ceil(cps * 0.55));   // only words younger than ~550ms
-    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT, null);
-    const tails = [];
-    while (walker.nextNode()) {
-      const n = walker.currentNode;
-      const p = n.parentElement;
-      if (!p) continue;
-      const tag = p.tagName.toLowerCase();
-      if (tag === 'code' || tag === 'pre' || p.classList.contains('tok-in')) continue;
-      tails.push(n);
-      if (tails.length > 40) tails.shift();
-    }
-    let dist = 0;   // rendered chars from the very end of the reply-so-far
-    for (let i = tails.length - 1; i >= 0 && dist < win; i--) {
-      const n = tails[i];
-      const parts = n.textContent.split(/(\s+)/);
-      const frag = document.createDocumentFragment();
-      for (let j = parts.length - 1; j >= 0; j--) {
-        const p = parts[j];
-        if (!p) continue;
-        if (/^\s+$/.test(p)) { frag.insertBefore(document.createTextNode(p), frag.firstChild); dist += p.length; continue; }
-        const ageMs = Math.round((dist / cps) * 1000);
-        if (ageMs < 480) {
-          const s = document.createElement('span');
-          s.className = 'tok-in';
-          s.style.animationDelay = '-' + ageMs + 'ms';
-          s.textContent = p;
-          frag.insertBefore(s, frag.firstChild);
-        } else {
-          frag.insertBefore(document.createTextNode(p), frag.firstChild);
-        }
-        dist += p.length;
-        if (dist >= win) {
-          for (let k = j - 1; k >= 0; k--) if (parts[k]) frag.insertBefore(document.createTextNode(parts[k]), frag.firstChild);
-          break;
-        }
-      }
-      n.parentNode.replaceChild(frag, n);
-    }
-  }
 
   // (MACRO_HINT, applySendMacros, trimForApi, estTokens now live in Constellation.compose —
   // applySendMacros(text, turns) takes the turn count explicitly; trimForApi takes the
@@ -1076,251 +1076,6 @@ Constellation.chat = (function () {
     return m;
   }
 
-  // Stream a fresh assistant reply. Text is revealed at a configurable flow rate
-  // (opts.streamCps chars/sec; 0/Infinity = instant), markdown re-rendered on a throttle.
-  // We only auto-scroll if the reader is already near the bottom.
-  // Animated "thinking" dots shown in an empty reply while we wait for the first token — hides any
-  // lore-processing / model-connect latency behind something that looks alive. Removed on first content.
-  function showThinking(el) {
-    hideThinking(el);
-    const w = document.createElement('div');
-    w.className = 'think-wait';
-    w.setAttribute('aria-label', 'Thinking');
-    w.innerHTML = '<span class="think-dot"></span><span class="think-dot"></span><span class="think-dot"></span>';
-    const b = el.querySelector('.body');
-    if (b && b.parentNode) b.parentNode.insertBefore(w, b.nextSibling); else el.appendChild(w);
-  }
-  function hideThinking(el) {
-    const w = el.querySelector('.think-wait');
-    if (w) w.remove();
-  }
-
-  async function streamReply(variantTarget) {
-    busy = true;
-    sendBtn.classList.add('stop'); sendBtn.textContent = '■'; sendBtn.title = 'Stop';
-
-    // variantTarget = an existing assistant message to stream a NEW take into (↻ Retry);
-    // otherwise this is a fresh reply appended at the end.
-    let el, body, thinkDetails, thinkBody, meta, variantCi;
-    if (variantTarget) {
-      el = variantTarget;
-      body = el.querySelector('.body');
-      thinkDetails = el.querySelector('.think-block');
-      thinkBody = thinkDetails ? thinkDetails.querySelector('.think-body') : null;
-      meta = el.querySelector('.msg-meta');
-      variantCi = sculpt.convIndexForEl(el);
-      body.innerHTML = ''; body.classList.add('caret'); body.style.color = '';
-      if (thinkDetails) { thinkDetails.hidden = true; thinkDetails.open = false; }
-      if (thinkBody) thinkBody.textContent = '';
-      const oldLore = el.querySelector('.lore-used'); if (oldLore) oldLore.remove();
-      el.classList.remove('continuable');
-      const cont = el.querySelector('[data-action="continue"]'); if (cont) cont.remove();
-    } else {
-      const r = addMessage('assistant', '');
-      el = r.el; body = r.body; thinkDetails = r.thinkDetails; thinkBody = r.thinkBody;
-      meta = el.querySelector('.msg-meta');
-      body.classList.add('caret');
-    }
-    setStatus('thinking…', 'ok');
-    maybeScroll();   // follow only if reading at the bottom — regen/continue from mid-read must not snap
-    updateJumpBtn();
-    body.classList.remove('caret');
-    showThinking(el);   // animated "working" indicator while lore + the model get ready (hides any latency)
-
-    const loreCtx = await buildLoreContext();   // relevant world context (constant + keyword + hybrid BM25/semantic passages)
-    addLoreIndicator(el, loreCtx.items);
-    if (window.Constellation && window.Constellation.stars) window.Constellation.stars.illuminate(loreCtx.items);   // light the sky's lore constellations
-
-    let bodyBuf = '';
-    let thinkBuf = '';
-    let streaming = true;
-    let revealedN = 0;
-    let rafId = null;
-    let lastTs = 0;
-    let lastRender = 0;
-    const rate = opts.streamCps > 0 ? opts.streamCps : Infinity;   // chars/sec to reveal at
-    let finishAnchor = null;   // the reader's pinned line across all finish mutations (see onDone)
-
-    function renderPrefix(ink, streaming) {
-      body.innerHTML = renderBodyHTML(applyPhraseBans(bodyBuf.slice(0, Math.floor(revealedN))), { streaming: !!streaming });
-      if (ink && opts.streamInk && isFinite(rate)) inkEdge(body, rate);
-      maybeScroll();
-      updateJumpBtn();
-      if (meta) updateMeta(meta, body.textContent);
-    }
-
-    function pump(ts) {
-      if (lastTs === 0) lastTs = ts;
-      const dt = (ts - lastTs) / 1000;
-      lastTs = ts;
-      if (revealedN < bodyBuf.length) {
-        revealedN = isFinite(rate) ? Math.min(bodyBuf.length, revealedN + rate * dt) : bodyBuf.length;
-        if (ts - lastRender > 40) { renderPrefix(true, true); lastRender = ts; }
-      }
-      if (revealedN < bodyBuf.length || streaming) {
-        rafId = requestAnimationFrame(pump);
-      } else {
-        const _diagT0 = performance.now();
-        const pinned = !finishAnchor && atBottom();   // bottom-pinned readers: the final re-parse can shift content height — keep their eye on the same text
-        const prevH = messagesEl.scrollHeight;
-        body.classList.remove('caret');
-        renderPrefix(false, false);
-        enhanceCodeBlocks(body);   // finished streaming -> add expand/collapse toggles
-        if (window.Constellation && window.Constellation.colorfx) window.Constellation.colorfx.tagColors(body);   // tag colors in the finished reply
-        if (finishAnchor) restoreScrollAnchor(finishAnchor);   // final render settled — put the reader's line back
-        else if (pinned) {
-          const dH = messagesEl.scrollHeight - prevH;
-          messagesEl.scrollTop += dH;   // compensate the height shift instead of hard re-pinning (the old visible jump)
-          if (window.Constellation && window.Constellation.diag) window.Constellation.diag.note('re-pin', 'dH ' + Math.round(dH));   // scroll-capture correlation
-        }
-        if (window.Constellation && window.Constellation.diag) window.Constellation.diag.span('finish-render', performance.now() - _diagT0);
-        rafId = null;
-      }
-    }
-    rafId = requestAnimationFrame(pump);
-
-    // For a variant regen, the request excludes the message being re-answered (it's the last turn).
-    const reqSrc = variantTarget ? conversation.slice(0, variantCi) : conversation;
-    const _diagT0 = performance.now();
-    const reqMsgs = compose.trimForApi(opts.contextWindow, compose.toApiMessages(opts, projectInstructions, loreCtx, reqSrc));
-    if (window.Constellation && window.Constellation.diag) window.Constellation.diag.span('compose', performance.now() - _diagT0);
-    const seed = activePrefill;   // capture + clear: the drawer is strictly one-shot
-    activePrefill = '';
-    if (seed) {
-      // "Lead its thinking": the array ends with a partial assistant turn carrying OUR reasoning
-      // seed and no prose — the model is invited to continue a thought we chose. (Tested verdict:
-      // GLM currently accepts but ignores reasoning seeds; kept for the user's own experiments.
-      // The seed is also prepended to the stored reasoning, so a prefill becomes tomorrow's steer.)
-      reqMsgs.push({ role: 'assistant', content: '', reasoning_content: seed });
-    }
-    usage.tokens += compose.estTokens(reqMsgs);   // count this request's tokens (context actually sent)
-    usage.requests++;
-    // Watchdog: a request that silently hangs (no tokens, no error) would leave busy=true forever —
-    // dots looping and every action locked. Any activity resets it. Slow reasoners (Gemini's
-    // compat door) think silently server-side before the FIRST byte, so the pre-first-byte
-    // allowance is long (420s); once anything flows, 90s between chunks still catches dead hangs.
-    let watchdog = null;
-    let streamStarted = false;
-    const kickWatchdog = () => {
-      clearTimeout(watchdog);
-      const ms = streamStarted ? 90000 : 420000;
-      watchdog = setTimeout(() => {
-        cancelStream();
-        streaming = false;
-        busy = false;
-        restoreSendBtn();
-        setStatus('error', 'err', 'Timed out after ' + Math.round(ms / 1000) + 's with no data from the model — request cancelled.');
-        hideThinking(el);
-        el.remove();
-        if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Timed out waiting for the model — request cancelled', 9000);
-      }, ms);
-    };
-    kickWatchdog();
-    // Snapshot the exact payload for the "what was sent" inspector (click the ◐ meter). In-memory
-    // only — a reference for the curious, never persisted.
-    lastRequest = {
-      at: new Date().toLocaleTimeString(),
-      model: opts.model || 'glm-5.3',
-      opts: { temperature: opts.temperature, top_p: opts.topP, max_tokens: opts.maxTokens || '(provider default)', thinking: !!opts.thinking, effort: opts.reasoningEffort || 'max', context_window: opts.contextWindow || 0 },
-      messages: reqMsgs,
-    };
-    currentRequest = window.api.chatStream(reqMsgs, opts, {
-      onRetry: (attempt) => setStatus('retrying… (attempt ' + attempt + ')', 'ok'),
-      onThink: (delta) => {
-        streamStarted = true;
-        hideThinking(el);
-        kickWatchdog();
-        thinkBuf += delta;
-        if (thinkDetails) {
-          thinkDetails.hidden = false;
-          thinkDetails.open = true;
-          if (thinkBody) thinkBody.textContent = thinkBuf;
-        }
-      },
-      onChunk: (delta) => {
-        streamStarted = true;
-        hideThinking(el);
-        kickWatchdog();
-        if (!body.classList.contains('caret')) body.classList.add('caret');
-        bodyBuf += delta;
-        if (statusEl.textContent !== 'writing…') setStatus('writing…', 'ok');
-      },
-      onDone: (full, finishReason) => {
-        hideThinking(el);
-        clearTimeout(watchdog);
-        finishAnchor = (!atBottom()) ? captureScrollAnchor() : null;   // pin the reader's line BEFORE any finish mutations
-        streaming = false;
-        if (full) bodyBuf = full;
-        bodyBuf = applyPhraseBans(bodyBuf);   // tidy banned phrases out of the final reply (model never sees the list)
-        if (seed && thinkBuf) thinkBuf = seed + '\n' + thinkBuf;   // a prefill today steers tomorrow
-        el.__raw = bodyBuf;   // the streamed reply's raw source was never set (placeholder was '') — copy/edit need it
-        if (window.Constellation.mood) window.Constellation.mood.assess(bodyBuf || thinkBuf);   // the sky weathers the story
-        const vLore = loreCtx && loreCtx.items.length ? loreCtx.items.map((it) => ({ label: it.label, text: String(it.text || '').slice(0, 300) })) : undefined;
-        if (variantTarget) {
-          // Keep the prior take(s); add this one and make it the active variant.
-          const m = conversation[variantCi];
-          if (m) {
-            if (!Array.isArray(m.variants)) m.variants = [{ content: m.content || '', reasoning: m.reasoning, lore: m.lore }];
-            m.variants.push({ content: bodyBuf, reasoning: thinkBuf || undefined, lore: vLore });
-            m.vActive = m.variants.length - 1;
-            m.content = bodyBuf; m.reasoning = thinkBuf || undefined; m.lore = vLore;
-          }
-        } else {
-          conversation.push({ role: 'assistant', content: bodyBuf, reasoning: thinkBuf || undefined, lore: vLore });
-        }
-        if (window.Constellation && window.Constellation.diag) window.Constellation.diag.note('reply-finish', 'len ' + String(bodyBuf || '').length);   // scroll-capture correlation
-        if (hasFilterEffect(bodyBuf)) {
-          const acts = el.querySelector('.msg-actions');
-          if (acts && !acts.querySelector('[data-action="rawview"]')) { const fb = filterBtn(el); if (fb) acts.appendChild(fb); }
-        }
-        if (thinkDetails && thinkBuf && atBottom()) thinkDetails.open = false;   // fold thinking away once the answer is in — but NOT while the reader is scrolled up (the collapse would yank their view)
-        if (finishReason === 'length') {   // hit the max-length cap -> offer to continue from the cutoff
-          el.classList.add('continuable');
-          const acts = el.querySelector('.msg-actions');
-          if (acts && !acts.querySelector('[data-action="continue"]')) acts.appendChild(sculpt.actionBtn('continue', '↪ Continue'));
-        }
-        busy = false;
-        restoreSendBtn();
-        setStatus('connected', 'ok');
-        updateContextMeter();
-        inputEl.focus();
-        usage.tokens += Math.round(((full || bodyBuf).length + (thinkBuf || '').length) / 4);   // count the reply's tokens too
-        if (window.Constellation && window.Constellation.sessions) {
-          window.Constellation.sessions.saveCurrent(conversation.slice(1), roleplayPrompt, projectInstructions, genSnapshot(), usage, systemFiles, projectFiles, projectFenceTag, cardBlock, personaBlock, cardReinject, cardReinjectAt);   // persist the chat + instructions + settings + usage + files
-        }
-        sculpt.syncThinkEditedMark(el, thinkBuf || '');
-        // Exact context size: ask GLM's tokenizer what this conversation actually costs. Estimate
-        // (chars÷4) stays the display until this returns; non-GLM/no-key/failure keeps it forever.
-        if (window.api && window.api.tokenizerCount) {
-          window.api.tokenizerCount(reqMsgs).then((r) => {
-            if (r && r.ok && typeof r.tokens === 'number') { contextExact = r.tokens; updateContextMeter(); }
-          }).catch(() => {});
-        }
-        if (variantTarget) sculpt.renderVariantNav(el);
-        if (finishAnchor) { restoreScrollAnchor(finishAnchor); requestAnimationFrame(() => restoreScrollAnchor(finishAnchor)); }
-        if (!rafId) rafId = requestAnimationFrame(pump);   // flush any buffered tail at the flow rate
-      },
-      onError: (message) => {
-        hideThinking(el);
-        clearTimeout(watchdog);
-        streaming = false;
-        if (rafId) cancelAnimationFrame(rafId);
-        rafId = null;
-        const friendly = friendlyError(message);
-        if (window.Constellation && window.Constellation.toast) window.Constellation.toast(friendly, 9000);   // linger: errors are read in hindsight
-        if (variantTarget) {
-          sculpt.renderActiveVariant(el);   // regen failed — restore the existing active take
-        } else {
-          el.remove();   // remove the placeholder entirely: an error bubble with no conversation
-                         // entry desynced every index-based operation after it (edit/fork/bookmarks)
-        }
-        busy = false;
-        restoreSendBtn();
-        setStatus('error', 'err', friendly);   // hover the pill to re-read the error after the toast fades
-        inputEl.focus();
-      },
-    });
-  }
 
   async function send() {
     const text = inputEl.value.trim();
@@ -1347,7 +1102,7 @@ Constellation.chat = (function () {
     if (window.Constellation && window.Constellation.sessions && window.Constellation.sessions.saveDraft) window.Constellation.sessions.saveDraft('');   // sent -> clear the draft
     sendBtn.classList.add('pulse');
     setTimeout(() => sendBtn.classList.remove('pulse'), 500);
-    streamReply();
+    stream.streamReply();
   }
 
   // Stop the in-flight stream (keeps whatever was already generated).
@@ -1422,7 +1177,7 @@ Constellation.chat = (function () {
     addMessage('user', text);
     conversation.push({ role: 'user', content: text });
     updateContextMeter();
-    streamReply();
+    stream.streamReply();
   }
 
 
