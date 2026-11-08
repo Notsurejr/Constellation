@@ -247,6 +247,10 @@
           <input type="checkbox" id="preservedThinkingInput" checked />
           <span>Preserved thinking — GLM keeps each reply's reasoning in context across turns (GLM-only; off saves tokens, but the model re-reasons from scratch)</span>
         </label>
+        <label class="field">
+          <span>Preserved thinking depth <em class="hint-inline">prior assistant turns that carry their reasoning — 0 = all (default); 1–2 keeps recent planning only and lets long chats read as pure story</em></span>
+          <input type="number" id="preservedThinkingDepthInput" min="0" max="99" step="1" value="0" />
+        </label>
         <label class="field checkbox">
           <input type="checkbox" id="immersionInput" />
           <span>Immersion grammar — teach the model the story's typographic registers: split worlds, pacing, whispers, gated text</span>

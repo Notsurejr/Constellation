@@ -379,6 +379,7 @@ Constellation.chat = (function () {
     opts.reasoningEffort = cfg.reasoningEffort || 'max';
     opts.teachEdits = cfg.teachEdits === true;   // off unless explicitly on — edits stay private by default
     opts.preservedThinking = cfg.preservedThinking !== false;   // GLM Preserved Thinking — on by default
+    opts.preservedThinkingDepth = Math.max(0, Math.min(99, parseInt(cfg.preservedThinkingDepth, 10) || 0));   // 0 = every prior turn echoes its reasoning; N = last N turns only
     opts.immersion = cfg.immersion === true;   // immersion grammar — off until asked for
     opts.sendAttachments = cfg.sendAttachments !== false;   // off = only the newest user message's files are sent
     opts.streamCps = cfg.streamCps ?? 0;

@@ -117,6 +117,14 @@ Constellation.compose = (function () {
   // Only request COPIES are rewritten; the source list is never mutated.
   function toApiMessages(opts, projectInstructions, loreCtx, list) {
     const preserve = !!opts.thinking && opts.preservedThinking !== false;   // GLM Preserved Thinking (user-adjustable)
+    // Preserved-thinking DEPTH: 0 = every prior assistant turn echoes its reasoning
+    // (classic behavior); N = only the last N assistant turns carry reasoning on the wire —
+    // older turns send clean prose. Bounds token bloat and self-imitation in long chats.
+    // (Steering via edited thinking works on the turns still included.)
+    const pDepth = Math.max(0, Math.min(99, parseInt(opts.preservedThinkingDepth, 10) || 0));
+    const assistantIdx = [];
+    for (let i = 0; i < list.length; i++) if (list[i].role === 'assistant') assistantIdx.push(i);
+    const reasoningKeepFrom = pDepth > 0 ? assistantIdx.slice(-pDepth)[0] : -1;
     // "Send attachments" off → only the NEWEST user message keeps its files/images; older ones are
     // context ballast that can trip moderation, but the fresh attachment is the one being asked about.
     let lastUserIdx = -1;
@@ -141,7 +149,7 @@ Constellation.compose = (function () {
         return { role: 'user', content: composeUserContent(m) };   // text files only → single string
       }
       const o = { role: m.role, content: m.content };
-      if (preserve && m.role === 'assistant' && m.reasoning) o.reasoning_content = m.reasoning;
+      if (preserve && m.role === 'assistant' && m.reasoning && (pDepth === 0 || i >= reasoningKeepFrom)) o.reasoning_content = m.reasoning;
       return o;
     });
     // Lorebook: inject only the RELEVANT world context (constant entries + keyword matches + the
@@ -159,11 +167,12 @@ Constellation.compose = (function () {
         if (!target) continue;
         const ltag = /^[A-Za-z0-9_-]{1,40}$/.test(String(opts.loreTag || '').trim()) ? String(opts.loreTag).trim() : 'lore';   // global fence word (Appearance/Writing), default 'lore'
         const tag = String(it.label || 'world').replace(/[<>&]/g, '');
-        const fence = '\n\n<' + ltag + ':' + tag + '>\n' + it.text + '\n</' + ltag + ':' + tag + '>';
-        if (typeof target.content === 'string') target.content += fence;
+        const fence = '<' + ltag + ':' + tag + '>\n' + it.text + '\n</' + ltag + ':' + tag + '>';
+        // PREPEND: world context reads BEFORE the message's own words — Setting → Action → Reaction.
+        if (typeof target.content === 'string') target.content = fence + '\n\n' + target.content;
         else if (Array.isArray(target.content)) {
           const t = target.content.find((p) => p && p.type === 'text');
-          if (t) t.text += fence;
+          if (t) t.text = fence + '\n\n' + t.text;
           else target.content.push({ type: 'text', text: fence.trim() });
         }
       }
@@ -192,21 +201,25 @@ Constellation.compose = (function () {
       const safeTag = (t, fallback) => /^[A-Za-z0-9_-]{1,40}$/.test(String(t || '').trim()) ? String(t).trim() : fallback;
       const ptag = safeTag(opts.projectFenceTag, 'project_instructions');
       const ltag = safeTag(opts.loreTag, 'lore');
-      const fence = '\n\n<' + ptag + '>\n' + projectInstructions + '\n</' + ptag + '>';
+      const fence = '<' + ptag + '>\n' + projectInstructions + '\n</' + ptag + '>';
       const marker = '<' + ptag + '>';
-      // Depth 0 (default) = the newest user turn — the bottom bun, the strongest attention.
-      // A configured depth raises the fence N messages from the bottom; the target snaps to
-      // the nearest user turn at or above that floor (the fence only ever rides user turns).
+      // Depth 0 (default) = the newest user turn. A configured depth raises the fence N
+      // messages from the bottom; the target snaps to the nearest user turn at or above
+      // that floor (the fence only ever rides user turns).
+      // PREPEND, not append: the fence reads BEFORE the message's own words, so the final
+      // tokens before generation are the story itself — the fence loads instincts first,
+      // the living beat lands last (the old bottom-append put rules between the story and
+      // the model's reaction, which read as an appended audit in the CoT).
       const depth = Math.max(0, Math.min(12, opts.projectDepth || 0));
       let targetIdx = out.length - 1 - depth;
       while (targetIdx > 0 && out[targetIdx].role !== 'user') targetIdx--;
       if (targetIdx >= 1) {
         const target = out[targetIdx];
         if (typeof target.content === 'string') {
-          if (target.content.indexOf(marker) === -1) target.content += fence;
+          if (target.content.indexOf(marker) === -1) target.content = fence + '\n\n' + target.content;
         } else if (Array.isArray(target.content)) {
           const t = target.content.find((p) => p && p.type === 'text');
-          if (t) { if (String(t.text || '').indexOf(marker) === -1) t.text = String(t.text || '') + fence; }
+          if (t) { if (String(t.text || '').indexOf(marker) === -1) t.text = fence + '\n\n' + String(t.text || ''); }
           else target.content.push({ type: 'text', text: fence.trim() });
         }
       }
@@ -225,13 +238,14 @@ Constellation.compose = (function () {
         if (target) {
           const text = [opts.personaBlock, opts.cardBlock].filter(Boolean).join('\n\n');
           const ltag = /^[A-Za-z0-9_-]{1,40}$/.test(String(opts.loreTag || '').trim()) ? String(opts.loreTag).trim() : 'lore';
-          const fence = '\n\n<' + ltag + ':card recall>\n' + text + '\n</' + ltag + ':card recall>';
+          const fence = '<' + ltag + ':card recall>\n' + text + '\n</' + ltag + ':card recall>';
           const marker = '<' + ltag + ':card recall>';
+          // PREPEND: the recall reads before the message's own words (Setting → Action order).
           if (typeof target.content === 'string') {
-            if (target.content.indexOf(marker) === -1) target.content += fence;
+            if (target.content.indexOf(marker) === -1) target.content = fence + '\n\n' + target.content;
           } else if (Array.isArray(target.content)) {
             const t = target.content.find((p) => p && p.type === 'text');
-            if (t) { if (String(t.text || '').indexOf(marker) === -1) t.text += fence; }
+            if (t) { if (String(t.text || '').indexOf(marker) === -1) t.text = fence + '\n\n' + String(t.text || ''); }
             else target.content.push({ type: 'text', text: fence.trim() });
           }
         }

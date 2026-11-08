@@ -195,6 +195,7 @@ const SETTINGS_SPEC = [
   ['glass_style', 'glassStyle', 'enum', 'gradient', ['gradient', 'frost', 'tinted', 'smoked', 'shelf', 'vignette']],
   ['project_depth', 'projectDepth', 'clampedInt', 0, 0, 12],
   ['lore_tag', 'loreTag', 'str', 'lore'],
+  ['preserved_thinking_depth', 'preservedThinkingDepth', 'clampedInt', 0, 0, 99],
   ['send_attachments', 'sendAttachments', 'onoff', true],
   ['sidebar_sort', 'sidebarSort', 'enum', 'recent', ['recent', 'name', 'size']],
   ['flare_intensity', 'flareIntensity', 'clampedFloat', 0.5, 0, 1],
