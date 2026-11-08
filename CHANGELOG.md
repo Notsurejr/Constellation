@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.11.12 — Load-Bearing
+
+### Changed
+
+- **The app's core got its final structural pass.** The send→wire→reveal pipeline — the watchdog, the typewriter reveal, streaming ink, the finish-render sequence — now lives in its own module (`stream.js`), extracted from the chat module the same way the request assembler (`compose`) and the message editor (`sculpt`) were in recent releases. chat.js is down from 2,087 to 1,333 lines across the three steps. No behavior change: verified against a live streaming round-trip (watchdog, thinking block, typewriter reveal with ink, markdown finish, persistence).
+- Under the same pass: display-filter raw toggles, depth injection for lore and project instructions, renameable fence tags, and the card re-injection tripwire all landed in their own modules or fields — each verified in isolation.
+
 ## v0.11.11 — The Tripwire
 
 ### Changed
