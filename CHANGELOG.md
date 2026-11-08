@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.11.13 — First Light
+
+### Changed
+
+- **Depth injections prepend.** The project fence, depth-injected lorebook entries, and the card re-injection recall now read *before* the message's own words instead of after — Setting → Action → Reaction. At depth 0, the final tokens before generation are the living story itself; the fence loads its guidance first and gets out of the way. (The old bottom-append put rules between the story beat and the model's reaction, which showed up in the thinking as "an appended block to audit.")
+- **Preserved-thinking depth.** A new Generation setting: how many prior assistant turns carry their reasoning on the wire — **0 = all turns (the current behavior, still the default)**, or **1–2 = recent planning only**, with older turns sending clean prose. Long chats stop drowning the story in old reasoning; token costs drop; reasoning-editor steering works on the turns still included.
+
 ## v0.11.12 — Load-Bearing
 
 ### Changed
