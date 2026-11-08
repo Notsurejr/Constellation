@@ -22,14 +22,24 @@ Constellation is a desktop home for long-form AI-assisted writing. Bring your ow
 > It's a *client*: Constellation has no AI of its own and no accounts. Your key talks straight to the endpoint you configure; your writing never touches anyone else's server.
 
 <p align="center">
-  <img src="docs/screens/reading-view.png" width="100%" alt="A story in progress — the sidebar, the reading column on the night sky, a folded thinking block, the scene-break star, and the composer" />
+  <img src="docs/screens/reading-view.png" width="100%" alt="A story in progress — dialogue in a warm voice against receded narration, color words tinted, a scene-break star, and the composer on the night sky" />
 </p>
-<p align="center"><em>The reading view — chats in the sidebar, turn headers and folded thinking in the column, a scene-break star, the context meter at the edge of the sky.</em></p>
+<p align="center"><em>The reading view — a dialogue voice steps spoken lines out of the narration, color words keep their tints, and a scene-break star hangs between beats. Reading layout, voice, and glass are all picks in Appearance.</em></p>
 
 <p align="center">
   <img src="docs/screens/start-chat.png" width="72%" alt="The Start-chat screen — greeting picker, base instruction choice including the card's own directives, persona, and the editable compiled prompt preview" />
 </p>
 <p align="center"><em>Starting a chat from a character card — pick the greeting, the base instructions (yours, a preset, or the card's own), and your persona; the compiled prompt is editable before the first send.</em></p>
+
+<p align="center">
+  <img src="docs/screens/cast-gallery.png" width="72%" alt="The Cast — character cards as portrait tiles with tags, your personas above, search by name or tag" />
+</p>
+<p align="center"><em>The Cast — characters as portrait tiles; click one to read the full card rendered exactly as the model receives it.</em></p>
+
+<p align="center">
+  <img src="docs/screens/lorebook-remaster.png" width="72%" alt="The lorebook, remastered — accordion entries with priority, depth, scan depth, linger and cooldown, inline pickups, and a test bench showing what fires and why" />
+</p>
+<p align="center"><em>The lorebook — accordion entries with priority, depth, scan depth, linger and cooldown; inline [[pickups]] in the prose; a test bench that shows what fires, what's cut, and why.</em></p>
 
 ---
 
