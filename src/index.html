@@ -170,11 +170,11 @@
           <input type="text" id="loreTagInput" maxlength="40" placeholder="lore" />
         </label>
         <label class="field">
-          <span>Card re-injection depth <em class="hint-inline">this chat, cast chats — re-send the compiled character block N messages from the bottom when it starts losing hold (0 = off)</em></span>
+          <span>Card re-injection depth <em class="hint-inline">this chat, cast chats — where the recall copy lands (1–12 messages from the bottom; 0 = off)</em></span>
           <input type="number" id="cardReinjectInput" min="0" max="12" step="1" value="0" />
         </label>
         <label class="field">
-          <span>Re-inject at context size <em class="hint-inline">tokens — the recall fires only once the conversation is this large (0 = always, whenever the depth is set)</em></span>
+          <span>Re-inject at context size <em class="hint-inline">tokens — the recall fires once the conversation is this large (0 = off, never fires)</em></span>
           <input type="number" id="cardReinjectAtInput" min="0" max="1000000" step="1000" value="0" />
         </label>
         <div class="attachments" id="projectFilesTray" hidden></div>

@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.11.11 — The Tripwire
+
+### Changed
+
+- **Card re-injection is now a tripwire.** The two controls in Settings → Writing are **depth** (where the recall copy lands, 1–12 messages from the bottom) and **context size** (when it fires — once the estimated conversation reaches this many tokens). Both are off switches: **0 on either means the recall never fires.** Below the threshold nothing is sent; the moment the conversation crosses it, the full character + persona blocks appear at the chosen depth — and from then on they ride every send while the context stays above it. The recall copy is never trimmed.
+- This replaces v0.11.10's token-limit design (never released long enough to matter): the card content is no longer cut — the *trigger* is what's adjustable, matching the intent "fire when the card would start losing hold."
+
 ## v0.11.10 — Recall
 
 ### New

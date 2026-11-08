@@ -214,12 +214,12 @@ Constellation.compose = (function () {
     // Card re-injection (cast chats): the compiled character/persona blocks re-enter the
     // stack at a chosen depth once the conversation grows past a trigger size — models
     // grip instructions nearest where they write, and a long chat dilutes the top-of-
-    // context card. The trigger is the estimated context size in tokens BEFORE this recall
-    // (0 = always fire when the depth is set). The blocks are never trimmed.
+    // context card. The trigger is the estimated context size in tokens BEFORE this recall;
+    // 0 = the off switch (never fires). The blocks are never trimmed.
     if (opts.cardReinject > 0 && (opts.cardBlock || opts.personaBlock)) {
       const estTokens = Math.ceil(out.reduce((n, m) => n + (typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content || '').length), 0) / 4);
       const trigger = Math.max(0, parseInt(opts.cardReinjectAt, 10) || 0);
-      if (trigger === 0 || estTokens >= trigger) {
+      if (trigger > 0 && estTokens >= trigger) {
         const depth = Math.max(1, Math.min(12, opts.cardReinject));
         const target = out[Math.max(1, out.length - depth)];
         if (target) {
