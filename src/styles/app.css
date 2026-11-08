@@ -500,7 +500,8 @@ html, body {
 .field.checkbox { flex-direction: row; align-items: center; gap: 10px; }
 .field.checkbox > span { color: var(--text); }
 .field input[type="text"],
-.field input[type="password"] {
+.field input[type="password"],
+.field input[type="number"] {
   padding: 9px 12px;
   border-radius: 9px;
   border: 1px solid var(--panel-border);

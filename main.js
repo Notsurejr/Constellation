@@ -596,11 +596,11 @@ ipcMain.handle('sessions:load', (_e, id) => {
   if (!safeId(id)) return { id: null, title: 'Untitled', messages: [] };
   try {
     const d = JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, id + '.json'), 'utf8'));
-    return { id: d.id, title: d.title, messages: d.messages || [], system: d.system, project: d.project, systemFiles: d.systemFiles || [], projectFiles: d.projectFiles || [], gen: d.gen, usage: d.usage, parentId: d.parentId, parentTitle: d.parentTitle, lore: Array.isArray(d.lore) ? d.lore : [], character: d.character || null, projectFence: d.projectFence || null };   // character = cast-chat marker (badge + macro eligibility)
+    return { id: d.id, title: d.title, messages: d.messages || [], system: d.system, project: d.project, systemFiles: d.systemFiles || [], projectFiles: d.projectFiles || [], gen: d.gen, usage: d.usage, parentId: d.parentId, parentTitle: d.parentTitle, lore: Array.isArray(d.lore) ? d.lore : [], character: d.character || null, projectFence: d.projectFence || null, cardBlock: d.cardBlock || null, personaBlock: d.personaBlock || null, cardReinject: d.cardReinject || 0, cardReinjectLimit: d.cardReinjectLimit || 0 };   // character = cast-chat marker (badge + macro eligibility)
   } catch (e) { return { id, title: 'Untitled', messages: [] }; }
 });
 
-ipcMain.handle('sessions:save', (_e, { id, title, messages, system, project, gen, usage, parentId, parentTitle, systemFiles, projectFiles, lore, character, projectFenceTag }) => {
+ipcMain.handle('sessions:save', (_e, { id, title, messages, system, project, gen, usage, parentId, parentTitle, systemFiles, projectFiles, lore, character, projectFenceTag, cardBlock, personaBlock, cardReinject, cardReinjectLimit }) => {
   fs.mkdirSync(SESSIONS_DIR, { recursive: true });
   id = safeId(id) || 's_' + Date.now() + '_' + Math.floor(Math.random() * 1e9);   // invalid/absent id → fresh one, never trusted
   const file = path.join(SESSIONS_DIR, id + '.json');
@@ -609,6 +609,10 @@ ipcMain.handle('sessions:save', (_e, { id, title, messages, system, project, gen
   const data = {
     id, title: title || 'Untitled', messages: messages || [], system, project, systemFiles: systemFiles || [], projectFiles: projectFiles || [], gen, usage, pinned, hidden: wasHidden,
     projectFence: /^[A-Za-z0-9_-]{1,40}$/.test(String(projectFenceTag || '')) ? String(projectFenceTag) : null,
+    cardBlock: typeof cardBlock === 'string' && cardBlock.length < 200000 ? cardBlock : null,
+    personaBlock: typeof personaBlock === 'string' && personaBlock.length < 50000 ? personaBlock : null,
+    cardReinject: Math.max(0, Math.min(12, parseInt(cardReinject, 10) || 0)),
+    cardReinjectLimit: Math.max(0, Math.min(8192, parseInt(cardReinjectLimit, 10) || 0)),
     parentId: parentId !== undefined ? parentId : pId, parentTitle: parentTitle !== undefined ? parentTitle : pTitle,
     folder, lore: Array.isArray(lore) ? lore : (pLore || []),
     character: character !== undefined ? character : pChar,   // { id, name } — seeds the sidebar badge

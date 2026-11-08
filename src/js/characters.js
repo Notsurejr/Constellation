@@ -403,6 +403,8 @@ Constellation.cast = (function () {
       id: null, title: card.name, messages,
       system: opts.system, project: '', gen: { model: genModel },
       lore: loreIds, character: { id: card.id, name: card.name },
+      cardBlock: cc.characterBlock(card, userName),
+      personaBlock: cc.personaBlock(persona),
     });
     closeStart();
     close();

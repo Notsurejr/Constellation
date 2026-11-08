@@ -17,6 +17,8 @@ Constellation.settings = (function () {
     if ($('projectDepthInput')) $('projectDepthInput').value = (window.Constellation && window.Constellation.chat && window.Constellation.chat.getOptions) ? (window.Constellation.chat.getOptions().projectDepth || 0) : 0;
     if ($('projectFenceInput')) $('projectFenceInput').value = (p && p.projectFenceTag) || 'project_instructions';
     if ($('loreTagInput')) $('loreTagInput').value = (window.Constellation && window.Constellation.chat && window.Constellation.chat.getOptions) ? (window.Constellation.chat.getOptions().loreTag || 'lore') : 'lore';
+    if ($('cardReinjectInput')) $('cardReinjectInput').value = (p && p.cardReinject) || 0;
+    if ($('cardReinjectLimitInput')) $('cardReinjectLimitInput').value = (p && p.cardReinjectLimit) || 0;
     edSystemFiles = (p.systemFiles || []).map((f) => ({ name: f.name, text: f.text }));
     edProjectFiles = (p.projectFiles || []).map((f) => ({ name: f.name, text: f.text }));
     renderFileTray('systemFilesTray', edSystemFiles);
@@ -171,7 +173,11 @@ Constellation.settings = (function () {
     const sys = $('promptEditor').value;
     const proj = $('projectEditor').value;
     const pTag = $('projectFenceInput') ? $('projectFenceInput').value : '';
-    Constellation.chat.setPrompts({ roleplay: sys, project: proj, systemFiles: edSystemFiles, projectFiles: edProjectFiles, projectFenceTag: pTag });
+    Constellation.chat.setPrompts({
+      roleplay: sys, project: proj, systemFiles: edSystemFiles, projectFiles: edProjectFiles, projectFenceTag: pTag,
+      cardReinject: $('cardReinjectInput') ? $('cardReinjectInput').value : 0,
+      cardReinjectLimit: $('cardReinjectLimitInput') ? $('cardReinjectLimitInput').value : 0,
+    });
     // Project depth is global (which floor the fence rides) — persist + apply live.
     const depth = Math.max(0, Math.min(12, parseInt($('projectDepthInput') ? $('projectDepthInput').value : '0', 10) || 0));
     const loreTag = $('loreTagInput') ? $('loreTagInput').value : 'lore';
@@ -607,6 +613,8 @@ Constellation.settings = (function () {
     if ($('projectDepthInput')) $('projectDepthInput').value = (window.Constellation && window.Constellation.chat && window.Constellation.chat.getOptions) ? (window.Constellation.chat.getOptions().projectDepth || 0) : 0;
     if ($('projectFenceInput')) $('projectFenceInput').value = (window.Constellation && window.Constellation.chat && window.Constellation.chat.getOptions) ? (window.Constellation.chat.getOptions().projectFenceTag || 'project_instructions') : 'project_instructions';
     if ($('loreTagInput')) $('loreTagInput').value = (window.Constellation && window.Constellation.chat && window.Constellation.chat.getOptions) ? (window.Constellation.chat.getOptions().loreTag || 'lore') : 'lore';
+    if ($('cardReinjectInput')) $('cardReinjectInput').value = (p && p.cardReinject) || 0;
+    if ($('cardReinjectLimitInput')) $('cardReinjectLimitInput').value = (p && p.cardReinjectLimit) || 0;
     $('presetName').value = p.name || '';
     await applyEditors();
     refreshPresets();

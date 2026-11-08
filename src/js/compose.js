@@ -191,6 +191,7 @@ Constellation.compose = (function () {
       // sanitized to a fence-safe word, falling back to the classic tag.
       const safeTag = (t, fallback) => /^[A-Za-z0-9_-]{1,40}$/.test(String(t || '').trim()) ? String(t).trim() : fallback;
       const ptag = safeTag(opts.projectFenceTag, 'project_instructions');
+      const ltag = safeTag(opts.loreTag, 'lore');
       const fence = '\n\n<' + ptag + '>\n' + projectInstructions + '\n</' + ptag + '>';
       const marker = '<' + ptag + '>';
       // Depth 0 (default) = the newest user turn — the bottom bun, the strongest attention.
@@ -206,6 +207,30 @@ Constellation.compose = (function () {
         } else if (Array.isArray(target.content)) {
           const t = target.content.find((p) => p && p.type === 'text');
           if (t) { if (String(t.text || '').indexOf(marker) === -1) t.text = String(t.text || '') + fence; }
+          else target.content.push({ type: 'text', text: fence.trim() });
+        }
+      }
+    }
+    // Card re-injection (cast chats): the compiled character/persona blocks re-enter the
+    // stack at a chosen depth — the recall copy for when the system-pile card loses hold.
+    // Token limit trims the recall copy (the system-pile original stays full).
+    if (opts.cardReinject > 0 && (opts.cardBlock || opts.personaBlock)) {
+      const depth = Math.max(1, Math.min(12, opts.cardReinject));
+      const target = out[Math.max(1, out.length - depth)];
+      if (target) {
+        let text = [opts.personaBlock, opts.cardBlock].filter(Boolean).join('\n\n');
+        if (opts.cardReinjectLimit > 0) {
+          const cap = opts.cardReinjectLimit * 4;
+          if (text.length > cap) text = text.slice(0, cap).replace(/\s+\S*$/, '') + ' …';
+        }
+        const ltag = /^[A-Za-z0-9_-]{1,40}$/.test(String(opts.loreTag || '').trim()) ? String(opts.loreTag).trim() : 'lore';
+        const fence = '\n\n<' + ltag + ':card recall>\n' + text + '\n</' + ltag + ':card recall>';
+        const marker = '<' + ltag + ':card recall>';
+        if (typeof target.content === 'string') {
+          if (target.content.indexOf(marker) === -1) target.content += fence;
+        } else if (Array.isArray(target.content)) {
+          const t = target.content.find((p) => p && p.type === 'text');
+          if (t) { if (String(t.text || '').indexOf(marker) === -1) t.text += fence; }
           else target.content.push({ type: 'text', text: fence.trim() });
         }
       }
