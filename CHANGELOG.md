@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.11.10 — Recall
+
+### New
+
+- **Card re-injection.** Cast chats now remember the compiled character and persona blocks, and can re-send them *inside the message stack* — Settings → Writing → **Card re-injection depth** (0 = off, 1–12 messages from the bottom) places a recall copy nearest to where the model writes, for when the system-pile card starts losing hold mid-story. An adjustable **Re-injection limit** (tokens) trims the recall copy; the system-pile original always stays full. Old cast chats pick the feature up automatically, and forks carry it.
+- **The Cast compiler, verified end-to-end.** Character block, persona block, base instructions and preset base all compile correctly with every Base choice — preview, disk, and wire checked. SillyTavern imports now map `comment` → entry title, `secondary_keys` → `+must` keys, `priority` → priority, and `@@keep_activate_after_match` → linger.
+
+### Fixed
+
+- **Number inputs wear the dark style** — the Project depth box (and every settings number field) was falling through to the browser's white default.
+- **Scroll diagnostics sharpened.** Scroll commands (search jumps, bookmark/Chronicle jumps) are now marked in the flight recorder, so the next capture separates user-initiated jumps from spontaneous ones. The first capture with markers showed reply-finishes running clean.
+
 ## v0.11.9 — The Living Book
 
 ### New
