@@ -1139,6 +1139,7 @@ ipcMain.handle('export:chatMarkdown', async (_e, payload) => {
   try {
     payload = payload || {};
     const safeName = mdexport.safeFileTitle(payload.title || payload.defaultName);
+    const day = localDateStamp();
     const md = mdexport.chatToMarkdown({
       title: payload.title || safeName,
       messages: payload.messages || [],
@@ -1147,7 +1148,7 @@ ipcMain.handle('export:chatMarkdown', async (_e, payload) => {
     }, { thinking: payload.includeThinking !== false, system: !!payload.includeSystem });
     const res = await dialog.showSaveDialog({
       title: 'Export chat as Markdown',
-      defaultPath: safeName + '.md',
+      defaultPath: safeName + ' ' + day + '.md',   // name first, date after — same order as the Markdown backup
       filters: [
         { name: 'Markdown', extensions: ['md'] },
         { name: 'Text', extensions: ['txt'] },
@@ -1479,7 +1480,7 @@ ipcMain.handle('backup:exportMarkdown', async () => {
       if (!sess || !Array.isArray(sess.messages)) { skipped++; continue; }
       const hasTurns = sess.messages.some((m) => m && ((m.content || '').trim() || (includeThinking && m.reasoning)));
       if (!hasTurns) { skipped++; continue; }
-      let base = day + ' ' + mdexport.safeFileTitle(sess.title || 'Untitled');
+      let base = mdexport.safeFileTitle(sess.title || 'Untitled') + ' ' + day;   // name first, date after — sorts by chat in the folder
       const key = base.toLowerCase();
       if (used.has(key)) { const n = used.get(key) + 1; used.set(key, n); base += ' (' + n + ')'; }
       else used.set(key, 1);

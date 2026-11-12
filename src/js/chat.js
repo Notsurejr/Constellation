@@ -190,8 +190,11 @@ Constellation.chat = (function () {
     if (exportPop) { closeExportPop(); return; }
     let mdThinking = true;
     try { const cfg = await window.api.loadConfig(); mdThinking = cfg.mdThinking !== false; } catch (e) { console.warn('[constellation]', e && e.message || e); }
+    // the chat's REAL (renamable) title wins; the first prompt is only the fallback for a
+    // never-named chat — same rule the bookmarks overlay now uses
+    const sessTitle = (Constellation.sessions && Constellation.sessions.chatTitle && Constellation.sessions.chatTitle()) || '';
     const firstUser = turns.find((m) => m.role === 'user');
-    const title = (firstUser ? firstUser.content : 'chat').replace(/\s+/g, ' ').trim().slice(0, 60) || 'chat';
+    const title = (sessTitle || (firstUser ? firstUser.content : '') || 'chat').replace(/\s+/g, ' ').trim().slice(0, 60) || 'chat';
 
     exportPop = document.createElement('div');
     exportPop.className = 'sigil-pop export-pop';
