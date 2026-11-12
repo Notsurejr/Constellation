@@ -112,18 +112,24 @@ Constellation.stream = (function () {
 
     let bodyBuf = '';
     let thinkBuf = '';
+    let thinkFollow = null;   // coalesced rAF follow for the thinking block (see onThink)
     let streaming = true;
     let revealedN = 0;
     let rafId = null;
     let lastTs = 0;
     let lastRender = 0;
     const rate = H.getOpts().streamCps > 0 ? H.getOpts().streamCps : Infinity;   // chars/sec to reveal at
-    let finishAnchor = null;   // the reader's pinned line across all finish mutations (see onDone)
 
     function renderPrefix(ink, live) {
+      // Live renders follow the stream by EXACT height delta — one scrollTop write per render,
+      // dips included, nothing fighting the browser's clamp (the old maybeScroll re-pin bounced).
+      // The FINAL render (live=false) writes no scroll at all: the finish block in pump() owns
+      // that, measuring around ALL finish mutations at once.
+      const sc = H.messagesEl();
+      const oldH = live ? sc.scrollHeight : 0, oldTop = live ? sc.scrollTop : 0;
       body.innerHTML = H.renderBodyHTML(H.applyPhraseBans(bodyBuf.slice(0, Math.floor(revealedN))), { streaming: !!live });
       if (ink && H.getOpts().streamInk && isFinite(rate)) inkEdge(body, rate);
-      H.maybeScroll();
+      if (live) H.followStreamDelta(oldH, oldTop);
       H.updateJumpBtn();
       if (meta) H.updateMeta(meta, body.textContent);
     }
@@ -140,17 +146,34 @@ Constellation.stream = (function () {
         rafId = requestAnimationFrame(pump);
       } else {
         const _diagT0 = performance.now();
-        const pinned = !finishAnchor && H.atBottom();   // bottom-pinned readers: the final re-parse can shift content height — keep their eye on the same text
-        const prevH = H.messagesEl().scrollHeight;
+        // ONE measured window around ALL finish mutations (final re-parse, code toolbars,
+        // colors, the thinking fold) — then a single scrollTop write. The anchor is captured
+        // FRESH here, at finish time: the position at onDone went stale across the tail drain
+        // (readers follow at the bottom when the model finishes, then scroll up to read — the
+        // exact moment the old code compensated nothing). Stable blocks — anything outside the
+        // streaming body — win: they survive the body's innerHTML swap untouched.
+        const sc = H.messagesEl();
+        const prevTop = sc.scrollTop, prevH = sc.scrollHeight;
+        const pinned = H.atBottom();
+        const anchor = H.captureScrollAnchor(body);
         body.classList.remove('caret');
-        renderPrefix(false, false);
+        const anchorOnThink = !!(anchor && thinkDetails && thinkDetails.contains(anchor.el));
+        if (thinkDetails && thinkBuf && !anchorOnThink) thinkDetails.open = false;   // fold INSIDE the window — the delta/restore below holds the reader's line through it
+        renderPrefix(false, false);   // final render: no scroll write (see renderPrefix)
         H.enhanceCodeBlocks(body);   // finished streaming -> add expand/collapse toggles
         if (window.Constellation && window.Constellation.colorfx) window.Constellation.colorfx.tagColors(body);   // tag colors in the finished reply
-        if (finishAnchor) H.restoreScrollAnchor(finishAnchor);   // final render settled — put the reader's line back
-        else if (pinned) {
-          const dH = H.messagesEl().scrollHeight - prevH;
-          H.messagesEl().scrollTop += dH;   // compensate the height shift instead of hard re-pinning (the old visible jump)
+        if (pinned) {
+          const dH = sc.scrollHeight - prevH;
+          sc.scrollTop = prevTop + dH;   // exact new bottom for a pinned reader — a settle SHRINK lands here too, one smooth step, no clamp fight
           if (window.Constellation && window.Constellation.diag) window.Constellation.diag.note('re-pin', 'dH ' + Math.round(dH));   // scroll-capture correlation
+          requestAnimationFrame(() => {   // late settle: lazy layout (details content, fonts) can
+            // move the bottom edge after the write — a reader who was pinned ends pinned
+            if (sc.scrollHeight - sc.scrollTop - sc.clientHeight <= 120) sc.scrollTop = sc.scrollHeight;
+          });
+        } else if (anchor) {
+          H.restoreScrollAnchor(anchor);
+          requestAnimationFrame(() => H.restoreScrollAnchor(anchor));   // late layout can resettle — hold the line twice
+          if (window.Constellation && window.Constellation.diag) window.Constellation.diag.note('anchor-restore', anchor.text.slice(0, 30));   // scroll-capture correlation
         }
         if (window.Constellation && window.Constellation.diag) window.Constellation.diag.span('finish-render', performance.now() - _diagT0);
         rafId = null;
@@ -189,6 +212,7 @@ Constellation.stream = (function () {
         H.setBusy(false);
         H.restoreSendBtn();
         H.setStatus('error', 'err', 'Timed out after ' + Math.round(ms / 1000) + 's with no data from the model — request cancelled.');
+        if (thinkFollow) { cancelAnimationFrame(thinkFollow); thinkFollow = null; }
         hideThinking(el);
         el.remove();
         if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Timed out waiting for the model — request cancelled', 9000);
@@ -207,10 +231,23 @@ Constellation.stream = (function () {
       onRetry: (attempt) => H.setStatus('retrying… (attempt ' + attempt + ')', 'ok'),
       onThink: (delta) => {
         streamStarted = true;
-        hideThinking(el);
         kickWatchdog();
         thinkBuf += delta;
         if (thinkDetails) {
+          // The thinking block grows the page like any other stream — pinned readers follow.
+          // The PRE state is measured at the first delta of a frame (before ANY mutation, so
+          // the block's first unhide counts too), and the follow is applied once per frame in
+          // rAF, where layout has certainly settled — <details> content layout lands between
+          // the same-task write and the frame, and a same-task scrollHeight read misses it.
+          if (!thinkFollow) {
+            const sc = H.messagesEl();
+            const preH = sc.scrollHeight, preTop = sc.scrollTop;
+            thinkFollow = requestAnimationFrame(() => {
+              thinkFollow = null;
+              H.followStreamDelta(preH, preTop);
+            });
+          }
+          hideThinking(el);
           thinkDetails.hidden = false;
           thinkDetails.open = true;
           if (thinkBody) thinkBody.textContent = thinkBuf;
@@ -227,7 +264,6 @@ Constellation.stream = (function () {
       onDone: (full, finishReason) => {
         hideThinking(el);
         clearTimeout(watchdog);
-        finishAnchor = (!H.atBottom()) ? H.captureScrollAnchor() : null;   // pin the reader's line BEFORE any finish mutations
         streaming = false;
         if (full) bodyBuf = full;
         bodyBuf = H.applyPhraseBans(bodyBuf);   // tidy banned phrases out of the final reply (model never sees the list)
@@ -252,7 +288,8 @@ Constellation.stream = (function () {
           const acts = el.querySelector('.msg-actions');
           if (acts && !acts.querySelector('[data-action="rawview"]')) { const fb = H.filterBtn(el); if (fb) acts.appendChild(fb); }
         }
-        if (thinkDetails && thinkBuf && H.atBottom()) thinkDetails.open = false;   // fold thinking away once the answer is in — but NOT while the reader is scrolled up (the collapse would yank their view)
+        // (the thinking fold now lives in pump's finish window, measured and compensated —
+        // folding it here, unmeasured, was the finish-snap in every diag capture)
         if (finishReason === 'length') {   // hit the max-length cap -> offer to continue from the cutoff
           el.classList.add('continuable');
           const acts = el.querySelector('.msg-actions');
@@ -274,7 +311,6 @@ Constellation.stream = (function () {
           }).catch(() => {});
         }
         if (variantTarget) Constellation.sculpt.renderVariantNav(el);
-        if (finishAnchor) { H.restoreScrollAnchor(finishAnchor); requestAnimationFrame(() => H.restoreScrollAnchor(finishAnchor)); }
         if (!rafId) rafId = requestAnimationFrame(pump);   // flush any buffered tail at the flow rate
       },
       onError: (message) => {
@@ -282,6 +318,7 @@ Constellation.stream = (function () {
         clearTimeout(watchdog);
         streaming = false;
         if (rafId) cancelAnimationFrame(rafId);
+        if (thinkFollow) { cancelAnimationFrame(thinkFollow); thinkFollow = null; }
         rafId = null;
         const friendly = H.friendlyError(message);
         if (window.Constellation && window.Constellation.toast) window.Constellation.toast(friendly, 9000);   // linger: errors are read in hindsight

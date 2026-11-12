@@ -62,32 +62,50 @@ Constellation.chat = (function () {
   }
   function updateJumpBtn() { if (jumpBtn) jumpBtn.hidden = atBottom(); }
 
+  // Follow the stream by EXACT height delta — the streaming render's only scroll writer.
+  // maybeScroll() re-pins with an absolute scrollToBottom, which fights the browser's clamp
+  // whenever a partial-markdown re-parse makes the height dip (captured as a constant ~79px
+  // scrollTop ping-pong in the diag reports). Tracking the delta — dips included — keeps the
+  // bottom edge pinned with ONE write per render and nothing to fight. Readers outside the
+  // follow window are untouched.
+  function followStreamDelta(oldH, oldTop) {
+    if (oldH - oldTop - messagesEl.clientHeight > 120) return;   // wasn't following before the swap
+    messagesEl.scrollTop = oldTop + (messagesEl.scrollHeight - oldH);
+  }
+
   // (lastUserIndex now lives in Constellation.compose — one shared rule for composer + meter.)
 
   // --- Scroll preservation across a reply's finish ---
-  // Finishing mutates layout ABOVE the reader's line (final markdown re-render, code-block toolbars,
-  // continue button), which yanks the viewport. captureScrollAnchor() records the tightest block
-  // straddling the viewport's top edge (any message); restoreScrollAnchor() puts it back where it
-  // was. Survives the streaming body's innerHTML replacement via a text-match fallback.
+  // Finishing mutates layout (final markdown re-render, code-block toolbars, the thinking fold),
+  // which yanks the viewport. captureScrollAnchor() records the tightest block straddling the
+  // viewport's top edge; restoreScrollAnchor() puts it back where it was. Survives the streaming
+  // body's innerHTML replacement via a text-match fallback — normalized, because the settled
+  // final parse drops markup characters the streaming parse showed (a partial `*bold` keeps its
+  // asterisks; the closed one doesn't).
   const ANCHOR_BLOCKS = '.role, .think-block, .think-body, .body p, .body li, .body pre, .body h1, .body h2, .body h3, .body h4, .msg-meta, .body';
-  function captureScrollAnchor() {
+  const anchorKey = (s) => s.replace(/[*_~`]/g, '').replace(/\s+/g, ' ').trim();
+  function captureScrollAnchor(preferOutside) {
     const viewTop = messagesEl.getBoundingClientRect().top + 2;
-    let best = null;
+    let best = null, bestStable = null;
     for (const b of messagesEl.querySelectorAll(ANCHOR_BLOCKS)) {
       const r = b.getBoundingClientRect();
       if (r.height === 0) continue;
       if (r.bottom < viewTop || r.top > viewTop) continue;   // must straddle the viewport's top edge
-      if (!best || r.height < best.h) best = { el: b, h: r.height, text: (b.textContent || '').trim().slice(0, 80), off: r.top - viewTop };
+      const entry = { el: b, h: r.height, text: (b.textContent || '').trim().slice(0, 80), off: r.top - viewTop };
+      if (!best || r.height < best.h) best = entry;
+      if (preferOutside && preferOutside.contains(b)) continue;   // the streaming body's blocks die at the final re-parse — stable blocks win
+      if (!bestStable || r.height < bestStable.h) bestStable = entry;
     }
-    return best;
+    return bestStable || best;
   }
   function restoreScrollAnchor(a) {
     if (!a) return;
     const viewTop = messagesEl.getBoundingClientRect().top + 2;
     let target = (a.el && a.el.isConnected) ? a.el : null;
     if (!target) {
+      const key = anchorKey(a.text || '');
       for (const b of messagesEl.querySelectorAll(ANCHOR_BLOCKS)) {
-        if ((b.textContent || '').trim().slice(0, 80) === a.text && b.getBoundingClientRect().height > 0) { target = b; break; }
+        if (anchorKey((b.textContent || '').trim().slice(0, 80)) === key && b.getBoundingClientRect().height > 0) { target = b; break; }
       }
     }
     if (target) messagesEl.scrollTop += (target.getBoundingClientRect().top - viewTop) - a.off;
@@ -430,6 +448,7 @@ Constellation.chat = (function () {
       messagesEl: () => messagesEl,
       setStatus: setStatus,
       maybeScroll: maybeScroll,
+      followStreamDelta: followStreamDelta,
       updateJumpBtn: updateJumpBtn,
       atBottom: atBottom,
       captureScrollAnchor: captureScrollAnchor,
