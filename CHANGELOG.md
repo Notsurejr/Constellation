@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.12.0 — Glasswork
+
+### New
+
+- **Code panes.** Fenced text stops being a terminal box: it renders as glass set into the reply. Four styles (Settings → Appearance → **Code panes**): **recessed well** (default — sunken into the page, quiet depth), **floating** (wears your active glass surface), **hairline** (near-transparent, one accent trace), and **classic** (the old toolbar block, kept). The toolbar is gone in the new styles — copy and line-wrap arrive as faint marks when you hover, the fence's language sits as a whisper-quiet tag, and wide fences bleed toward the window's edges. No backdrop blur anywhere: the depth comes from fills and shadows, not GPU cost.
+- **Prose fences.** A fence tagged `placard` (or `sign`) renders as a diegetic placard — centered smallcaps title, subtitle, divider — and `note` (or `letter`) as a found note: italic serif on a ruled left edge with a dash sign-off. For in-scene signs, documents and letters the model writes, not machine output. Copy always keeps the exact original text.
+- **Response window.** Settings → Appearance → **Response window** gives each reply a frame: **none** (open sky, the default), **deep void**, **soft**, or **matches glass** (your active message-glass surface). Assistant replies only — your side of the conversation is untouched.
+- **Telemetry tint.** Untagged fences that read like logs (timestamps, dotted leaders, `key ... value` lines) get quiet tone for keys, values and titles. Recognized code languages stay calm mono; nothing about the text changes on the wire.
+- **Model fingerprinting.** Every reply now carries the model that wrote it: a dim stamp in the reply's footer, and clicking any stamp opens this chat's model breakdown — counts, share bars, percentages, plus an honest "before model tracking" row for older replies. The Markdown export labels each reply with *its own* model (previously every callout wore the chat's current model) and lists per-model counts in the frontmatter when a chat is mixed.
+
+### Fixed
+
+- **Dialogue voice was eating quoted text.** Any spoken line containing emphasis (`*like this*`) rendered scrambled or partly missing while a dialogue voice was on — the renderer was moving text nodes instead of wrapping them where they sit. Straight and curly quotes, streaming included.
+- **The finish snap, for real this time.** The scroll-following system was rebuilt around one principle: nothing moves the reader without measuring first. The streaming follow tracks exact height changes (a ~79px viewport ping-pong in the diagnostics is gone), the finish compensation covers *every* finish mutation including the thinking fold — and the anchor that holds your reading line is captured at finish time, not when the model stops talking (tail reveals can run minutes past that). Diagnosed from six captured reports; verified by scripted stream round-trips.
+- **Bookmarks read their titles from the chat itself.** The overlay groups bookmarks under live chat titles (renames propagate; deleted chats keep what was stored), entries sit in story order under their chat with a "saved 2d ago" stamp, and groups collapse.
+
+### Changed
+
+- **Export filenames read `Chat name 2026-11-12.md`** — name first, date after, for both the per-chat export and the full Markdown backup. The per-chat export also uses the chat's renamed title instead of its first prompt.
+
 ## v0.11.13 — First Light
 
 ### Changed
