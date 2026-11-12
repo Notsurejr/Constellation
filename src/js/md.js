@@ -149,41 +149,67 @@ Constellation.md = (function () {
   }
 
   function wrapSegment(doc, seg, block) {
-    // One quote → one .dlg span (marks as .q children). Segments wrap in reverse document
-    // order so earlier splitText calls never shift later indices.
-    const span = doc.createElement('span');
-    span.className = 'dlg';
-    const q = (node) => { const s = doc.createElement('span'); s.className = 'q'; s.appendChild(node); return s; };
+    // One quote → spoken spans. Segments wrap in reverse document order so earlier
+    // splitText calls never shift later indices. NOTHING EVER MOVES: every fragment is
+    // wrapped at the position it already occupies (the previous move-into-one-span
+    // approach reordered the sentence whenever a quote crossed an element boundary).
+    const qAt = (node) => {   // a quote mark, wrapped in place
+      const s = doc.createElement('span'); s.className = 'q';
+      node.parentNode.replaceChild(s, node); s.appendChild(node);
+      return s;
+    };
+    const dlgAt = (node) => {   // a spoken text chunk, wrapped in place
+      const s = doc.createElement('span'); s.className = 'dlg';
+      node.parentNode.replaceChild(s, node); s.appendChild(node);
+      return s;
+    };
     if (seg.node === seg.node2) {
       // Common case: both marks in one text node.  T = [prefix][open][content][close][tail]
+      const span = doc.createElement('span'); span.className = 'dlg';
       const tail = seg.node.splitText(seg.mend);
       const closeM = seg.node.splitText(seg.end);
       const content = seg.node.splitText(seg.start);
       const openM = seg.node.splitText(seg.mstart);
-      span.appendChild(q(openM)); span.appendChild(content); span.appendChild(q(closeM));
+      const q = (node) => { const s = doc.createElement('span'); s.className = 'q'; s.appendChild(node); return s; };
+      span.appendChild(q(openM)); span.appendChild(content);
+      if (closeM.length) span.appendChild(q(closeM));   // streaming-unclosed segs carry no close mark
       seg.node.parentNode.insertBefore(span, tail);
     } else {
-      // The quote crosses an element boundary (e.g. "…**bold**…"): wrap each text chunk in
-      // its own .dlg span and TAG the whole inline elements between them, so formatted
-      // speech keeps the voice. Multiple .dlg fragments render as one voice under every
-      // treatment (pills/underlines clone per fragment — close enough, and rare).
-      const markA = seg.node.splitText(seg.mstart);   // starts with the opening mark char
-      const contentA = markA.splitText(1);            // markA = mark · contentA = rest of node A
-      if (contentA.length) span.appendChild(contentA);
-      const bTail = seg.node2.splitText(seg.mend);
-      const closeM = seg.node2.splitText(seg.end);    // node2 keeps [0,end) = content of node B
-      if (seg.node2.length) span.appendChild(seg.node2);
-      span.appendChild(q(markA)); span.appendChild(q(closeM));
-      seg.node2.parentNode.insertBefore(span, bTail);
-      // inline elements strictly between the two marks → same voice
+      // The quote crosses an element boundary (e.g. "…**bold**…"). Each text chunk gets
+      // its own .dlg span AT ITS POSITION, the marks get .q wraps in place, and whole
+      // inline elements between the marks are TAGGED .dlg so formatted speech keeps the
+      // voice. Multiple .dlg fragments render as one voice under every treatment.
+      // 1. tag strictly-between inline elements first, while the original nodes are whole
       try {
         for (const elm of block.querySelectorAll('em, strong, b, i, a, del, span')) {
-          if (elm === span || elm.contains(span) || span.contains(elm)) continue;
+          if (elm.classList.contains('dlg')) continue;
           const rA = seg.node.compareDocumentPosition(elm);
           const rB = seg.node2.compareDocumentPosition(elm);
           if ((rA & Node.DOCUMENT_POSITION_FOLLOWING) && (rB & Node.DOCUMENT_POSITION_PRECEDING)) elm.classList.add('dlg');
         }
       } catch (e) { /* compare hiccups must never break rendering */ }
+      // 2. isolate the marks: A = [prefix][markA][contentA…] · B = [head…][closeM][tail]
+      const markA = seg.node.splitText(seg.mstart);
+      const contentA = markA.splitText(1);
+      seg.node2.splitText(seg.mend);   // drop the tail from the close side's working node
+      const closeM = seg.node2.splitText(seg.end);
+      // 3. wrap in place: marks → .q, spoken chunks → .dlg, plus any bare text nodes
+      //    sitting directly between the marks (not already inside a tagged element)
+      qAt(markA);
+      if (closeM.length) qAt(closeM);   // streaming-unclosed segs carry no close mark
+      if (contentA.length) dlgAt(contentA);
+      if (seg.node2.length) dlgAt(seg.node2);
+      try {
+        for (const n of blockTextNodes(block)) {
+          if (!n.textContent) continue;
+          let p = n.parentElement, covered = false;
+          while (p && p !== block) { if (p.classList.contains('dlg')) { covered = true; break; } p = p.parentElement; }
+          if (covered) continue;
+          const rA = markA.compareDocumentPosition(n);
+          const rB = closeM.compareDocumentPosition(n);
+          if ((rA & Node.DOCUMENT_POSITION_FOLLOWING) && (rB & Node.DOCUMENT_POSITION_PRECEDING)) dlgAt(n);
+        }
+      } catch (e) { /* never break rendering for a quote */ }
     }
   }
 
