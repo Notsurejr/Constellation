@@ -131,7 +131,7 @@ Constellation.stream = (function () {
       if (ink && H.getOpts().streamInk && isFinite(rate)) inkEdge(body, rate);
       if (live) H.followStreamDelta(oldH, oldTop);
       H.updateJumpBtn();
-      if (meta) H.updateMeta(meta, body.textContent);
+      if (meta) H.updateMeta(meta, body.textContent, false, opts.model || 'glm-5.3');
     }
 
     function pump(ts) {
@@ -275,13 +275,13 @@ Constellation.stream = (function () {
           // Keep the prior take(s); add this one and make it the active variant.
           const m = H.getConv()[variantCi];
           if (m) {
-            if (!Array.isArray(m.variants)) m.variants = [{ content: m.content || '', reasoning: m.reasoning, lore: m.lore }];
-            m.variants.push({ content: bodyBuf, reasoning: thinkBuf || undefined, lore: vLore });
+            if (!Array.isArray(m.variants)) m.variants = [{ content: m.content || '', reasoning: m.reasoning, lore: m.lore, model: m.model }];
+            m.variants.push({ content: bodyBuf, reasoning: thinkBuf || undefined, lore: vLore, model: opts.model || 'glm-5.3' });
             m.vActive = m.variants.length - 1;
-            m.content = bodyBuf; m.reasoning = thinkBuf || undefined; m.lore = vLore;
+            m.content = bodyBuf; m.reasoning = thinkBuf || undefined; m.lore = vLore; m.model = opts.model || 'glm-5.3';
           }
         } else {
-          H.getConv().push({ role: 'assistant', content: bodyBuf, reasoning: thinkBuf || undefined, lore: vLore });
+          H.getConv().push({ role: 'assistant', content: bodyBuf, reasoning: thinkBuf || undefined, lore: vLore, model: opts.model || 'glm-5.3' });   // the fingerprint: which model wrote this
         }
         if (window.Constellation && window.Constellation.diag) window.Constellation.diag.note('reply-finish', 'len ' + String(bodyBuf || '').length);   // scroll-capture correlation
         if (H.hasFilterEffect(bodyBuf)) {

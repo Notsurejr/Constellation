@@ -38,14 +38,23 @@ function callout(type, label, body, folded) {
   return out.join('\n');
 }
 
-// sess: { title, messages: [{role, content, reasoning?, edited?, orig?}], model?, system? }
+// sess: { title, messages: [{role, content, reasoning?, edited?, orig?, model?}], model?, system? }
 // opts: { thinking: bool, system: bool }
 function chatToMarkdown(sess, opts) {
   opts = opts || {};
   const msgs = Array.isArray(sess && sess.messages) ? sess.messages : [];
   const turns = msgs.filter((m) => m && (m.role === 'user' || m.role === 'assistant'));
-  const model = prettyModel(sess && sess.model);
   const parts = [];
+
+  // Per-reply model fingerprints: a reply stamped with its generating model labels its own
+  // callout (switched chats stop mislabeling every reply with the chat's CURRENT model).
+  // Unstamped replies (pre-tracking chats) fall back to the session's model — same claim the
+  // frontmatter has always made.
+  const modelOf = (m) => ((m && m.model) || (sess && sess.model) || 'unknown');
+  const counts = {};
+  for (const m of turns) if (m.role === 'assistant') counts[modelOf(m)] = (counts[modelOf(m)] || 0) + 1;
+  const models = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+  const mixed = models.length > 1;
 
   // --- YAML frontmatter (Obsidian properties) ---
   const fm = [
@@ -53,11 +62,9 @@ function chatToMarkdown(sess, opts) {
     'title: ' + yamlQuote((sess && sess.title) || 'Untitled'),
     'app: Constellation',
     'model: ' + String((sess && sess.model) || 'unknown'),
-    'exported: ' + localStamp(),
-    'messages: ' + turns.length,
-    '---',
-    '',
   ];
+  if (mixed) fm.push('models: ' + models.map((k) => k + ' (' + counts[k] + ')').join(', '));
+  fm.push('exported: ' + localStamp(), 'messages: ' + turns.length, '---', '');
   parts.push(fm.join('\n'));
 
   // --- optional folded system prompt ---
@@ -78,7 +85,7 @@ function chatToMarkdown(sess, opts) {
       parts.push(callout('QUESTION', 'User', body));
     } else {
       const edited = m.edited && m.orig && m.orig !== m.content ? ' · ✎ edited' : '';
-      parts.push(callout('NOTE', prettyModel(sess && sess.model) + edited, body));
+      parts.push(callout('NOTE', prettyModel(modelOf(m)) + edited, body));
     }
     parts.push('');
   }
