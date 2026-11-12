@@ -105,6 +105,14 @@ Constellation.stream = (function () {
     H.updateJumpBtn();
     body.classList.remove('caret');
     showThinking(el);   // animated "working" indicator while lore + the model get ready (hides any latency)
+    // Seed pin: the placeholder assembly (dots, meta, actions) grows the page AFTER addMessage's
+    // own pin, so a just-sent reader can start the stream >120px from the bottom — past the
+    // follow window, and delta-following would hands-off forever off that seed. One absolute
+    // re-pin with a generous window: you just sent; you are at the bottom.
+    {
+      const sc0 = H.messagesEl();
+      if (sc0.scrollHeight - sc0.scrollTop - sc0.clientHeight < 400) sc0.scrollTop = sc0.scrollHeight;
+    }
 
     const loreCtx = await H.buildLoreContext();   // relevant world context (constant + keyword + hybrid BM25/semantic passages)
     H.addLoreIndicator(el, loreCtx.items);

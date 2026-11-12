@@ -987,16 +987,77 @@ Constellation.chat = (function () {
 
   // Give each finished code block an expand/collapse toggle so wide blocks can wrap to the
   // window instead of scrolling left↔right. Run once after a message is fully rendered.
+  // ---- Code panes: fenced text as glass set into the reply ----
+  // Styles are body-class driven (pane-recessed / pane-floating / pane-hairline / pane-classic)
+  // so switching the setting restyles every existing pane with no re-render. The classic bar
+  // and the ghost controls are BOTH built; CSS shows the one the active style wants.
+  const SVG_COPY = '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+  const SVG_CHECK = '<svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>';
+  const SVG_WRAP = '<svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h15a3 3 0 1 1 0 6h-4m0 0 2-2m-2 2 2 2M3 18h7"/></svg>';
+  function paneCopyBtn(getText) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.title = 'Copy'; b.setAttribute('aria-label', 'Copy');
+    b.innerHTML = SVG_COPY;
+    b.addEventListener('click', () => {
+      if (window.api && window.api.writeClipboard) window.api.writeClipboard(getText());
+      b.innerHTML = SVG_CHECK; b.classList.add('done');
+      setTimeout(() => { b.innerHTML = SVG_COPY; b.classList.remove('done'); }, 1400);
+    });
+    return b;
+  }
+  function paneScrollFade(wrap) {
+    const pre = wrap.querySelector('pre');
+    if (!pre) return;
+    wrap.classList.toggle('is-scrollable', pre.scrollWidth > pre.clientWidth + 2);
+  }
   function enhanceCodeBlocks(bodyEl) {
     if (!bodyEl) return;
     const pres = bodyEl.querySelectorAll('pre');
     for (const pre of pres) {
       if (pre.closest('.codeblock') || pre.dataset.enhanced === '1') continue;
       pre.dataset.enhanced = '1';
+      const code = pre.querySelector('code');
+      const lang = ((code && code.className.match(/language-([\w-]+)/)) || [])[1] || '';
       const wrap = document.createElement('div');
       wrap.className = 'codeblock';
+      if (lang) wrap.dataset.lang = lang;
       pre.parentNode.insertBefore(wrap, pre);
       wrap.appendChild(pre);
+
+      // Prose fences — diegetic text that was never machine output (a placard bolted to a
+      // bulkhead, a note left in a drawer). Structured display, serif, no tinting; the
+      // ORIGINAL fence text is kept on the wrap so Copy stays exact.
+      const pl = lang.toLowerCase();
+      if (pl === 'placard' || pl === 'sign' || pl === 'note' || pl === 'letter') {
+        buildProsePane(wrap, pre, (pl === 'placard' || pl === 'sign') ? 'placard' : 'note');
+        continue;
+      }
+
+      // whisper tag: the fence's own language, bottom-right, barely there
+      if (lang) {
+        const t = document.createElement('span');
+        t.className = 'whisper-tag';
+        t.textContent = lang;
+        wrap.appendChild(t);
+      }
+
+      // ghost controls (recessed / floating / hairline): copy + line-wrap, arriving on hover
+      const ghost = document.createElement('div');
+      ghost.className = 'ghost';
+      const cbtn = paneCopyBtn(() => pre.textContent || '');
+      const wbtn = document.createElement('button');
+      wbtn.type = 'button'; wbtn.title = 'Toggle line wrap'; wbtn.setAttribute('aria-label', 'Toggle line wrap');
+      wbtn.innerHTML = SVG_WRAP;
+      wbtn.addEventListener('click', () => {
+        const on = pre.classList.toggle('wrapped');
+        wbtn.classList.toggle('active', on);
+        paneScrollFade(wrap);
+      });
+      ghost.appendChild(wbtn);
+      ghost.appendChild(cbtn);
+      wrap.appendChild(ghost);
+
+      // classic toolbar (kept intact for pane-classic; CSS hides it in the pane styles)
       const bar = document.createElement('div');
       bar.className = 'codeblock-bar';
       const copy = document.createElement('button');
@@ -1020,7 +1081,122 @@ Constellation.chat = (function () {
       bar.appendChild(copy);
       bar.appendChild(toggle);
       wrap.insertBefore(bar, pre);
+
+      // telemetry tint: bare (or log-tagged) fences that READ like logs get quiet key/value
+      // tone — timestamps, dotted leaders, a title line. Known code languages stay untouched.
+      tintLogFence(pre, lang);
+      // wide panes: long-lined fences (surveys, wide logs) bleed toward the chat pane's edges
+      if ((pre.textContent || '').split('\n').some((l) => l.length > 72)) wrap.classList.add('wide');
+      paneScrollFade(wrap);
+      pre.addEventListener('scroll', () => paneScrollFade(wrap), { passive: true });
     }
+  }
+
+  // Prose panes: title/subtitle/divider conventions for placards; sign-off for notes.
+  // Everything is built from textContent — no HTML path in, ever.
+  function buildProsePane(wrap, pre, kind) {
+    const text = String(pre.textContent || '').replace(/\r/g, '').trimEnd();
+    wrap.__source = text;
+    wrap.classList.add('prose', kind);
+    const content = document.createElement('div');
+    content.className = 'prose-content';
+    const lines = text.split('\n');
+    const paras = [];
+    let buf = [];
+    const flush = () => { if (buf.length) { paras.push(buf.join(' ')); buf = []; } };
+    for (let i = 0; i < lines.length; i++) {
+      const ln = lines[i].trim();
+      if (!ln) { flush(); continue; }
+      if (kind === 'placard' && i === 0) continue;                     // title handled below
+      if (kind === 'placard' && i === 1 && ln.length <= 48 && !/[.!?]$/.test(ln)) continue;   // subtitle
+      if (/^[·⋯✦\-\s]{3,}$/.test(ln) || ln === '---') { flush(); continue; }   // divider ornaments
+      buf.push(ln);
+    }
+    flush();
+    if (kind === 'placard') {
+      const head = document.createElement('div'); head.className = 'placard-head';
+      const t = document.createElement('span'); t.className = 'placard-title';
+      t.textContent = (lines[0] || '').trim();
+      head.appendChild(t);
+      const sub = (lines[1] || '').trim();
+      if (sub && sub.length <= 48 && !/[.!?]$/.test(sub)) {
+        const s = document.createElement('span'); s.className = 'placard-sub'; s.textContent = sub;
+        head.appendChild(s);
+      }
+      const dv = document.createElement('span'); dv.className = 'divider'; dv.textContent = '· · ⋯ ✦ ⋯ · ·';
+      head.appendChild(dv);
+      content.appendChild(head);
+    }
+    for (let i = 0; i < paras.length; i++) {
+      const p = paras[i];
+      // a note's last paragraph opens with a dash (— or -) = the sign-off line
+      if (kind === 'note' && i === paras.length - 1 && /^[-—–]\s?\S/.test(p.trim())) {
+        const s = document.createElement('span'); s.className = 'note-sign'; s.textContent = p.trim();
+        content.appendChild(s);
+      } else {
+        const pe = document.createElement('p'); pe.textContent = p;
+        content.appendChild(pe);
+      }
+    }
+    const ghost = document.createElement('div');
+    ghost.className = 'ghost';
+    ghost.appendChild(paneCopyBtn(() => wrap.__source || ''));
+    wrap.appendChild(ghost);
+    pre.replaceWith(content);
+  }
+
+  // Telemetry tint — a reading aid, not syntax highlighting. Fires only when the fence has no
+  // known code language AND at least half its lines look log-ish (timestamps / dotted leaders).
+  const LOG_LANGS = ['log', 'manifest', 'telemetry', 'terminal', 'console'];
+  function tintLogFence(pre, lang) {
+    const l = lang.toLowerCase();
+    if (l && !LOG_LANGS.includes(l)) return;   // ts/py/json/etc keep calm mono
+    const lines = (pre.textContent || '').split('\n');
+    const live = lines.filter((x) => x.trim());
+    if (live.length < 3) return;
+    const isTs = (s) => /^\[?\d{1,2}:\d{2}(:\d{2})?([:.]\d{1,3})?\]?\s+/.test(s);
+    const isLeader = (s) => /^[^\n]{1,34}(\.{3,}|…)/.test(s.trim()) || /(\.{3,}|…)\s*\S/.test(s);
+    if (live.filter((s) => isTs(s) || isLeader(s)).length < Math.ceil(live.length / 2)) return;
+    const spanOf = (cls, txt) => { const sp = document.createElement('span'); if (cls) sp.className = cls; sp.textContent = txt; return sp; };
+    const firstLive = lines.findIndex((x) => x.trim());
+    const frag = document.createDocumentFragment();
+    lines.forEach((raw, i) => {
+      const line = document.createElement('span');
+      line.className = 'log-line';
+      let s = raw, ts = '';
+      const m = s.match(/^(\[?\d{1,2}:\d{2}(:\d{2})?([:.]\d{1,3})?\]?)\s+/);
+      if (m) { ts = m[1]; s = s.slice(m[0].length); }
+      const rest = s.replace(/\s+$/, '');
+      // the log's title: the first live line, when it's short and carries no timestamp/leader
+      if (i === firstLive && rest.length <= 64 && !isLeader(rest)) {
+        line.appendChild(spanOf('tk-title', rest));
+      } else {
+        if (ts) line.appendChild(spanOf('tk-ts', ts + ' '));
+        const kv = rest.match(/^(.{1,36}?)\s*((?:\.{3,}|…))\s*(.*)$/);
+        if (kv) {
+          line.appendChild(spanOf('tk-key', kv[1]));
+          line.appendChild(spanOf('tk-dots', ' ' + kv[2] + ' '));
+          const cmm = kv[3].split(/::\s*/);
+          if (cmm.length > 1) {
+            line.appendChild(spanOf('tk-val', cmm.shift()));
+            line.appendChild(spanOf('tk-dim', ':: ' + cmm.join(':: ')));
+          } else {
+            line.appendChild(spanOf('tk-val', kv[3]));
+          }
+        } else {
+          const cmm = rest.split(/::\s*/);
+          if (cmm.length > 1 && ts) {
+            line.appendChild(spanOf('tk-val', cmm.shift()));
+            line.appendChild(spanOf('tk-dim', ':: ' + cmm.join(':: ')));
+          } else {
+            line.appendChild(spanOf(ts ? 'tk-dim' : '', rest));
+          }
+        }
+      }
+      frag.appendChild(line);
+      frag.appendChild(document.createTextNode('\n'));
+    });
+    pre.replaceChildren(frag);
   }
 
   function clearEmptyHint() {
@@ -1074,6 +1250,16 @@ Constellation.chat = (function () {
     label.appendChild(document.createTextNode(' ' + (role === 'user' ? 'You' : 'GLM')));
     el.appendChild(label);
 
+    // Response window (assistant only): the frame the reply sits in when a window treatment is
+    // active (Settings → Appearance → Response window; body.rw-* classes style it, none = open sky).
+    // Thinking, body and attachment chips live INSIDE it; meta, actions and lore stay outside.
+    let rwin = null;
+    if (role === 'assistant') {
+      rwin = document.createElement('div');
+      rwin.className = 'rwindow';
+      el.appendChild(rwin);
+    }
+
     // Collapsible "thinking" block (assistant only). Hidden unless the model emits reasoning,
     // or a saved reasoning block is being restored from disk. The ✎ in the header opens the
     // reasoning editor — editing what the model will "remember having thought" next send.
@@ -1096,7 +1282,7 @@ Constellation.chat = (function () {
       thinkBody = document.createElement('div');
       thinkBody.className = 'think-body';
       thinkDetails.appendChild(thinkBody);
-      el.appendChild(thinkDetails);
+      (rwin || el).appendChild(thinkDetails);
       if (reasoning) {            // restore a saved thinking block (closed by default)
         thinkDetails.hidden = false;
         thinkBody.textContent = reasoning;
@@ -1107,16 +1293,16 @@ Constellation.chat = (function () {
     const body = document.createElement('div');
     body.className = 'body md';
     body.innerHTML = renderBodyHTML(content);
-    enhanceCodeBlocks(body);     // attach expand/collapse toggles to finished code blocks
+    enhanceCodeBlocks(body);     // attach pane chrome to finished code blocks
     if (window.Constellation && window.Constellation.colorfx) window.Constellation.colorfx.tagColors(body);   // tag color words for the scan flare
-    el.appendChild(body);
+    (rwin || el).appendChild(body);
 
     // Attachment chips shown inside the message bubble (display only).
     if (files && files.length) {
       const fc = document.createElement('div');
       fc.className = 'msg-files';
       for (const f of files) fc.appendChild(fileChipEl(f, false));
-      el.appendChild(fc);
+      (rwin || el).appendChild(fc);
     }
 
     // Word/char count under responses (assistant only) — with a ✎ marker once sculpted,

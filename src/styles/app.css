@@ -187,16 +187,75 @@ html, body {
   background: rgba(0,0,0,0.45); border: 1px solid var(--panel-border); overflow-x: auto;
 }
 .msg .body pre code { background: none; color: var(--text); padding: 0; font-size: 0.85em; }
-/* Code "card": wraps a finished <pre> and adds an expand/collapse toggle so wide blocks can
-   wrap to the window instead of forcing a left↔right scrollbar. (See enhanceCodeBlocks.) */
+/* ============================================================
+   CODE PANES — fenced text as glass set into the reply.
+   Variant comes from the BODY class (pane-recessed / -floating / -hairline / -classic), so the
+   setting restyles every pane live with no re-render. No backdrop-filter anywhere: depth is
+   fills, inset shadows and a tapered top edge (the per-message blur landmine stays buried).
+   ============================================================ */
 .msg .body .codeblock {
-  margin: 0 0 0.7em;
-  border: 1px solid var(--panel-border);
-  border-radius: 9px;
-  background: rgba(0,0,0,0.45);
+  --pane-radius: 10px;
+  position: relative;
+  margin: 0.2em 0 1.05em;
+  border-radius: var(--pane-radius);
+  background: var(--glass-bg, rgba(8, 11, 20, 0.55));
+  border: 1px solid var(--glass-border, var(--panel-border));
+  box-shadow: var(--glass-shadow, none);
   overflow: hidden;
 }
-.msg .body .codeblock pre { margin: 0; border: none; border-radius: 0; background: none; }
+/* tapered optical top edge — catches light without a blunt flat bar */
+.msg .body .codeblock::before {
+  content: ''; position: absolute; top: 0; left: 8%; right: 8%; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent 0%, var(--glass-btop, rgba(196,209,255,0.25)) 28%, rgba(230,238,255,0.4) 50%, var(--glass-btop, rgba(196,209,255,0.25)) 72%, transparent 100%);
+  opacity: 0.85;
+}
+.msg .body .codeblock pre {
+  margin: 0; border: none; border-radius: 0; background: none;
+  font-size: 12.5px; line-height: 1.6; color: #cbd4e8;
+  padding: 14px 16px 15px; overflow-x: auto; tab-size: 2;
+}
+.msg .body .codeblock pre.wrapped { white-space: pre-wrap; word-break: break-word; }
+.msg .body .codeblock pre::-webkit-scrollbar { height: 6px; }
+.msg .body .codeblock pre::-webkit-scrollbar-track { background: transparent; }
+.msg .body .codeblock pre::-webkit-scrollbar-thumb { background: var(--accent-16); border-radius: 99px; }
+.msg .body .codeblock pre::-webkit-scrollbar-thumb:hover { background: var(--accent-25); }
+/* right-edge fade while horizontally overflowing (mask — no extra elements) */
+.msg .body .codeblock.is-scrollable pre {
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 26px), transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 26px), transparent 100%);
+}
+
+/* --- recessed well (default): sunken into the response window, quiet depth, zero blur --- */
+body.pane-recessed .msg .body .codeblock {
+  background: rgba(3, 5, 11, 0.56);
+  border-color: rgba(255,255,255,0.065);
+  box-shadow: inset 0 2px 14px rgba(0,0,0,0.62), inset 0 0 0 1px rgba(0,0,0,0.25), 0 1px 0 rgba(255,255,255,0.045);
+}
+body.pane-recessed .msg .body .codeblock::before { opacity: 0.35; left: 12%; right: 12%; }
+
+/* --- floating plate: wears the active app glass surface directly --- */
+body.pane-floating .msg .body .codeblock {
+  box-shadow: var(--glass-shadow, none), inset 0 1px 0 rgba(255,255,255,0.05), inset 0 -1px 0 rgba(0,0,0,0.35);
+}
+
+/* --- hairline: near-transparent, one faint accent trace down the left edge --- */
+body.pane-hairline .msg .body .codeblock {
+  background: rgba(8, 11, 20, 0.28);
+  border-color: rgba(159,184,255,0.13);
+  box-shadow: inset 2px 0 0 rgba(159,184,255,0.22);
+}
+body.pane-hairline .msg .body .codeblock::before { opacity: 0.55; }
+
+/* --- classic: today's look, kept whole as the escape hatch --- */
+body.pane-classic .msg .body .codeblock {
+  margin: 0 0 0.7em; border: 1px solid var(--panel-border); border-radius: 9px;
+  background: rgba(0,0,0,0.45); box-shadow: none;
+}
+body.pane-classic .msg .body .codeblock::before { display: none; }
+body.pane-classic .msg .body .codeblock .ghost,
+body.pane-classic .msg .body .codeblock .whisper-tag { display: none; }
+body.pane-classic .msg .body .codeblock pre { font-size: inherit; color: var(--text); padding: 12px 14px; }
+body:not(.pane-classic) .msg .body .codeblock-bar { display: none; }
 .msg .body .codeblock-bar {
   display: flex; justify-content: flex-end;
   padding: 4px 6px;
@@ -216,7 +275,102 @@ html, body {
   transition: color .15s, border-color .15s, background .15s;
 }
 .msg .body .codeblock-toggle:hover { color: var(--accent); border-color: var(--accent-dim); background: var(--accent-16); }
+
+/* --- ghost controls: arrive when the hand does (solid chip — no blur) --- */
+.msg .body .codeblock .ghost {
+  position: absolute; top: 7px; right: 8px; z-index: 3;
+  display: flex; align-items: center; gap: 3px; padding: 2px;
+  border-radius: 8px; background: rgba(7, 10, 18, 0.72); border: 1px solid rgba(255,255,255,0.07);
+  opacity: 0; transform: translateY(-2px);
+  transition: opacity .18s ease, transform .18s ease;
+}
+.msg .body .codeblock:hover .ghost,
+.msg .body .codeblock:focus-within .ghost,
+.msg .body .codeblock.copied .ghost { opacity: 1; transform: translateY(0); }
+.msg .body .codeblock .ghost button {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: none; border: none; color: var(--text-dim); cursor: pointer;
+  font: 11px var(--font-mono, monospace); padding: 4px 6px; border-radius: 6px; line-height: 1;
+  transition: color .15s, background .15s;
+}
+.msg .body .codeblock .ghost button svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.msg .body .codeblock .ghost button:hover { color: var(--accent); background: var(--accent-12); }
+.msg .body .codeblock .ghost button.active { color: var(--accent); background: var(--accent-16); }
+.msg .body .codeblock .ghost button.done { color: #9fdcb8; }
+
+/* --- whisper tag: the fence's own language, bottom-right, barely there --- */
+.msg .body .codeblock .whisper-tag {
+  position: absolute; bottom: 7px; right: 12px;
+  font: 10px var(--font-mono, monospace); letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--text-faint); opacity: 0.42; pointer-events: none;
+}
+
+/* --- telemetry tint tokens (see tintLogFence) --- */
+.msg .body .codeblock .tk-title { color: #e5ecfc; font-weight: 500; letter-spacing: 0.04em; }
+.msg .body .codeblock .tk-ts   { color: #7e88a1; }
+.msg .body .codeblock .tk-dots { color: rgba(140, 152, 182, 0.36); }
+.msg .body .codeblock .tk-key  { color: #9aa6c2; }
+.msg .body .codeblock .tk-val  { color: #d9e2f5; }
+.msg .body .codeblock .tk-dim  { color: #7e88a1; }
+
+/* --- prose panes: ```placard / ```note — diegetic signs and found letters --- */
+.msg .body .codeblock.prose { border-color: rgba(226, 218, 196, 0.11); }
+.msg .body .codeblock.prose::before {
+  background: linear-gradient(90deg, transparent 0%, rgba(232,224,200,0.22) 30%, rgba(242,235,216,0.32) 50%, rgba(232,224,200,0.22) 70%, transparent 100%);
+}
+.msg .body .codeblock.prose .prose-content {
+  padding: 20px 26px 22px;
+  font-family: var(--font-serif-live, var(--font-ui));
+  font-size: 14.5px; line-height: 1.78; color: #ded8c7;
+}
+.msg .body .codeblock.prose .placard-head { text-align: center; margin-bottom: 14px; }
+.msg .body .codeblock.prose .placard-title { display: block; letter-spacing: 0.26em; text-transform: uppercase; font-size: 12px; color: #dad1b6; }
+.msg .body .codeblock.prose .placard-sub { display: block; font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--text-faint); margin-top: 3px; }
+.msg .body .codeblock.prose .divider { display: block; text-align: center; color: rgba(218, 209, 182, 0.34); letter-spacing: 0.5em; margin-top: 10px; font-size: 11px; }
+.msg .body .codeblock.prose .prose-content p { margin: 0; }
+.msg .body .codeblock.prose .prose-content p + p { margin-top: 0.75em; }
+.msg .body .codeblock.prose.note .prose-content {
+  padding: 18px 24px 20px 26px; border-left: 2px solid rgba(226, 214, 184, 0.22); font-style: italic; color: #d9d3c3;
+}
+.msg .body .codeblock.prose.note .note-sign { display: block; margin-top: 10px; font-style: normal; font-size: 12px; letter-spacing: 0.14em; color: var(--text-faint); }
+body.pane-classic .msg .body .codeblock.prose .prose-content { font-size: inherit; padding: 12px 14px; }
 .msg .body pre.expanded { overflow-x: visible; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* ============================================================
+   RESPONSE WINDOW — the frame around a reply (body.rw-* classes; assistant messages only).
+   Gradient treatments only — real backdrop blur stays out of the message stream.
+   ============================================================ */
+.msg.assistant .rwindow { border-radius: 14px; }
+body.rw-void .msg.assistant .rwindow {
+  background: rgba(5, 7, 12, 0.88);
+  border: 1px solid rgba(255,255,255,0.075);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+  padding: 14px 18px 16px;
+}
+body.rw-soft .msg.assistant .rwindow {
+  background: linear-gradient(180deg, rgba(11, 14, 24, 0.66) 0%, rgba(6, 8, 15, 0.78) 100%);
+  border: 1px solid rgba(255,255,255,0.07);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+  padding: 14px 18px 16px;
+}
+body.rw-glass .msg.assistant .rwindow {
+  background: var(--glass-bg, linear-gradient(180deg, rgba(14,18,32,0.86) 0%, rgba(7,9,17,0.92) 100%));
+  border: 1px solid var(--glass-border, var(--panel-border));
+  box-shadow: var(--glass-shadow, none);
+  padding: 14px 18px 16px;
+}
+body.rw-glass .msg.assistant .rwindow::before {
+  content: ''; display: block; height: 1px; margin: -14px -18px 14px;
+  background: linear-gradient(90deg, transparent 0%, var(--glass-btop, rgba(196,209,255,0.25)) 30%, rgba(230,238,255,0.35) 50%, var(--glass-btop, rgba(196,209,255,0.25)) 70%, transparent 100%);
+}
+
+/* --- wide panes: bleed toward the chat pane's edges (never past them — no h-scrollbar) --- */
+body:not(.pane-classic) .msg .body .codeblock.wide {
+  --bleed: min(96px, max(0px, calc((100vw - var(--chat-col, 880px) - 320px) / 2)));
+  width: calc(100% + var(--bleed) * 2);
+  margin-left: calc(-1 * var(--bleed));
+}
+.chat { overflow-x: clip; }
 .msg .body hr { border: none; border-top: 1px solid var(--panel-border); margin: 0.8em 0; }
 .msg .body table { border-collapse: collapse; margin: 0 0 0.6em; display: block; overflow-x: auto; }
 .msg .body th, .msg .body td { border: 1px solid var(--panel-border); padding: 4px 9px; }

@@ -193,6 +193,8 @@ const SETTINGS_SPEC = [
   ['ui_font', 'uiFont', 'enum', 'Literata', ['Literata', 'Atkinson']],
   ['chat_layout', 'chatLayout', 'enum', 'folio', ['folio', 'bubbles']],
   ['glass_style', 'glassStyle', 'enum', 'gradient', ['gradient', 'frost', 'tinted', 'smoked', 'shelf', 'vignette']],
+  ['response_window', 'responseWindow', 'enum', 'none', ['none', 'void', 'soft', 'glass']],
+  ['code_pane_style', 'codePaneStyle', 'enum', 'recessed', ['recessed', 'floating', 'hairline', 'classic']],
   ['project_depth', 'projectDepth', 'clampedInt', 0, 0, 12],
   ['lore_tag', 'loreTag', 'str', 'lore'],
   ['preserved_thinking_depth', 'preservedThinkingDepth', 'clampedInt', 0, 0, 99],
