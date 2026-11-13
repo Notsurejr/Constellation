@@ -211,7 +211,7 @@ html, body {
 }
 .msg .body .codeblock pre {
   margin: 0; border: none; border-radius: 0; background: none;
-  font-size: 12.5px; line-height: 1.6; color: #cbd4e8;
+  font-size: inherit; line-height: 1.6; color: #cbd4e8;
   padding: 14px 16px 15px; overflow-x: auto; tab-size: 2;
 }
 .msg .body .codeblock pre.wrapped { white-space: pre-wrap; word-break: break-word; }
