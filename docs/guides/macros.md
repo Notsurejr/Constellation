@@ -4,7 +4,7 @@ Macros are small placeholders that resolve at send time into real values: turn c
 
 ## Where macros work
 
-**Macros are a cast-chat feature** — chats started from a character card. In regular chats nothing is substituted; the syntax passes through to the model verbatim.
+**Macros are a cast-chat feature by default** — chats started from a character card always have them. Regular chats can opt in: Settings → Generation → **Prompt macros in regular chats** (off by default, so pasted documentation and template syntax stays literal unless you ask for it). In a regular chat without the toggle, nothing is substituted; the syntax passes through to the model verbatim.
 
 The substitution points:
 
@@ -51,5 +51,7 @@ Each send, one line of direction rotates. The model gets a fresh nudge exactly w
 
 ## Display quirks worth knowing
 
-- In a regular chat, `{{...}}` renders on screen as a whisper-styled token with the braces eaten — but the text on the wire is verbatim; nothing was substituted.
+- **Macro-shaped tokens keep their braces on screen** — `{{turn}}`, `{{roll:…}}`, `{{random:…}}`, `{{time}}`, `{{date}}` always display literally, even where the value would be substituted on the wire. They're syntax, not prose; only non-macro braces render as the whisper register.
+- Other `{{...}}` braces in normal prose render as the whisper register (braces leave the screen).
 - In a cast chat, pasted text containing `{{...}}` (changelogs, template snippets) WILL be substituted — macros don't know pasted prose from intention. Keep template syntax out of cast chats, or expect it to resolve once and freeze.
+- **Cache note:** `{{turn}}` in the *system prompt* changes it every send by design — which defeats **Cache-friendly lore** (Settings → Writing) for that chat. The project fence is the safe home for per-send macros; the system pile wants stable text.

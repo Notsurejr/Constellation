@@ -4,7 +4,7 @@ The immersion grammar is a set of typographic marks the **model writes into its 
 
 ## Turning it on
 
-Settings → Writing → **Immersion grammar**. When on, Constellation teaches the marks to the model in the system prompt (with restraint rules baked in). The toggle only controls the teaching — the rendering is always live, so if you type the marks yourself they display too.
+Settings → Generation → **Immersion grammar**. When on, Constellation teaches the marks to the model in the system prompt (with restraint rules baked in). The sibling **Diegetic panes** toggle (Settings → Generation) teaches the fence conventions the same way — when both are on, the model also hears the division of labor: inline marks shape sentences, panes are objects on the page. The toggle only controls the teaching — the rendering is always live, so if you type the marks yourself they display too.
 
 ## The marks
 
@@ -53,8 +53,8 @@ plainly instead.
 
 ## Where the grammar stops
 
-- **Inside code panes**, the grammar does not apply — panes have their own quieter convention: `{{...}}` whispers, `[REDACTED]`-style brackets, `████` damage. See the [diegetic panes guide](diegetic-panes.md) for the boundary.
-- Marks never render inside ordinary code fences.
+- **Inside diegetic panes**, the pane convention applies: `{{...}}` whispers, `[REDACTED]`-style brackets, `████` damage — and `||redacted||` written in a fence degrades gracefully into the pane's quiet dim redaction (no pipes, no bars). Macro tokens (`{{turn}}`, `{{roll:…}}`, `{{random:…}}`, `{{time}}`, `{{date}}`) are never styled — they keep their braces everywhere, because they are syntax, not prose. See the [diegetic panes guide](diegetic-panes.md) for the full boundary.
+- Marks never render inside tagged code fences (`ts`, `py`, …) — those display exactly what was written.
 - Display filters (Settings → Writing) shape the raw text *before* rendering, so a filter that rewrites text changes what the marks wrap.
 
 ## Pairing

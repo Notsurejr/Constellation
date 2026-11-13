@@ -107,7 +107,13 @@ Constellation.md = (function () {
         else if (m[2] != null) frag.appendChild(inlineWrap(doc, m[2], 'g-msg'));
         else if (m[3] != null) frag.appendChild(inlineWrap(doc, m[3], 'g-smash'));
         else if (m[4] != null) frag.appendChild(inlineWrap(doc, m[4], 'g-spaced'));
-        else if (m[5] != null) frag.appendChild(inlineWrap(doc, m[5], 'g-whisper'));
+        else if (m[5] != null) {
+          // Macro-shaped tokens ({{turn}}, {{roll:…}}, {{random:…}}, {{time}}, {{date}}) are
+          // syntax, not whispers — in regular chats they ride the wire verbatim and must keep
+          // their braces on screen too. Only non-macro braces render as the whisper register.
+          if (/^\{\{\s*(?:turn|roll|random|time|date)\b/i.test(m[0])) frag.appendChild(doc.createTextNode(m[0]));
+          else frag.appendChild(inlineWrap(doc, m[5], 'g-whisper'));
+        }
         else if (m[6] != null) frag.appendChild(inlineWrap(doc, m[6], 'g-redact'));
         else if (m[7] != null) frag.appendChild(inlineWrap(doc, m[7], 'g-mark'));
         else if (m[8] != null) frag.appendChild(inlineWrap(doc, m[8], 'g-alien'));

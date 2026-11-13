@@ -14,7 +14,6 @@
 
   // ---------- Lorebook retrieval ----------
   const LORE_STOP = new Set(('the a an and or but of to in on at for with from by is are was were be been being it its this that these those he she they them his her their as so if then than too very can will would should could may might must do does did has have had not no we us our you your i me my').split(' '));
-  const LORE_BUDGET_CHARS = 8000;
   const LORE_CHUNK_CHARS = 800;
   const LORE_MIN_SCORE = 1.5;
   const SEM_MIN_SIM = 0.30;
@@ -129,9 +128,35 @@
     for (const m of String(text || '').matchAll(/^#{1,6}\s+(.+)$/gm)) { const h = m[1].trim(); if (h) out.push(h); }
     return out;
   }
+  // Key matching: word-boundary by default (so `war` never fires inside `warm`), `*` acts as
+  // a wildcard (warp* → warping, warpdrive), and keys that don't start/end with ASCII word
+  // characters (CJK and friends) fall back to plain substring — \b is ASCII-centric and
+  // meaningless there. Compiled once per key string.
+  const KEY_RX = new Map();
+  function keyRx(k) {
+    let rx = KEY_RX.get(k);
+    if (rx !== undefined) return rx;
+    const src = String(k).trim();
+    if (!src) { KEY_RX.set(k, null); return null; }
+    let pat = '';
+    for (const ch of src.toLowerCase()) {
+      if (ch === '*') { pat += '[^\\s]*'; continue; }
+      pat += ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+    const wordish = (c) => /[a-z0-9_]/i.test(c);
+    if (wordish(src[0])) pat = '\\b' + pat;
+    if (wordish(src[src.length - 1])) pat = pat + '\\b';
+    try { rx = new RegExp(pat, 'i'); } catch (e) { rx = null; }
+    KEY_RX.set(k, rx);
+    return rx;
+  }
+  function hitKey(k, w) {
+    const rx = keyRx(k);
+    return rx ? rx.test(w) : false;
+  }
   function loreKeyHit(keys, windowText) {
-    const w = String(windowText || '').toLowerCase();
-    return keys.some((k) => w.includes(String(k).toLowerCase()));
+    const w = String(windowText || '');
+    return keys.some((k) => hitKey(k, w));
   }
   async function buildLoreContext(activeLore, recent, embedFn, opts) {
     opts = opts || {};
@@ -173,9 +198,9 @@
       const hasBoxKeys = (e.keys || []).filter((k) => String(k).trim()).length > 0;
       if (!rec.suppressed) {
         if (e.constant) rec.how = 'constant';
-        else if (cls.not.length && cls.not.some((k) => w.includes(k))) rec.suppressed = '-not key in window';
-        else if (hasBoxKeys && cls.any.length && loreKeyHit(cls.any, w) && (!cls.must.length || cls.must.every((k) => w.includes(k)))) rec.how = cls.must.length ? 'keys (any + must)' : 'key match';
-        else if (hasBoxKeys && !cls.any.length && cls.must.length && cls.must.every((k) => w.includes(k))) rec.how = 'must keys';
+        else if (cls.not.length && cls.not.some((k) => hitKey(k, w))) rec.suppressed = '-not key in window';
+        else if (hasBoxKeys && cls.any.length && cls.any.some((k) => hitKey(k, w)) && (!cls.must.length || cls.must.every((k) => hitKey(k, w)))) rec.how = cls.must.length ? 'keys (any + must)' : 'key match';
+        else if (hasBoxKeys && !cls.any.length && cls.must.length && cls.must.every((k) => hitKey(k, w))) rec.how = 'must keys';
         else if (lingering) rec.how = 'lingering — matched ' + sinceActive + ' turns ago';
         else if (hasBoxKeys) rec.suppressed = 'no key in scan window';
         // else: keyless smart entry — its pickups are chunk-level signals, scored below
@@ -183,7 +208,7 @@
       return { rec: rec, text: pickups.text };
     };
     const fire = (rec, label, text, e) => {
-      cands.push({ label: label, text: text, eid: eidOf(e), depth: Math.max(0, Math.min(12, parseInt(e.depth, 10) || 0)), priority: rec.priority, seq: rec.seq, rec: rec });
+      cands.push({ label: label, text: text, eid: eidOf(e), depth: Math.max(0, Math.min(12, parseInt(e.depth, 10) || 0)), priority: rec.priority, seq: rec.seq, rec: rec, constant: !!e.constant });
       rec.included = true;
     };
     // Pass 1 — constant + keyed entries (whole-text fire; pickups already folded into keys).
@@ -264,20 +289,27 @@
     }
     // Pass 3 — allocate the budget priority-first (higher priority survives the cut; ties
     // fall back to retrieval order). Everything beyond the budget is marked cut, and only
-    // entries that actually made the wire update the linger/cooldown state.
+    // entries that actually made the wire update the linger/cooldown state. The budget is
+    // user-configurable (Settings → Writing → World budget; default 8000 chars).
+    const budget = Math.max(2000, Math.min(65536, parseInt(opts.budget, 10) || 8000));
     cands.sort((a, b) => (b.priority - a.priority) || (a.seq - b.seq));
     let used = 0;
     for (const c of cands) {
       const full = String(c.text || '');
-      const piece = full.slice(0, Math.max(0, LORE_BUDGET_CHARS - used));
+      const piece = full.slice(0, Math.max(0, budget - used));
       if (!piece.trim()) { c.rec.cut = true; continue; }
-      out.items.push({ label: c.label, text: piece, eid: c.eid, depth: c.depth, priority: c.priority });
+      out.items.push({ label: c.label, text: piece, eid: c.eid, depth: c.depth, priority: c.priority, constant: !!c.constant });
       used += piece.length;
       if (piece.length < full.length) c.rec.cut = true;   // partially trimmed by the cap
     }
     for (const c of cands) if (c.rec.included && !c.rec.cut) out.state[c.eid] = { lastActive: turn, lastFired: turn };
-    out.body = out.items.map((it) => it.text).join('\n\n');
-    out.bodySurface = out.items.filter((it) => !(it.depth > 0)).map((it) => it.text).join('\n\n');
+    // World bodies: each entry rides in the same <lore:Label> fence shape the depth injections
+    // use — the model can attribute every fact to its entry (bare joined text gave it no idea
+    // which entry said what). opts.tag carries the renameable lore fence tag.
+    const ltag = /^[A-Za-z0-9_-]{1,40}$/.test(String(opts.tag || '').trim()) ? String(opts.tag).trim() : 'lore';
+    const fenceOf = (it) => { const tg = String(it.label || 'world').replace(/[<>&]/g, ''); return '<' + ltag + ':' + tg + '>\n' + it.text + '\n</' + ltag + ':' + tg + '>'; };
+    out.body = out.items.map(fenceOf).join('\n\n');
+    out.bodySurface = out.items.filter((it) => !(it.depth > 0)).map(fenceOf).join('\n\n');
     return out;
   }
 

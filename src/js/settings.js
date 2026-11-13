@@ -88,6 +88,10 @@ Constellation.settings = (function () {
       if ($('preservedThinkingInput')) $('preservedThinkingInput').checked = cfg.preservedThinking !== false;
       if ($('preservedThinkingDepthInput')) $('preservedThinkingDepthInput').value = cfg.preservedThinkingDepth || 0;
       if ($('immersionInput')) $('immersionInput').checked = cfg.immersion === true;
+      if ($('paneTeachInput')) $('paneTeachInput').checked = cfg.paneTeach !== false;
+      if ($('enableMacrosInput')) $('enableMacrosInput').checked = cfg.enableMacros === true;
+      if ($('loreBudgetInput')) $('loreBudgetInput').value = Math.max(2000, Math.min(65536, parseInt(cfg.loreBudget, 10) || 8000));
+      if ($('cacheLoreInput')) $('cacheLoreInput').checked = cfg.cacheSafeLore === true;
       if ($('sendAttachmentsInput')) $('sendAttachmentsInput').checked = cfg.sendAttachments !== false;
       if ($('mdThinkingInput')) $('mdThinkingInput').checked = cfg.mdThinking !== false;
       if ($('backupDate')) {
@@ -184,8 +188,10 @@ Constellation.settings = (function () {
     // Project depth is global (which floor the fence rides) — persist + apply live.
     const depth = Math.max(0, Math.min(12, parseInt($('projectDepthInput') ? $('projectDepthInput').value : '0', 10) || 0));
     const loreTag = $('loreTagInput') ? $('loreTagInput').value : 'lore';
-    await window.api.saveConfig({ project_depth: depth, lore_tag: loreTag });
-    if (window.Constellation && window.Constellation.chat && window.Constellation.chat.setOptions) window.Constellation.chat.setOptions({ projectDepth: depth, loreTag: loreTag });
+    const loreBudget = Math.max(2000, Math.min(65536, parseInt($('loreBudgetInput') ? $('loreBudgetInput').value : '8000', 10) || 8000));
+    const cacheLore = $('cacheLoreInput') ? $('cacheLoreInput').checked : false;
+    await window.api.saveConfig({ project_depth: depth, lore_tag: loreTag, lore_budget: loreBudget, cache_safe_lore: cacheLore });
+    if (window.Constellation && window.Constellation.chat && window.Constellation.chat.setOptions) window.Constellation.chat.setOptions({ projectDepth: depth, loreTag: loreTag, loreBudget: loreBudget, cacheSafeLore: cacheLore });
     Constellation.chat.persist();
   }
 
@@ -403,14 +409,16 @@ Constellation.settings = (function () {
     const preservedThinking = $('preservedThinkingInput') ? $('preservedThinkingInput').checked : true;
     const preservedThinkingDepth = Math.max(0, Math.min(99, parseInt($('preservedThinkingDepthInput') ? $('preservedThinkingDepthInput').value : '0', 10) || 0));
     const immersion = $('immersionInput') ? $('immersionInput').checked : false;
+    const paneTeach = $('paneTeachInput') ? $('paneTeachInput').checked : true;
+    const enableMacros = $('enableMacrosInput') ? $('enableMacrosInput').checked : false;
     const sendAttachments = $('sendAttachmentsInput') ? $('sendAttachmentsInput').checked : true;
     const streamCps = sliderToCps($('streamInput').value);
     const contextWindow = parseInt($('contextWindowInput').value, 10) || 0;
     // Per-chat: apply to this chat and persist with it.
-    Constellation.chat.setOptions({ model, temperature, topP, maxTokens, thinking, reasoningEffort, streamCps, contextWindow, teachEdits, preservedThinking, preservedThinkingDepth, immersion, sendAttachments });
+    Constellation.chat.setOptions({ model, temperature, topP, maxTokens, thinking, reasoningEffort, streamCps, contextWindow, teachEdits, preservedThinking, preservedThinkingDepth, immersion, paneTeach, enableMacros, sendAttachments });
     Constellation.chat.persist();
     // Also update the global default so new chats inherit these preferences.
-    await window.api.saveConfig({ model, temperature, top_p: topP, max_tokens: maxTokens, thinking, reasoning_effort: reasoningEffort, stream_cps: streamCps, context_window: contextWindow, teach_edits: teachEdits ? 'on' : 'off', preserved_thinking: preservedThinking ? 'on' : 'off', preserved_thinking_depth: preservedThinkingDepth, immersion: immersion ? 'on' : 'off', send_attachments: sendAttachments ? 'on' : 'off' });
+    await window.api.saveConfig({ model, temperature, top_p: topP, max_tokens: maxTokens, thinking, reasoning_effort: reasoningEffort, stream_cps: streamCps, context_window: contextWindow, teach_edits: teachEdits ? 'on' : 'off', preserved_thinking: preservedThinking ? 'on' : 'off', preserved_thinking_depth: preservedThinkingDepth, immersion: immersion ? 'on' : 'off', pane_teach: paneTeach ? 'on' : 'off', enable_macros: enableMacros ? 'on' : 'off', send_attachments: sendAttachments ? 'on' : 'off' });
     flash('genSaved');
   }
 

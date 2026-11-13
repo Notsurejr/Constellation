@@ -28,7 +28,7 @@ Assembled at boot of each turn, in this order:
 2. **System files** — any `.md`/`.txt` files attached to the chat's system slot, inlined as `===== name (N chars) =====` blocks.
 3. **Project files** — same, for the project slot.
 4. **Immersion grammar** (optional toggle) — a prose-typography instruction block teaching the model optional inline marks (origin/world columns, compressed panic, whispers, redactions…). The model writes these marks; the renderer displays them.
-5. **`# World` section** — the lorebook's contribution. Only *relevant* entries appear (see activation below), joined as plain text. Entries with a **depth** set skip this section entirely and ride inside the message stack instead.
+5. **`# World` section** — the lorebook's contribution. Only *relevant* entries appear (see activation below), each wrapped in its own `<lore:Entry Title>` fence. Entries with a **depth** set skip this section entirely and ride inside the message stack instead.
 
 The system pile is durable: it is identical every turn (plus or minus the `# World` section as relevance shifts).
 
@@ -67,7 +67,7 @@ The fence reads first (loads the instincts), the user's living beat lands last �
 
 ### 3b. Depth-injected lorebook entries — `<lore:Label>`
 
-A lorebook entry with a **Depth** field (1–12) skips the system `# World` pile and lands inside the stack, N messages from the bottom — **prepended before that message's own text**, so the model reads Setting → Action → Reaction:
+A lorebook entry with a **Depth** field (1–12) skips the system `# World` pile and lands inside the stack, N messages up from the bottom — snapped to the nearest **user turn** at or above that floor (lore fences only ever ride user turns, exactly like the project fence) — **prepended before that message's own text**, so the model reads Setting → Action → Reaction:
 
 ```
 <lore:The Vault>
@@ -88,7 +88,7 @@ For cast chats with card re-injection enabled: once the conversation grows past 
 ## What activates the `# World` lore
 
 - **Constant entries** always appear.
-- **Keyed entries** fire when a key appears in the recent window (per-entry scan depth, default 4 messages). Inline operators: `+key` must also match, `-key` suppresses when present. `[[Pickups]]` written inside lore prose register keys too — and are stripped to clean prose on the wire.
+- **Keyed entries** fire when a key appears in the recent window (per-entry scan depth, default 4 messages). Keys match at **word boundaries** (`war` never fires inside `warm`), and `*` is a wildcard (`warp*` catches warping). Non-Latin keys (CJK and friends) match by substring, where word boundaries don't exist. Inline operators: `+key` must also match, `-key` suppresses when present. `[[Pickups]]` written inside lore prose register keys too — and are stripped to clean prose on the wire.
 - **Keyless "smart" entries** (big documents) are scored per passage by keyword statistics + meaning-similarity; only the best passages come through, and a passage whose own `[[pickup]]` or section heading appears in the window fires deterministically.
 - **Priority** (1–5) decides who survives when the character budget forces cuts.
 - **Linger/cooldown** let an entry stay active N turns after a match, or rest N turns after firing.
@@ -109,7 +109,7 @@ In the system text, project fence, and message bodies: `{{turn}}` (user turns so
 
 - **System + fence macros refresh every send** — `{{turn}}` at turn 7 says 7.
 - **Message-body macros freeze at first send** — the resolved value is stored, so history never re-rolls.
-- Regular (non-cast) chats never substitute macros; the syntax passes through verbatim.
+- Regular (non-cast) chats never substitute macros unless **Prompt macros in regular chats** is enabled (Settings → Generation, off by default); without it the syntax passes through verbatim. Macro-shaped tokens keep their braces on screen everywhere — only non-macro braces render as whispers.
 
 ---
 
@@ -121,3 +121,4 @@ In the system text, project fence, and message bodies: `{{turn}}` (user turns so
 - **Depth-injected content repeats every send** at its floor — keep it compact; it costs tokens every turn.
 - The wire count is exact: the context meter's ◐ number mirrors what this document describes.
 - **Anti-rut technique:** because the project fence refreshes every send, `{{random:…}}` inside it shifts its texture each turn — e.g. a `{{random:let a hesitation say more than a speech|let the NPC scramble to save face|cut the scene one beat early}}` line means the bottom of the wire never reads as the same static block twice.
+- **Cache-friendly lore** (Settings → Writing, off by default): with it on, **constant entries stay in the system pile** and dynamic hits ride the newest user turn above the project fence. The system message and history then stay byte-identical across turns, so the provider's prefix cache covers the conversation — at 100k+ tokens the difference between full-price prefill and ~0.1–0.25× cached reads. Caveat: `{{turn}}` in the *system prompt* still changes it every send; per-send macros belong in the fence.

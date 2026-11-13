@@ -197,6 +197,10 @@ const SETTINGS_SPEC = [
   ['code_pane_style', 'codePaneStyle', 'enum', 'recessed', ['recessed', 'floating', 'hairline', 'classic']],
   ['project_depth', 'projectDepth', 'clampedInt', 0, 0, 12],
   ['lore_tag', 'loreTag', 'str', 'lore'],
+  ['lore_budget', 'loreBudget', 'clampedInt', 8000, 2000, 65536],
+  ['cache_safe_lore', 'cacheSafeLore', 'onoff', false],
+  ['enable_macros', 'enableMacros', 'onoff', false],
+  ['pane_teach', 'paneTeach', 'onoff', true],
   ['preserved_thinking_depth', 'preservedThinkingDepth', 'clampedInt', 0, 0, 99],
   ['send_attachments', 'sendAttachments', 'onoff', true],
   ['sidebar_sort', 'sidebarSort', 'enum', 'recent', ['recent', 'name', 'size']],
@@ -1598,6 +1602,10 @@ ipcMain.handle('chat:stream', async (event, payload) => {
     const isGlmEndpoint = /z\.ai|bigmodel/i.test(String(conn.baseUrl || ''));   // GLM-specific params (thinking) only go to GLM
     const isGeminiEndpoint = /googleapis\.com/i.test(String(conn.baseUrl || ''));   // Gemini's OpenAI-compat door (AI Studio / Vertex)
     const isOpenRouter = /openrouter\.ai/i.test(String(conn.baseUrl || ''));   // OpenRouter's reasoning dialect: the `reasoning` object, not reasoning_effort
+    // Anthropic's prefix cache is the one big provider that needs a flag: OpenRouter's automatic
+    // mode is a TOP-LEVEL cache_control — the breakpoint auto-advances as the conversation grows,
+    // so every stable prefix (system pile + history) is cached at ~0.1x read. Claude models only.
+    const wantsAnthropicCache = isOpenRouter && /claude/i.test(String(opts.model || ''));
     // Preserved thinking (reasoning_content echo-back) is a GLM capability — never send the field
     // to other providers, where it's noise at best and a schema error at worst.
     const apiMessages = isGlmEndpoint ? messages : messages.map((m) => {
@@ -1615,6 +1623,7 @@ ipcMain.handle('chat:stream', async (event, payload) => {
         stream = await client.chat.completions.create({
           model: opts.model || s.model,
           messages: apiMessages,
+          ...(wantsAnthropicCache ? { cache_control: { type: 'ephemeral' } } : {}),
           temperature: opts.temperature ?? s.temperature,
           top_p: opts.topP ?? s.topP,
           ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),

@@ -26,7 +26,7 @@ The styled fences read the fence's *shape* — plain text, no nested markup:
 - **Comms:** one exchange per line — `Name: message`, with an optional `[hh:mm]` leading timestamp. Blank lines separate exchanges; unprefixed lines become dim noise.
 - **Diff:** the standard `+` / `-` / `@@` lines of a Git diff — no new convention at all.
 
-If the model doesn't follow the convention the pane still renders — it just reads as flat prose instead of title-and-body.
+If the model doesn't follow the convention the pane still renders — it just reads as flat prose instead of title-and-body. Basic ****bold**** and **emphasis** render inside prose panes, so model-habitual asterisks never show raw.
 
 ## Whispers and redactions inside panes
 
@@ -47,6 +47,15 @@ The response window and the panes use **two deliberate conventions** — this is
 - **Inside panes**, only the pane convention above applies. The rest of the grammar does nothing there: `||redacted||` written inside a fence shows its pipes literally (write `[REDACTED]` or `████` instead — no bars in panes), and `!!smash!!`, `~alien~` and friends stay literal too. Line-level marks don't apply inside fences at all.
 
 So when prompting: grammar marks for narration in the response window; bracket-and-block patterns for damaged or whispered text inside panes. Don't mix them across the boundary.
+
+**Three boundary notes:**
+- `||redacted||` written inside a fence renders as the same quiet dim redaction (no pipes, no bars) — the grammar's habit-mark degrades gracefully instead of showing raw pipes. The other inline marks (`!!smash!!`, `~alien~`, `==marked==`) stay literal in panes.
+- **Macro tokens are never styled:** `{{turn}}`, `{{roll:2d6}}`, `{{random:…}}`, `{{time}}`, `{{date}}` keep their braces everywhere — on screen and in panes — because they're syntax, not prose.
+- **Tagged code fences are untouched:** in ```ts, ```py and friends, nothing is transformed, so a Vue/handlebars snippet displays truthfully. The pane conventions apply to plain, log-tagged, file, comms and prose panes.
+
+### Teaching the model
+
+Settings → Generation → **Diegetic panes** (on by default) teaches the model every convention on this page — the fence tags, their shapes, the damaged-text patterns, and the restraint rules — with the division of labor stated plainly: *inline marks shape sentences; panes are objects on the page.* Turn it off to save the tokens; the rendering works regardless.
 
 ## Paste-ready prompt block
 
@@ -76,8 +85,9 @@ character can SEE or HOLD — never for narration:
 - Damaged text: write [REDACTED], [illegible] or ████ characters right
   in the fence text — they render as quiet censoring on their own.
 - Whispered text inside fences: wrap it like {{this}} — quiet italics,
-  no setting needed. (Do not use || marks inside fences; those belong
-  to normal prose only.)
+  no setting needed. (||word|| in a fence also renders, as the same
+  quiet dim redaction — but || in normal prose is the gated-reveal
+  mark, so prefer the bracket forms inside fences.)
 
 Restraint: at most one or two such blocks per scene, and keep them short —
 a pane is a prop, not a set piece. Never fence ordinary narration or

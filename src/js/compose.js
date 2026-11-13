@@ -57,7 +57,27 @@ Constellation.compose = (function () {
     ].join('\n');
   }
 
-  // state: { roleplayPrompt, systemFiles, projectFiles, immersion }
+  // The diegetic panes, taught when the toggle is on: fenced blocks render as physical props
+  // of the scene — screens, signs, letters, threads, records. Same restraint discipline as
+  // the grammar, plus the division of labor between the two systems.
+  function panesBlock() {
+    return [
+      '# In-scene documents — diegetic panes',
+      'Fenced blocks render as physical props of the scene: text a character can SEE or HOLD. Never fence narration or dialogue.',
+      'Restraint: at most one or two panes per scene, kept short — a pane is a prop, not a set piece.',
+      '- Screens, readouts, logs, transcripts: a plain fenced block. Dotted leaders for readouts (`hull ............ nominal`); timestamps where a machine would log them (`[04:19:02] relay :: message`).',
+      '- Actual code: fence it with its language tag (`ts`, `py`, …).',
+      '- Changed records, edited drafts, corrupted logs: fence as `diff` — standard +/− lines.',
+      '- Text threads, hails, intercom transcripts: fence as `comms` — one exchange per line: `Name: message`, optional `[hh:mm]` timestamps.',
+      '- Signs, notices, manifest plates, inscriptions: fence as `placard` — first line the title (short), second line the subtitle, then the body.',
+      '- Letters, notes, scrawled warnings, diary pages: fence as `note` — body paragraphs; the last line is a signature starting with a dash (`— M., third shift`).',
+      '- Torn articles, newsfeeds, broadsheets: fence as `news` — first line the publication and date, second line the headline, then the body.',
+      '- Damaged text: `[REDACTED]`, `[illegible]`, `████` characters render as quiet censoring. `{{whispered asides}}` inside fences render quiet too.',
+      'Division of labor: the immersion grammar\u2019s inline marks shape sentences; panes are objects on the page. Never both for the same beat.',
+    ].join('\n');
+  }
+
+  // state: { roleplayPrompt, systemFiles, projectFiles, immersion, paneTeach }
   // Project instructions do NOT sit here — they ride the NEWEST user turn at compose
   // time (toApiMessages), the bottom of the context, closest to generation.
   function buildSystem(state) {
@@ -66,6 +86,7 @@ Constellation.compose = (function () {
       filesBlock(state.systemFiles),
       filesBlock(state.projectFiles),
       state.immersion && immersionBlock(),
+      state.paneTeach && panesBlock(),
     ].filter(Boolean).join('\n\n');
   }
 
@@ -157,17 +178,33 @@ Constellation.compose = (function () {
     // DEPTH set ride inside the message stack instead — N messages from the bottom, near the
     // action — per the depth-injection design; the system pile keeps the rest.
     if (loreCtx && loreCtx.items && loreCtx.items.length) {
-      const surfaceBody = (loreCtx.bodySurface != null ? loreCtx.bodySurface : loreCtx.body);
-      if (surfaceBody && out[0] && out[0].role === 'system') {
-        out[0] = { role: 'system', content: out[0].content + '\n\n# World\nBackground facts about this world (true; use as context):\n\n' + surfaceBody };
+      const ltagL = /^[A-Za-z0-9_-]{1,40}$/.test(String(opts.loreTag || '').trim()) ? String(opts.loreTag).trim() : 'lore';
+      const fenceOf = (it) => { const tag = String(it.label || 'world').replace(/[<>&]/g, ''); return '<' + ltagL + ':' + tag + '>\n' + it.text + '\n</' + ltagL + ':' + tag + '>'; };
+      const items = loreCtx.items;
+      // System-pile # World section. CACHE-SAFE MODE (Settings → Writing): only CONSTANT entries
+      // stay here — dynamic hits (keyword/smart, no explicit depth) ride the newest user turn
+      // instead (tail injection below), keeping the system message byte-identical across turns so
+      // the provider's prefix cache covers the whole conversation instead of being re-billed
+      // every time lore shifts. Depth-assigned entries are explicit placement — unchanged.
+      const surfaceItems = items.filter((it) => !(it.depth > 0));
+      const sysItems = opts.cacheSafeLore ? surfaceItems.filter((it) => it.constant) : surfaceItems;
+      const sysBody = sysItems.map(fenceOf).join('\n\n');
+      if (sysBody && out[0] && out[0].role === 'system') {
+        out[0] = { role: 'system', content: out[0].content + '\n\n# World\nBackground facts about this world (true; use as context):\n\n' + sysBody };
       }
-      for (const it of loreCtx.items) {
-        const d = Math.max(1, Math.min(12, it.depth || 0));
-        const target = out[Math.max(1, out.length - d)];
+      for (const it of items) {
+        if (!(it.depth > 0)) continue;   // depth-0 items live in the system section only — riding the stack too would send them twice
+        if (opts.cacheSafeLore && !it.constant) continue;   // (unreachable today — dynamic depth-0 items skip; kept for safety if depth+dynamic ever combine)
+        const d = Math.max(1, Math.min(12, it.depth));
+        // N messages up from the bottom, snapped to the nearest USER turn at or above —
+        // lore fences only ever ride user turns, exactly like the project fence. Prepending
+        // into a past assistant turn would teach the model the tag from the wrong side of
+        // the dialogue and tangle with preserved thinking.
+        let ti = Math.max(1, out.length - d);
+        while (ti > 1 && out[ti].role !== 'user') ti--;
+        const target = out[ti];
         if (!target) continue;
-        const ltag = /^[A-Za-z0-9_-]{1,40}$/.test(String(opts.loreTag || '').trim()) ? String(opts.loreTag).trim() : 'lore';   // global fence word (Appearance/Writing), default 'lore'
-        const tag = String(it.label || 'world').replace(/[<>&]/g, '');
-        const fence = '<' + ltag + ':' + tag + '>\n' + it.text + '\n</' + ltag + ':' + tag + '>';
+        const fence = fenceOf(it);
         // PREPEND: world context reads BEFORE the message's own words — Setting → Action → Reaction.
         if (typeof target.content === 'string') target.content = fence + '\n\n' + target.content;
         else if (Array.isArray(target.content)) {
@@ -234,7 +271,11 @@ Constellation.compose = (function () {
       const trigger = Math.max(0, parseInt(opts.cardReinjectAt, 10) || 0);
       if (trigger > 0 && estTokens >= trigger) {
         const depth = Math.max(1, Math.min(12, opts.cardReinject));
-        const target = out[Math.max(1, out.length - depth)];
+        // Same user-turn snap as the project fence and depth lore — the recall copy only
+        // ever rides user turns.
+        let ti = Math.max(1, out.length - depth);
+        while (ti > 1 && out[ti].role !== 'user') ti--;
+        const target = out[ti];
         if (target) {
           const text = [opts.personaBlock, opts.cardBlock].filter(Boolean).join('\n\n');
           const ltag = /^[A-Za-z0-9_-]{1,40}$/.test(String(opts.loreTag || '').trim()) ? String(opts.loreTag).trim() : 'lore';
@@ -251,7 +292,29 @@ Constellation.compose = (function () {
         }
       }
     }
-    // Send-time macros — CAST CHATS ONLY (opts.castMacros; set from the chat's character
+    // Cache-friendly lore tail: dynamic hits (non-constant, no explicit depth) ride the newest
+    // user turn ABOVE the project fence — facts, then rules, then the story. The system pile
+    // holds only constants in this mode, so the provider's prefix cache covers everything else.
+    // (Runs after the fence/card blocks so prepending lands on top of them.)
+    if (opts.cacheSafeLore && loreCtx && loreCtx.items && loreCtx.items.length) {
+      const ltagT = /^[A-Za-z0-9_-]{1,40}$/.test(String(opts.loreTag || '').trim()) ? String(opts.loreTag).trim() : 'lore';
+      const tail = loreCtx.items.filter((it) => !(it.depth > 0) && !it.constant);
+      if (tail.length) {
+        let ti = out.length - 1;
+        while (ti > 0 && out[ti].role !== 'user') ti--;
+        if (ti >= 1) {
+          const target = out[ti];
+          const block = tail.map((it) => { const tag = String(it.label || 'world').replace(/[<>&]/g, ''); return '<' + ltagT + ':' + tag + '>\n' + it.text + '\n</' + ltagT + ':' + tag + '>'; }).join('\n\n');
+          if (typeof target.content === 'string') target.content = block + '\n\n' + target.content;
+          else if (Array.isArray(target.content)) {
+            const t = target.content.find((p) => p && p.type === 'text');
+            if (t) t.text = block + '\n\n' + String(t.text || '');
+            else target.content.push({ type: 'text', text: block });
+          }
+        }
+      }
+    }
+    // Send-time macros — CAST CHATS by default (opts.castMacros; set from the chat's character
     // field). Regular chats NEVER substitute: pasted documentation, changelogs, and prompt
     // examples that merely mention macro syntax must arrive exactly as typed. Within an
     // opted-in chat: TWO surfaces with TWO lifetimes. SYSTEM + fence macros refresh every
@@ -259,7 +322,9 @@ Constellation.compose = (function () {
     // send path BEFORE this point (the stored text holds the resolved value — a rolled die
     // never re-rolls). This pass catches what's left live: the system copy and any macro
     // still standing in the newest user turn (dry-runs, probes, future callers).
-    if (opts.castMacros) {
+    // Regular chats can OPT IN via Settings → Writing → "Prompt macros in regular chats"
+    // (opts.enableMacros) — default off, so pasted syntax stays literal unless asked for.
+    if (opts.castMacros || opts.enableMacros) {
       const turns = list.filter((m) => m.role === 'user').length;
       if (out[0] && out[0].role === 'system' && MACRO_HINT.test(out[0].content)) {
         out[0] = { role: 'system', content: applySendMacros(out[0].content, turns) };

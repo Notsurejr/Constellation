@@ -27,8 +27,9 @@ Constellation.chat = (function () {
   let contextExact = null;     // exact token count from the GLM tokenizer (null = estimate shown)
   let bulkScroll = false;      // suppress per-message auto-scroll while bulk-rendering a chat
   let usage = { tokens: 0, requests: 0 };   // cumulative estimated tokens for the current chat
+  let lastUsageCache = null;   // the provider's accounting for the LAST send (cached_tokens et al.) — the ◐ meter reads it
   let pendingFiles = [];   // [{ name, size, text }] queued attachments for the next send
-  let opts = { model: 'glm-5.2', provider: '', chronicleModel: '', chronicleProvider: '', temperature: 0.8, topP: 0.95, maxTokens: 0, thinking: false, reasoningEffort: 'max', streamCps: 0, contextWindow: 0, teachEdits: false, preservedThinking: true, immersion: false, sendAttachments: true };
+  let opts = { model: 'glm-5.2', provider: '', chronicleModel: '', chronicleProvider: '', temperature: 0.8, topP: 0.95, maxTokens: 0, thinking: false, reasoningEffort: 'max', streamCps: 0, contextWindow: 0, teachEdits: false, preservedThinking: true, immersion: false, sendAttachments: true, cacheSafeLore: false, enableMacros: false, paneTeach: true, loreBudget: 8000 };
   let activeLore = [];   // lorebooks enabled for the current chat (each { entries, semantic }); sessions applies this
   let phraseBanRules = [];   // [{ re, replace }] tidied out of GLM's replies AFTER generation (the model never sees these)
   let systemFiles = [];   // [{name,text}] .md/.txt attached to this chat's system instructions (inlined into the system prompt)
@@ -175,14 +176,26 @@ Constellation.chat = (function () {
     if (total >= hotAt) ctxMeter.classList.add('hot');
     else if (total >= warmAt) ctxMeter.classList.add('warm');
     const fmt = (t) => t >= 1000 ? (t / 1000).toFixed(1) + 'k' : String(t);
+    // Provider cache accounting from the last send (OpenRouter: prompt_tokens_details.cached_tokens;
+    // z.ai direct: prompt_cache_hit_tokens / prompt_cache_miss_tokens). Surfaced as a hover read.
+    const cacheInfo = lastUsageCache && (
+      (lastUsageCache.prompt_tokens_details && lastUsageCache.prompt_tokens_details.cached_tokens != null)
+        ? { cached: lastUsageCache.prompt_tokens_details.cached_tokens, prompt: lastUsageCache.prompt_tokens }
+        : (lastUsageCache.prompt_cache_hit_tokens != null)
+          ? { cached: lastUsageCache.prompt_cache_hit_tokens, prompt: (lastUsageCache.prompt_cache_hit_tokens || 0) + (lastUsageCache.prompt_cache_miss_tokens || 0) }
+          : null
+    );
+    const cacheNote = (cacheInfo && cacheInfo.prompt > 0)
+      ? ' — last send: ' + Math.round((cacheInfo.cached / cacheInfo.prompt) * 100) + '% read from the provider cache'
+      : '';
     if (contextExact != null) {
       ctxMeter.textContent = '◐ ' + contextExact.toLocaleString();
-      ctxMeter.title = 'Exact context size (GLM tokenizer) — click to see exactly what was sent';
+      ctxMeter.title = 'Exact context size (GLM tokenizer)' + cacheNote + ' — click to see exactly what was sent';
       return;
     }
     ctxMeter.textContent = trimming ? ('◐ ≈' + fmt(sent) + ' / ≈' + fmt(total)) : ('◐ ≈' + fmt(total));
     ctxMeter.title = (trimming ? ('Sending last ≈' + fmt(sent) + ' of ≈' + fmt(total) + ' tokens (context window on)') : ('Estimated conversation size (≈ until the tokenizer answers after a send)'))
-                   + ' — click to see exactly what was sent';
+                   + cacheNote + ' — click to see exactly what was sent';
     } finally {
       if (window.Constellation && window.Constellation.diag) window.Constellation.diag.span('context-meter', performance.now() - _diagT0);
     }
@@ -324,7 +337,7 @@ Constellation.chat = (function () {
     opts.projectFenceTag = projectFenceTag;
     opts.cardBlock = cardBlock; opts.personaBlock = personaBlock;
     opts.cardReinject = cardReinject; opts.cardReinjectAt = cardReinjectAt;
-    const sys = compose.buildSystem({ roleplayPrompt: roleplayPrompt, systemFiles: systemFiles, projectFiles: projectFiles, immersion: opts.immersion });
+    const sys = compose.buildSystem({ roleplayPrompt: roleplayPrompt, systemFiles: systemFiles, projectFiles: projectFiles, immersion: opts.immersion, paneTeach: opts.paneTeach });
     if (conversation[0] && conversation[0].role === 'system') conversation[0].content = sys;
     else conversation.unshift({ role: 'system', content: sys });
     updateContextMeter();
@@ -448,7 +461,7 @@ Constellation.chat = (function () {
     } catch (e) { console.warn('[constellation]', e && e.message || e); }
     try { projectInstructions = ((await window.api.loadProject()) || '').trim(); } catch (e) { console.warn('[constellation]', e && e.message || e); }
 
-    conversation = [{ role: 'system', content: compose.buildSystem({ roleplayPrompt: roleplayPrompt, systemFiles: systemFiles, projectFiles: projectFiles, immersion: opts.immersion }) }];
+    conversation = [{ role: 'system', content: compose.buildSystem({ roleplayPrompt: roleplayPrompt, systemFiles: systemFiles, projectFiles: projectFiles, immersion: opts.immersion, paneTeach: opts.paneTeach }) }];
 
     let cfg = { hasKey: false, model: 'glm-5.2' };
     try { cfg = await window.api.loadConfig(); } catch (e) { console.warn('[constellation]', e && e.message || e); }
@@ -463,6 +476,10 @@ Constellation.chat = (function () {
     opts.preservedThinking = cfg.preservedThinking !== false;   // GLM Preserved Thinking — on by default
     opts.preservedThinkingDepth = Math.max(0, Math.min(99, parseInt(cfg.preservedThinkingDepth, 10) || 0));   // 0 = every prior turn echoes its reasoning; N = last N turns only
     opts.immersion = cfg.immersion === true;   // immersion grammar — off until asked for
+    opts.paneTeach = cfg.paneTeach !== false;   // diegetic panes teaching — on by default (small block, every chat benefits)
+    opts.enableMacros = cfg.enableMacros === true;   // prompt macros in regular chats — default off (paste-corruption guard; cast chats always have them)
+    opts.cacheSafeLore = cfg.cacheSafeLore === true;   // cache-friendly lore placement — default off (byte-identical system pile)
+    opts.loreBudget = Math.max(2000, Math.min(65536, parseInt(cfg.loreBudget, 10) || 8000));   // total lore chars per send
     opts.sendAttachments = cfg.sendAttachments !== false;   // off = only the newest user message's files are sent
     opts.streamCps = cfg.streamCps ?? 0;
     opts.contextWindow = cfg.contextWindow ?? 0;
@@ -497,7 +514,7 @@ Constellation.chat = (function () {
       continueReply: continueReply,
       filterBtn: filterBtn,
       toggleRawView: toggleRawView,
-      macrosOn: () => !!opts.castMacros,
+      macrosOn: () => !!opts.castMacros || !!opts.enableMacros,
       forkBundle: () => ({ system: roleplayPrompt, project: projectInstructions, gen: genSnapshot(), character: currentCharacter, projectFenceTag: projectFenceTag, cardBlock: cardBlock, personaBlock: personaBlock, cardReinject: cardReinject, cardReinjectAt: cardReinjectAt }),
       streamReply: (vt) => stream.streamReply(vt),
     });
@@ -528,6 +545,7 @@ Constellation.chat = (function () {
       updateMeta: updateMeta,
       takePrefill: () => { const s = activePrefill; activePrefill = ''; return s; },
       setLastRequest: (lr) => { lastRequest = lr; },
+      setLastUsage: (u) => { lastUsageCache = u; updateContextMeter(); },
       setCurrentRequest: (id) => { currentRequest = id; },
       cancelStream: cancelStream,
       restoreSendBtn: restoreSendBtn,
@@ -919,7 +937,7 @@ Constellation.chat = (function () {
   }
   async function buildLoreContext() {
     const recent = loreRecent(16);
-    const report = await Constellation.engines.lore.buildLoreContext(activeLore, recent, loreEmbedFn(), { state: loreState(), scanDepth: 4 });
+    const report = await Constellation.engines.lore.buildLoreContext(activeLore, recent, loreEmbedFn(), { state: loreState(), scanDepth: 4, budget: opts.loreBudget, tag: opts.loreTag });
     loreStateSave(report.state);
     return report;
   }
@@ -929,7 +947,7 @@ Constellation.chat = (function () {
     const recent = customText && String(customText).trim()
       ? [{ role: 'user', content: String(customText) }].concat(loreRecent(15))
       : loreRecent(16);
-    const report = await Constellation.engines.lore.buildLoreContext(activeLore, recent, loreEmbedFn(), { state: loreState(), scanDepth: 4 });
+    const report = await Constellation.engines.lore.buildLoreContext(activeLore, recent, loreEmbedFn(), { state: loreState(), scanDepth: 4, budget: opts.loreBudget, tag: opts.loreTag });
     loreStateSave(report.state);
     return report;
   }
@@ -957,7 +975,7 @@ Constellation.chat = (function () {
     }
     const conv = base.concat([{ role: 'user', content: String(msg || '') }]);
     const recentMsgs = conv.filter((m) => m.role !== 'system').slice(-16).map((m) => ({ role: m.role, content: m.content || '' }));
-    const lc = await Constellation.engines.lore.buildLoreContext(activeLore, recentMsgs, loreEmbedFn(), { state: loreState(), scanDepth: 4 });
+    const lc = await Constellation.engines.lore.buildLoreContext(activeLore, recentMsgs, loreEmbedFn(), { state: loreState(), scanDepth: 4, budget: opts.loreBudget, tag: opts.loreTag });
     let reqMsgs = compose.trimForApi(opts.contextWindow, compose.toApiMessages(opts, projectInstructions, lc, conv));
     const trimmedMessages = Math.max(0, conv.length - reqMsgs.filter((m) => m.role !== 'system').length);   // silent trimming misattributed to prompts is a lab's worst false positive
     if (system != null && String(system).length) {
@@ -975,7 +993,7 @@ Constellation.chat = (function () {
     return { model: opts.model, thinking: !!opts.thinking, reasoningEffort: opts.reasoningEffort || 'max', temperature: opts.temperature, topP: opts.topP, maxTokens: opts.maxTokens, contextWindow: opts.contextWindow, sendAttachments: opts.sendAttachments !== false, messageCount: Math.max(0, conversation.length - 1), activeLore: activeLore.length, banRules: phraseBanRules.length, castMacros: !!opts.castMacros };
   }
   async function testRetrieve(q) {
-    const lc = await Constellation.engines.lore.buildLoreContext(activeLore, String(q || ''), loreEmbedFn());
+    const lc = await Constellation.engines.lore.buildLoreContext(activeLore, String(q || ''), loreEmbedFn(), { budget: opts.loreBudget, tag: opts.loreTag });
     return { query: q, count: lc.items.length, items: lc.items.map((it) => ({ label: it.label, text: it.text })) };
   }
   function testBans(text) {
@@ -1096,13 +1114,35 @@ Constellation.chat = (function () {
       // wide panes: long-lined fences (surveys, wide logs) bleed toward the chat pane's edges
       if ((pre.textContent || '').split('\n').some((l) => l.length > 72)) wrap.classList.add('wide');
       // pane whispers & redacts: {{...}} and damaged-text patterns render quiet inside panes —
-      // always on (independent of the response window's own grammar), never censor bars
-      if (!isDiff) panePatterns(pre);
+      // always on (independent of the response window's own grammar), never censor bars —
+      // but ONLY in diegetic fences. Tagged code (ts, py, …) keeps its braces and pipes exactly
+      // as written: brace-stripping display would misrepresent a Vue/handlebars snippet.
+      if (!isDiff && (!pl || LOG_LANGS.includes(pl) || pl === 'file')) panePatterns(pre);
       paneScrollFade(wrap);
       pre.addEventListener('scroll', () => paneScrollFade(wrap), { passive: true });
     }
   }
 
+  // Minimal emphasis for prose panes: models habitually emit *emphasis* inside letters and
+  // notes even when the fiction doesn't ask for it — literal asterisks are the worst of both
+  // worlds. Only *em* and **strong** (asterisks; underscore is left alone — snake_case safety),
+  // built from text splits, no HTML path. Applied after the paragraphs are built.
+  const EMPH_RE = /\*\*([^*\n]+)\*\*|\*([^*\n]+)\*/g;
+  function emphFrag(text) {
+    const frag = document.createDocumentFragment();
+    let last = 0, m;
+    EMPH_RE.lastIndex = 0;
+    while ((m = EMPH_RE.exec(text)) !== null) {
+      if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+      const s = document.createElement(m[1] != null ? 'strong' : 'em');
+      s.textContent = m[1] != null ? m[1] : m[2];
+      frag.appendChild(s);
+      last = m.index + m[0].length;
+    }
+    if (last === 0) { frag.appendChild(document.createTextNode(text)); return frag; }
+    if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+    return frag;
+  }
   // Prose panes: title/subtitle/divider conventions for placards; sign-off for notes;
   // masthead + headline for news. Everything is built from textContent — no HTML path in, ever.
   function buildProsePane(wrap, pre, kind) {
@@ -1155,7 +1195,7 @@ Constellation.chat = (function () {
         const s = document.createElement('span'); s.className = 'note-sign'; s.textContent = p.trim();
         content.appendChild(s);
       } else {
-        const pe = document.createElement('p'); pe.textContent = p;
+        const pe = document.createElement('p'); pe.appendChild(emphFrag(p));
         content.appendChild(pe);
       }
     }
@@ -1233,9 +1273,13 @@ Constellation.chat = (function () {
   // response window's inline grammar), never censor bars:
   //   {{...}} → a quiet italic whisper (braces leave the DISPLAY; copy reads the exact source)
   //   [REDACTED] / [EXPUNGED] / [CLASSIFIED] / [WITHHELD] → dim spaced brackets
-  //   [illegible] / [smudged] / [torn] … → faded italic brackets
+  //   [illegible] / [unintelligible] / [smudged] / [torn] … → faded italic brackets
+  //   ||text|| → the grammar's habit-mark, rendered as the same quiet dim redaction (no bars)
   //   ███ / ▓▓▓ runs → faded ink, the characters themselves kept visible
-  const PP_RE = /\{\{([^{}\n]+)\}\}|\[(?:REDACTED|EXPUNGED|CLASSIFIED|WITHHELD)\]|\[(?:illegible|unintelligible|smudged|torn|damaged|water-damaged|water damage|burned|scorched|blotted)\]|[█▓]{2,}/gi;
+  // Macro-shaped tokens ({{turn}}, {{roll:…}}, {{random:…}}, {{time}}, {{date}}) are NEVER
+  // whispered — they're syntax, not prose; they keep their braces everywhere.
+  const PP_MACRO_SHAPE = /^\{\{\s*(?:turn|roll|random|time|date)\b/i;
+  const PP_RE = /\{\{([^{}\n]+)\}\}|\[(?:REDACTED|EXPUNGED|CLASSIFIED|WITHHELD)\]|\[(?:illegible|unintelligible|smudged|torn|damaged|water-damaged|water damage|burned|scorched|blotted)\]|\|\|([^|\n]+)\|\||[█▓]{2,}/gi;
   function panePatterns(root) {
     const doc = root.ownerDocument || document;
     const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
@@ -1255,8 +1299,14 @@ Constellation.chat = (function () {
       while ((m = PP_RE.exec(text)) !== null) {
         if (m.index > last) frag.appendChild(doc.createTextNode(text.slice(last, m.index)));
         const s = doc.createElement('span');
-        if (m[1] != null) { s.className = 'pp-whisper'; s.textContent = m[1]; }   // braces leave the display
-        else { s.textContent = m[0]; s.className = /^\[/.test(m[0]) ? (/illegible|unintelligible|smudged|torn|damaged|burned|scorched|blotted/i.test(m[0]) ? 'pp-faded' : 'pp-redact') : 'pp-block'; }
+        if (m[1] != null) {
+          if (PP_MACRO_SHAPE.test(m[0])) { frag.appendChild(doc.createTextNode(m[0])); last = m.index + m[0].length; continue; }   // macro syntax keeps its braces
+          s.className = 'pp-whisper'; s.textContent = m[1];   // braces leave the display
+        } else if (m[2] != null) {
+          s.className = 'pp-redact'; s.textContent = m[2];   // pipes leave the display
+        } else {
+          s.textContent = m[0]; s.className = /^\[/.test(m[0]) ? (/illegible|unintelligible|smudged|torn|damaged|burned|scorched|blotted/i.test(m[0]) ? 'pp-faded' : 'pp-redact') : 'pp-block';
+        }
         frag.appendChild(s);
         last = m.index + m[0].length;
       }
@@ -1491,7 +1541,7 @@ Constellation.chat = (function () {
     // stored message (the drawer's copy gets scratched), so history forever shows the
     // number the model actually saw. System + fence macros keep refreshing by design —
     // {{turn}} at turn 7 should say 7.
-    const outText = opts.castMacros && compose.MACRO_HINT.test(text) ? compose.applySendMacros(text, conversation.filter((m) => m.role === 'user').length) : text;
+    const outText = (opts.castMacros || opts.enableMacros) && compose.MACRO_HINT.test(text) ? compose.applySendMacros(text, conversation.filter((m) => m.role === 'user').length) : text;
     addMessage('user', outText, files);
     conversation.push({ role: 'user', content: outText, files: files.length ? files : undefined });
     inputEl.value = '';
@@ -1649,12 +1699,13 @@ Constellation.chat = (function () {
 
   // Start a fresh empty chat (keeps the current system prompt + project instructions).
   function reset() {
-    conversation = [{ role: 'system', content: compose.buildSystem({ roleplayPrompt: roleplayPrompt, systemFiles: systemFiles, projectFiles: projectFiles, immersion: opts.immersion }) }];
+    conversation = [{ role: 'system', content: compose.buildSystem({ roleplayPrompt: roleplayPrompt, systemFiles: systemFiles, projectFiles: projectFiles, immersion: opts.immersion, paneTeach: opts.paneTeach }) }];
     usage = { tokens: 0, requests: 0 };
     currentCharacter = null;
     opts.castMacros = false;   // macros are a cast-chat feature; a fresh chat never substitutes
     pendingFiles = [];
     lastRequest = null;   // the inspector shows per-chat sends; switching chats clears it
+    lastUsageCache = null;   // cache accounting is per-chat too
     renderChips();
     messagesEl.replaceChildren();
     const hint = document.createElement('div');
@@ -1692,7 +1743,7 @@ Constellation.chat = (function () {
       bulkScroll = true;
       const turns = (msgs || []).filter((m) => m.role === 'user' || m.role === 'assistant')
         .map((m) => ({ role: m.role, content: m.content, files: m.files, reasoning: m.reasoning, lore: m.lore, edited: m.edited, orig: m.orig, rOrig: m.rOrig, variants: m.variants, vActive: m.vActive, model: m.model }));
-      conversation = [{ role: 'system', content: compose.buildSystem({ roleplayPrompt: roleplayPrompt, systemFiles: systemFiles, projectFiles: projectFiles, immersion: opts.immersion }) }].concat(turns);
+      conversation = [{ role: 'system', content: compose.buildSystem({ roleplayPrompt: roleplayPrompt, systemFiles: systemFiles, projectFiles: projectFiles, immersion: opts.immersion, paneTeach: opts.paneTeach }) }].concat(turns);
       for (const m of turns) {
         // One bad message must never eat the rest of the chat: the view-transition wrapper
         // swallows exceptions from this loop, so a mid-list throw rendered truncated chats
@@ -1768,5 +1819,5 @@ Constellation.chat = (function () {
     }
   }
 
-  return { init, setPrompts, getPrompts, getOptions, persist, setOptions, setActiveLore, setPhraseBans, setDraft, scrollToMatch, scrollToMessage, refreshBookmarkGlyphs, reset, loadSession, getUserWriting, recentMessages, getState, testRetrieve, testBans, dryRun, applyDialogue, loreBench, displayFiltersRules, toggleDisplayFilter, reloadDisplayFilters, testCompose: (list) => compose.toApiMessages(opts, projectInstructions, null, list || conversation) };   // bare call = the live conversation (probe convention)
+  return { init, setPrompts, getPrompts, getOptions, persist, setOptions, setActiveLore, setPhraseBans, setDraft, scrollToMatch, scrollToMessage, refreshBookmarkGlyphs, reset, loadSession, getUserWriting, recentMessages, getState, testRetrieve, testBans, dryRun, applyDialogue, loreBench, displayFiltersRules, toggleDisplayFilter, reloadDisplayFilters, renderBodyHTML, enhanceCodeBlocks, testCompose: (list) => compose.toApiMessages(opts, projectInstructions, null, list || conversation) };   // bare call = the live conversation (probe convention)
 })();

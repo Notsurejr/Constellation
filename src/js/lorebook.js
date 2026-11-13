@@ -344,7 +344,7 @@ Constellation.lorebook = (function () {
       return w;
     };
     strip.appendChild(mkNum('Priority', 'priority', 1, 5, '1–5 — higher survives budget cuts first (3 = normal)'));
-    strip.appendChild(mkNum('Depth', 'depth', 0, 12, '0 = system pile; N = injected N messages from the bottom'));
+    strip.appendChild(mkNum('Depth', 'depth', 0, 12, '0 = system pile; N = injected N messages up from the bottom, on a user turn'));
     strip.appendChild(mkNum('Scan msgs', 'scanDepth', 1, 16, 'How many recent messages this entry scans its keys against (blank = global default 4)'));
     strip.appendChild(mkNum('Linger', 'linger', 0, 99, 'Stay active N turns after the last match (blank = off)'));
     strip.appendChild(mkNum('Cooldown', 'cooldown', 0, 99, 'Rest N turns after firing (blank = off)'));

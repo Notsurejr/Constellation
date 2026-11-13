@@ -158,7 +158,7 @@
         <div class="hint">Extra context or rules sent with every message in this chat (optional).</div>
         <textarea id="projectEditor" placeholder="e.g. This is a noir detective story set in 1940s LA…"></textarea>
         <label class="field">
-          <span>Project depth <em class="hint-inline">messages from the bottom — 0 rides the newest message, where attention is sharpest</em></span>
+          <span>Project depth <em class="hint-inline">messages up from the bottom, landing on a user turn — 0 rides the newest message, where attention is sharpest</em></span>
           <input type="number" id="projectDepthInput" min="0" max="12" step="1" value="0" />
         </label>
         <label class="field">
@@ -166,11 +166,19 @@
           <input type="text" id="projectFenceInput" maxlength="40" placeholder="project_instructions" />
         </label>
         <label class="field">
-          <span>Lore fence tag <em class="hint-inline">global — how depth-injected lorebook entries are labeled on the wire</em></span>
+          <span>Lore fence tag <em class="hint-inline">global — how lorebook entries are labeled on the wire</em></span>
           <input type="text" id="loreTagInput" maxlength="40" placeholder="lore" />
         </label>
         <label class="field">
-          <span>Card re-injection depth <em class="hint-inline">this chat, cast chats — where the recall copy lands (1–12 messages from the bottom; 0 = off)</em></span>
+          <span>World budget <em class="hint-inline">global — total characters of lorebook content sent per turn; priority decides who fits (2000–65536, default 8000)</em></span>
+          <input type="number" id="loreBudgetInput" min="2000" max="65536" step="500" value="8000" />
+        </label>
+        <label class="field checkbox">
+          <input type="checkbox" id="cacheLoreInput" />
+          <span>Cache-friendly lore — keep constant world entries in the system prompt and ride dynamic lore hits on the newest message, so the provider's prompt cache covers the whole conversation instead of being re-billed when lore shifts (big savings on long chats)</span>
+        </label>
+        <label class="field">
+          <span>Card re-injection depth <em class="hint-inline">this chat, cast chats — where the recall copy lands (1–12 messages up from the bottom, on a user turn; 0 = off)</em></span>
           <input type="number" id="cardReinjectInput" min="0" max="12" step="1" value="0" />
         </label>
         <label class="field">
@@ -254,6 +262,14 @@
         <label class="field checkbox">
           <input type="checkbox" id="immersionInput" />
           <span>Immersion grammar — teach the model the story's typographic registers: split worlds, pacing, whispers, gated text</span>
+        </label>
+        <label class="field checkbox">
+          <input type="checkbox" id="paneTeachInput" checked />
+          <span>Diegetic panes — teach the model the fence conventions: placards, notes, comms threads, diff records, readouts. Inline marks shape sentences; panes are objects on the page</span>
+        </label>
+        <label class="field checkbox">
+          <input type="checkbox" id="enableMacrosInput" />
+          <span>Prompt macros in regular chats — {{turn}} / {{roll}} / {{random}} / {{time}} / {{date}} substitute outside cast chats too (cast chats always have them; mind pasted template text)</span>
         </label>
         <label class="field checkbox">
           <input type="checkbox" id="sendAttachmentsInput" checked />

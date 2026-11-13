@@ -269,9 +269,10 @@ Constellation.stream = (function () {
         bodyBuf += delta;
         if (H.statusText() !== 'writing…') H.setStatus('writing…', 'ok');
       },
-      onDone: (full, finishReason) => {
+      onDone: (full, finishReason, usage) => {
         hideThinking(el);
         clearTimeout(watchdog);
+        if (usage) H.setLastUsage(usage);   // provider cache accounting (cached_tokens et al.) — the ◐ meter reads it
         streaming = false;
         if (full) bodyBuf = full;
         bodyBuf = H.applyPhraseBans(bodyBuf);   // tidy banned phrases out of the final reply (model never sees the list)
