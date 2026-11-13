@@ -1018,20 +1018,28 @@ Constellation.chat = (function () {
       pre.dataset.enhanced = '1';
       const code = pre.querySelector('code');
       const lang = ((code && code.className.match(/language-([\w-]+)/)) || [])[1] || '';
+      if (!pre.textContent.trim()) continue;   // hollow fence: nothing to pane
       const wrap = document.createElement('div');
       wrap.className = 'codeblock';
       if (lang) wrap.dataset.lang = lang;
+      wrap.__source = pre.textContent;   // exact original — copy and pattern passes read this
+      wrap.setAttribute('role', 'group');
+      wrap.setAttribute('aria-label', (lang || 'text') + ' pane');
       pre.parentNode.insertBefore(wrap, pre);
       wrap.appendChild(pre);
 
       // Prose fences — diegetic text that was never machine output (a placard bolted to a
-      // bulkhead, a note left in a drawer). Structured display, serif, no tinting; the
-      // ORIGINAL fence text is kept on the wrap so Copy stays exact.
+      // bulkhead, a note left in a drawer, a broadsheet clipping). Structured display, serif,
+      // no tinting; the ORIGINAL fence text is kept on the wrap so Copy stays exact.
       const pl = lang.toLowerCase();
-      if (pl === 'placard' || pl === 'sign' || pl === 'note' || pl === 'letter') {
-        buildProsePane(wrap, pre, (pl === 'placard' || pl === 'sign') ? 'placard' : 'note');
-        continue;
-      }
+      const proseKind = { placard: 'placard', sign: 'placard', note: 'note', letter: 'note', news: 'news', clipping: 'news', article: 'news', broadsheet: 'news' }[pl];
+      if (proseKind) { buildProsePane(wrap, pre, proseKind); continue; }
+      // Comms fences — text threads, hails, intercom transcripts. A transcript, not a phone.
+      if (COMMS_LANGS.includes(pl)) { buildCommsPane(wrap, pre); continue; }
+      // Diff fences — models write diffs natively; glass-toned lines give corrupted records
+      // and edited drafts for free. Line spans keep every character, so copy stays exact.
+      const isDiff = pl === 'diff' || pl === 'patch';
+      if (isDiff) styleDiffFence(pre);
 
       // whisper tag: the fence's own language, bottom-right, barely there
       if (lang) {
@@ -1044,7 +1052,7 @@ Constellation.chat = (function () {
       // ghost controls (recessed / floating / hairline): copy + line-wrap, arriving on hover
       const ghost = document.createElement('div');
       ghost.className = 'ghost';
-      const cbtn = paneCopyBtn(() => pre.textContent || '');
+      const cbtn = paneCopyBtn(() => wrap.__source || pre.textContent || '');
       const wbtn = document.createElement('button');
       wbtn.type = 'button'; wbtn.title = 'Toggle line wrap'; wbtn.setAttribute('aria-label', 'Toggle line wrap');
       wbtn.innerHTML = SVG_WRAP;
@@ -1084,16 +1092,19 @@ Constellation.chat = (function () {
 
       // telemetry tint: bare (or log-tagged) fences that READ like logs get quiet key/value
       // tone — timestamps, dotted leaders, a title line. Known code languages stay untouched.
-      tintLogFence(pre, lang);
+      if (!isDiff) tintLogFence(pre, lang);
       // wide panes: long-lined fences (surveys, wide logs) bleed toward the chat pane's edges
       if ((pre.textContent || '').split('\n').some((l) => l.length > 72)) wrap.classList.add('wide');
+      // pane whispers & redacts: {{...}} and damaged-text patterns render quiet inside panes —
+      // always on (independent of the response window's own grammar), never censor bars
+      if (!isDiff) panePatterns(pre);
       paneScrollFade(wrap);
       pre.addEventListener('scroll', () => paneScrollFade(wrap), { passive: true });
     }
   }
 
-  // Prose panes: title/subtitle/divider conventions for placards; sign-off for notes.
-  // Everything is built from textContent — no HTML path in, ever.
+  // Prose panes: title/subtitle/divider conventions for placards; sign-off for notes;
+  // masthead + headline for news. Everything is built from textContent — no HTML path in, ever.
   function buildProsePane(wrap, pre, kind) {
     const text = String(pre.textContent || '').replace(/\r/g, '').trimEnd();
     wrap.__source = text;
@@ -1109,6 +1120,7 @@ Constellation.chat = (function () {
       if (!ln) { flush(); continue; }
       if (kind === 'placard' && i === 0) continue;                     // title handled below
       if (kind === 'placard' && i === 1 && ln.length <= 48 && !/[.!?]$/.test(ln)) continue;   // subtitle
+      if (kind === 'news' && i < 2) continue;                          // masthead + headline handled below
       if (/^[·⋯✦\-\s]{3,}$/.test(ln) || ln === '---') { flush(); continue; }   // divider ornaments
       buf.push(ln);
     }
@@ -1127,6 +1139,15 @@ Constellation.chat = (function () {
       head.appendChild(dv);
       content.appendChild(head);
     }
+    if (kind === 'news') {
+      const head = document.createElement('div'); head.className = 'news-head';
+      const mast = document.createElement('span'); mast.className = 'news-mast';
+      mast.textContent = (lines[0] || '').trim();
+      head.appendChild(mast);
+      const hl = (lines[1] || '').trim();
+      if (hl) { const h = document.createElement('span'); h.className = 'news-headline'; h.textContent = hl; head.appendChild(h); }
+      content.appendChild(head);
+    }
     for (let i = 0; i < paras.length; i++) {
       const p = paras[i];
       // a note's last paragraph opens with a dash (— or -) = the sign-off line
@@ -1138,11 +1159,111 @@ Constellation.chat = (function () {
         content.appendChild(pe);
       }
     }
+    panePatterns(content);   // whispers & redacts render inside prose panes too
     const ghost = document.createElement('div');
     ghost.className = 'ghost';
     ghost.appendChild(paneCopyBtn(() => wrap.__source || ''));
     wrap.appendChild(ghost);
     pre.replaceWith(content);
+  }
+
+  // Comms fences (```comms / chat / sms / transcript / thread / hail): text threads, hails,
+  // intercom transcripts — rendered as a TRANSCRIPT (speaker tag in a per-name hue, quiet
+  // timestamp), never bubbles, never speaker-guessed alignment. Lines without a `Name:`
+  // prefix render as dim noise; blank lines separate exchanges. Copy keeps the exact source.
+  const COMMS_LANGS = ['comms', 'chat', 'sms', 'transcript', 'thread', 'hail'];
+  function buildCommsPane(wrap, pre) {
+    wrap.classList.add('comms');
+    const text = String(pre.textContent || '').replace(/\r/g, '').trimEnd();
+    wrap.__source = text;
+    const body = document.createElement('div');
+    body.className = 'comms-body';
+    const hues = new Map();
+    const hueFor = (name) => {
+      if (!hues.has(name)) { let h = 0; for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0; hues.set(name, h % 360); }
+      return hues.get(name);
+    };
+    for (const raw of text.split('\n')) {
+      if (!raw.trim()) { const gap = document.createElement('div'); gap.className = 'comms-gap'; body.appendChild(gap); continue; }
+      const row = document.createElement('div');
+      const m = raw.match(/^\s*(?:\[(\d{1,2}:\d{2}(?::\d{2})?)\]\s*)?([^:\n]{1,24}):\s?(.*)$/);
+      if (m && m[2].trim() && !m[3].startsWith(':')) {
+        row.className = 'comms-row';
+        const name = m[2].trim();
+        if (m[1]) { const when = document.createElement('span'); when.className = 'comms-when'; when.textContent = m[1]; row.appendChild(when); }
+        const who = document.createElement('span'); who.className = 'comms-who';
+        who.textContent = name;
+        who.style.color = 'hsl(' + hueFor(name) + ' 42% 74%)';
+        row.appendChild(who);
+        row.appendChild(document.createTextNode('  '));
+        row.appendChild(document.createTextNode(m[3]));
+      } else {
+        row.className = 'comms-row comms-noise';   // system noise, stage directions between lines
+        row.textContent = raw;
+      }
+      body.appendChild(row);
+    }
+    panePatterns(body);
+    const ghost = document.createElement('div');
+    ghost.className = 'ghost';
+    ghost.appendChild(paneCopyBtn(() => wrap.__source || ''));
+    wrap.appendChild(ghost);
+    pre.replaceWith(body);
+  }
+
+  // Diff fences (```diff / patch): the one fence every model already writes fluently.
+  // Whole-line spans keep every character (copy stays exact); + green, − struck dim rose,
+  // @@ hunk headers faint. Corrupted records and edited drafts for free.
+  function styleDiffFence(pre) {
+    const lines = String(pre.textContent || '').replace(/\r/g, '').split('\n');
+    const frag = document.createDocumentFragment();
+    for (const raw of lines) {
+      const line = document.createElement('span');
+      if (raw.startsWith('+') || raw.startsWith('+ ')) line.className = 'diff-add';
+      else if (raw.startsWith('-')) line.className = 'diff-del';
+      else if (raw.startsWith('@@') || raw.startsWith('!')) line.className = 'diff-meta';
+      line.textContent = raw;
+      frag.appendChild(line);
+      frag.appendChild(document.createTextNode('\n'));
+    }
+    pre.replaceChildren(frag);
+  }
+
+  // Pane whispers & redacts — the pane's own convention, always on (independent of the
+  // response window's inline grammar), never censor bars:
+  //   {{...}} → a quiet italic whisper (braces leave the DISPLAY; copy reads the exact source)
+  //   [REDACTED] / [EXPUNGED] / [CLASSIFIED] / [WITHHELD] → dim spaced brackets
+  //   [illegible] / [smudged] / [torn] … → faded italic brackets
+  //   ███ / ▓▓▓ runs → faded ink, the characters themselves kept visible
+  const PP_RE = /\{\{([^{}\n]+)\}\}|\[(?:REDACTED|EXPUNGED|CLASSIFIED|WITHHELD)\]|\[(?:illegible|unintelligible|smudged|torn|damaged|water-damaged|water damage|burned|scorched|blotted)\]|[█▓]{2,}/gi;
+  function panePatterns(root) {
+    const doc = root.ownerDocument || document;
+    const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    const nodes = [];
+    while (walker.nextNode()) {
+      const n = walker.currentNode;
+      const p = n.parentElement;
+      if (p && p.classList && (p.classList.contains('pp-whisper') || p.classList.contains('pp-redact') || p.classList.contains('pp-faded') || p.classList.contains('pp-block'))) continue;
+      if (PP_RE.test(n.textContent)) nodes.push(n);
+      PP_RE.lastIndex = 0;
+    }
+    for (const n of nodes) {
+      const text = n.textContent;
+      const frag = doc.createDocumentFragment();
+      let last = 0, m;
+      PP_RE.lastIndex = 0;
+      while ((m = PP_RE.exec(text)) !== null) {
+        if (m.index > last) frag.appendChild(doc.createTextNode(text.slice(last, m.index)));
+        const s = doc.createElement('span');
+        if (m[1] != null) { s.className = 'pp-whisper'; s.textContent = m[1]; }   // braces leave the display
+        else { s.textContent = m[0]; s.className = /^\[/.test(m[0]) ? (/illegible|unintelligible|smudged|torn|damaged|burned|scorched|blotted/i.test(m[0]) ? 'pp-faded' : 'pp-redact') : 'pp-block'; }
+        frag.appendChild(s);
+        last = m.index + m[0].length;
+      }
+      if (last === 0) { PP_RE.lastIndex = 0; continue; }
+      if (last < text.length) frag.appendChild(doc.createTextNode(text.slice(last)));
+      n.parentNode.replaceChild(frag, n);
+    }
   }
 
   // Telemetry tint — a reading aid, not syntax highlighting. Fires only when the fence has no

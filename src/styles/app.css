@@ -213,6 +213,7 @@ html, body {
   margin: 0; border: none; border-radius: 0; background: none;
   font-size: inherit; line-height: 1.6; color: #cbd4e8;
   padding: 14px 16px 15px; overflow-x: auto; tab-size: 2;
+  font-variant-numeric: tabular-nums;
 }
 .msg .body .codeblock pre.wrapped { white-space: pre-wrap; word-break: break-word; }
 .msg .body .codeblock pre::-webkit-scrollbar { height: 6px; }
@@ -334,6 +335,45 @@ body:not(.pane-classic) .msg .body .codeblock-bar { display: none; }
 }
 .msg .body .codeblock.prose.note .note-sign { display: block; margin-top: 10px; font-style: normal; font-size: 12px; letter-spacing: 0.14em; color: var(--text-faint); }
 body.pane-classic .msg .body .codeblock.prose .prose-content { font-size: inherit; padding: 12px 14px; }
+
+/* --- dossier fence (```file): joins the pane family, keeps its identity --- */
+.msg .body .codeblock[data-lang="file"] { border-left: 2px solid var(--accent-dim); }
+.msg .body .codeblock[data-lang="file"] pre::first-line { color: var(--accent-dim); font-weight: 600; letter-spacing: 0.08em; }
+
+/* --- diff fence: the native convention, glass-toned for true black --- */
+.msg .body .codeblock .diff-add { color: #9fdcb8; }
+.msg .body .codeblock .diff-del { color: #d99aa8; text-decoration: line-through; text-decoration-color: rgba(217, 154, 168, 0.45); }
+.msg .body .codeblock .diff-meta { color: var(--text-faint); }
+
+/* --- comms fence: a transcript, not a phone screen --- */
+.msg .body .codeblock .comms-body {
+  padding: 14px 16px 15px; overflow-x: auto;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: inherit; line-height: 1.6; color: #cbd4e8;
+  font-variant-numeric: tabular-nums;
+  white-space: pre-wrap; overflow-wrap: break-word;
+}
+.msg .body .codeblock .comms-row { padding: 1.5px 0; }
+.msg .body .codeblock .comms-when { color: var(--text-faint); margin-right: 8px; font-size: 0.82em; }
+.msg .body .codeblock .comms-who { font-weight: 600; letter-spacing: 0.03em; }
+.msg .body .codeblock .comms-noise { color: var(--text-faint); }
+.msg .body .codeblock .comms-gap { height: 7px; }
+
+/* --- pane whispers & redacts: always-on inside panes, never censor bars --- */
+.msg .body .codeblock .pp-whisper { color: var(--text-faint); font-style: italic; }
+.msg .body .codeblock .pp-redact { color: var(--text-dim); letter-spacing: 0.08em; }
+.msg .body .codeblock .pp-faded { color: var(--text-faint); font-style: italic; opacity: 0.85; }
+.msg .body .codeblock .pp-block { color: rgba(200, 210, 235, 0.3); letter-spacing: 0.02em; }
+
+/* --- news / clipping: third prose variant — broadsheet on glass --- */
+.msg .body .codeblock.prose.news .prose-content { text-align: justify; hyphens: auto; line-height: 1.72; }
+.msg .body .codeblock.prose.news .news-head { text-align: center; border-bottom: 3px double rgba(218, 209, 182, 0.45); padding-bottom: 10px; margin-bottom: 14px; }
+.msg .body .codeblock.prose.news .news-mast { display: block; letter-spacing: 0.24em; text-transform: uppercase; font-size: 11.5px; color: #dad1b6; }
+.msg .body .codeblock.prose.news .news-headline { display: block; font-size: 1.12em; font-weight: 600; letter-spacing: 0.02em; margin-top: 8px; color: #e7dfc9; }
+
+/* quiet accent selection inside panes (the default blue reads wrong on glass) */
+.msg .body .codeblock ::selection { background: rgba(159, 184, 255, 0.25); color: #fff; }
+
 .msg .body pre.expanded { overflow-x: visible; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* ============================================================
@@ -1724,14 +1764,7 @@ select option { background: #0b0e16; color: var(--text); }
   padding: 5px 12px; margin: 0 4px 6px 0;
 }
 .g-msg.self { border-radius: 12px 12px 3px 12px; background: var(--accent-16); }
-/* Dossier: fenced blocks tagged ```file */
-.body pre:has(code.language-file), .body pre:has(code.lang-file) {
-  border: 1px solid var(--panel-border); border-left: 2px solid var(--accent-dim);
-  border-radius: 8px; background: rgba(255,255,255,0.02);
-}
-.body pre code.language-file, .body pre code.lang-file {
-  font-size: 12.5px; color: var(--text-dim); line-height: 1.8;
-}
+/* (Dossier ```file styling moved to the code-pane family — see [data-lang="file"].) */
 /* Scene-break ornaments. (Heading chapter-chrome moved to the single consolidated
    heading block near the end of this file — this layer used to fight it.) */
 .msg .body hr { border: none; height: auto; text-align: center; margin: 26px auto; background: none; }
@@ -2039,10 +2072,7 @@ input.num::-webkit-outer-spin-button, input.num::-webkit-inner-spin-button { opa
 .msg .body a:hover { text-shadow: var(--glow); }
 .msg .body hr { margin: 1.6em auto; }
 
-/* Dossier blocks — chrome header line, quiet mono body */
-.msg .body pre:has(code.language-file) { border: 1px solid var(--panel-border); border-radius: 10px; background: rgba(8,10,16,0.55); }
-.msg .body code.language-file { display: block; padding: 10px 14px; }
-.msg .body code.language-file::first-line { color: var(--accent-dim); font-weight: 600; letter-spacing: 0.08em; }
+/* (Dossier ```file styling moved to the code-pane family — see [data-lang="file"].) */
 
 /* Contrast lifts — dim text a notch brighter where reading matters */
 .hint { color: #97a0b4; }
