@@ -114,6 +114,20 @@ You need two things: the installer and an API key.
 
 ---
 
+## Guides
+
+Several of Constellation's best mechanisms work through **conventions the model writes** — they earn a short manual each. All live in [docs/guides/](docs/guides/):
+
+| Guide | What it covers |
+|---|---|
+| [Diegetic panes](docs/guides/diegetic-panes.md) | Fenced text as glass set into the reply — ```placard signs, ```note letters, ```comms threads, ```diff corrupted records, telemetry readouts, and the whisper/redaction conventions inside panes. Includes a paste-ready prompt block |
+| [Immersion grammar](docs/guides/immersion-grammar.md) | The typographic registers the model writes — whispers, montages, shot changes, gated reveals — with the restraint rules and the paste block |
+| [Lorebook authoring](docs/guides/lorebook-authoring.md) | Keys, `+must`/`-never` suppressors, `[[pickups]]`, smart scored entries, priority/depth/linger/cooldown, and the test-bench loop |
+| [Macros](docs/guides/macros.md) | `{{turn}}`, `{{roll:2d6}}`, `{{random:…}}`, freeze-at-send semantics, and the anti-rut trick for the project fence |
+| [Context system map](docs/guides/context-system.md) | The exact wire — what reaches the model, in what order, and why (for power users and zero-context agents) |
+
+---
+
 ## Privacy & where your stuff lives
 
 Constellation is a client around **your** key. Nothing is sent anywhere except your prompts to the endpoint you configure. The optional Chronicle capture sends your story text to *your* configured model for fact extraction — the results stay local, editable, and are never fed back into chats. The optional CLI server binds to localhost only, requires a per-launch token, and its commands are read-only apart from dry-sends (real model calls that persist nothing).

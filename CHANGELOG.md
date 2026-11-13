@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.12.1 — Field Guides
+
+### New
+
+- **Code panes grew four more registers.** ```diff fences render changed records — insertions pale green, deletions struck dim rose (corrupted logs and edited drafts, and models already write diffs natively). ```comms fences render text threads as transcripts — speaker tags in a per-name hue, quiet timestamps, never bubbles. ```news fences render torn articles — masthead, headline, justified serif under a double rule. And inside any pane, a quiet convention now renders on its own: `{{whispered asides}}` as faint italics, `[REDACTED]` and friends as dim spaced brackets, `[illegible]` as faded text, `████` runs as faded ink — always on, never black censor bars.
+- **The ```file dossier joined the pane family** — one glass base for every fence, with its accent left rule and header tint kept.
+- **Field guides.** Five short manuals now live in [docs/guides/](docs/guides/), linked from the README: **Diegetic panes** (every fence convention plus a paste-ready prompt block), **Immersion grammar** (the typographic registers and their restraint rules), **Lorebook authoring** (keys, suppressors, pickups, smart entries, the tuning knobs, the test bench), **Macros** (`{{turn}}`, rolls, randoms, freeze-at-send semantics, the anti-rut trick), and the **Context system map** (the exact wire, for power users).
+
+### Fixed
+
+- **Pane text size is uniform.** Classic's size was the right one; the other pane styles now match it, and the ```file dossier — which still carried its own smaller size from the old treatment — was folded into the same fix.
+
+### Changed
+
+- Pane text carries tabular numerals (number columns align), a quiet accent selection color, and accessibility labels; hollow fences no longer render as empty slivers. Copying a pane always copies the exact original text, whatever the renderer did to it.
+
 ## v0.12.0 — Glasswork
 
 ### New
