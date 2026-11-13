@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.12.2 — Full Discipline
+
+### Fixed
+
+- **Lorebook entries were being sent twice.** An entry without a depth setting rode in the system prompt's `# World` section *and* was injected again at the bottom of the message stack — every plain entry cost double tokens on every send. Fixed: depth-0 entries go to the system pile once; only depth-assigned entries ride the stack.
+- **Depth-injected lore and card recall could land inside a past assistant turn.** The project fence already snapped its target to user turns; depth lore and the card recall now snap the same way, so `<lore:…>` fences never prepend into the model's own past replies (where they tangled with preserved thinking and taught the model the tag from the wrong side).
+- **Macro tokens keep their braces everywhere.** `{{turn}}`, `{{roll:2d6}}`, `{{random:…}}`, `{{time}}`, `{{date}}` are syntax, not prose — they display literally on screen in regular chats, cast chats, and panes, instead of having their braces eaten by the whisper renderer. Other `{{…}}` braces still whisper.
+- **Tagged code fences are untouched by pane styling.** Inside ```ts, ```py and friends, braces, brackets and pipes stay exactly as written — a template snippet displays truthfully.
+
+### New
+
+- **Cache-friendly lore** (Settings → Writing, off by default). Constant lore entries stay in the system prompt; dynamic lore hits — keyword matches and smart-scored passages — ride the newest message instead. The system prompt and conversation history then stay byte-identical across turns, so the provider's prompt cache covers the whole conversation instead of being re-billed whenever lore fires or expires. On 100k+ token chats this is the difference between full-price prefill and ~0.1–0.25× cached reads (z.ai caches automatically; OpenRouter routes for cache warmth; Claude gets the flag it needs). The context meter's hover now shows what percentage of the last send the provider served from cache.
+- **Lorebook keys match at word boundaries, with `*` wildcards.** `war` no longer fires inside "warm", "award" or "warring"; `warp*` catches warping and warpdrive. Keys in non-Latin scripts (CJK and friends) match by substring, where word boundaries don't exist.
+- **World budget is a setting** (Settings → Writing, default 8,000 characters, 2k–64k) instead of a hardcoded cap — priority still decides who fits.
+- **Every lore entry rides in its own `<lore:Title>` fence** in the `# World` section, so the model can attribute each fact to its source instead of reading an unmarked pile.
+- **Prose panes render emphasis.** `**bold**` and `*italics*` written inside ```placard, ```note and ```news fences render as emphasis — model-habitual asterisks never show raw.
+- **`||text||` inside a pane renders as the pane's quiet dim redaction** (no pipes, no bars) — the immersion grammar's habit-mark degrades gracefully inside fences.
+- **Two teaching toggles.** Settings → Generation → **Diegetic panes** (on by default) teaches the model every fence convention with the restraint rules and the division of labor. **Prompt macros in regular chats** (off by default) lets regular RPs opt into `{{turn}}`/`{{roll}}`/`{{random}}` — cast chats always have them.
+
 ## v0.12.1 — Field Guides
 
 ### New
