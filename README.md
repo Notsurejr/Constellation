@@ -21,6 +21,8 @@ Constellation is a desktop home for long-form AI-assisted writing. Bring your ow
 
 > It's a *client*: Constellation has no AI of its own and no accounts. Your key talks straight to the endpoint you configure; your writing never touches anyone else's server.
 
+**Coming from SillyTavern?** Constellation isn't a replacement — no extension ecosystem, no character hub, no server to run. It's a different animal: a bring-your-own-key chat harness that arrives *already set up*, with SillyTavern-adjacent features. Character cards (`chara_card_v2`, PNG or JSON), presets, and lorebooks import cleanly; everything else — the reading view, the lore engine, the chronicle, the panes — is its own thing. If you want your stories in a book rather than a dashboard, it might be for you. One download, one installer, runs the moment you paste a key.
+
 <p align="center">
   <img src="docs/screens/reading-view.png" width="100%" alt="A story in progress — dialogue in a warm voice against receded narration, color words tinted, a scene-break star, and the composer on the night sky" />
 </p>

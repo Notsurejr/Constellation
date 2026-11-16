@@ -1,0 +1,65 @@
+name: Release build
+
+# Builds the Windows installer on GitHub's own runners whenever a v* tag is pushed,
+# and attaches the .exe + SHA-256 checksum to the release for that tag. The build is
+# fully reproducible from the public source — skeptical users can verify the checksum
+# against their own build. Manual dispatch (workflow_dispatch) runs the build without
+# publishing anything, for testing the pipeline.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache electron binaries
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\electron\Cache
+          key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Build the installer
+        run: npm run dist
+
+      - name: Compute SHA-256 checksum
+        shell: powershell
+        run: |
+          $exe = Get-ChildItem "dist\Constellation Setup *.exe" | Select-Object -First 1
+          $hash = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash
+          "$hash  $($exe.Name)" | Out-File -Encoding ascii "dist\Constellation-Setup-sha256.txt"
+          Get-Content "dist\Constellation-Setup-sha256.txt"
+
+      - name: Upload build artifacts (inspection)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: |
+            dist/Constellation Setup *.exe
+            dist/Constellation-Setup-sha256.txt
+
+      - name: Attach to the GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/Constellation Setup *.exe
+            dist/Constellation-Setup-sha256.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

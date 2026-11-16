@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax-check every JS file
+        shell: bash
+        run: |
+          fail=0
+          for f in main.js preload.js mdexport.js cli.js src/js/*.js; do
+            if [ -f "$f" ]; then
+              node --check "$f" || { echo "::error file=$f::syntax check failed"; fail=1; }
+            fi
+          done
+          exit $fail

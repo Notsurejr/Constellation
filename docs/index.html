@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Constellation — a local-first studio for long-form AI fiction &amp; roleplay</title>
+<meta name="description" content="A calm, local-first Windows desktop studio for long-form AI fiction and roleplay. Bring your own API key — GLM, OpenRouter, Gemini, any OpenAI-compatible endpoint. SillyTavern cards, presets and lorebooks import cleanly. No accounts, no setup, no server.">
+<meta property="og:title" content="Constellation — a local-first studio for long-form AI fiction &amp; roleplay">
+<meta property="og:description" content="Bring your own key. A reading-first desktop home for stories — lorebooks that send only what the scene needs, a story chronicle, character cards, and a night sky that reacts to your prose.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://notsurejr.github.io/Constellation/">
+<meta property="og:image" content="https://raw.githubusercontent.com/Notsurejr/Constellation/main/docs/screens/reading-view.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Constellation — a local-first studio for long-form AI fiction &amp; roleplay">
+<meta name="twitter:description" content="Bring your own key. A reading-first desktop home for stories, set against a night sky that remembers them.">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/Notsurejr/Constellation/main/docs/screens/reading-view.png">
+<style>
+  :root {
+    --text: #e8e6df; --dim: #8b93a7; --faint: #5c6373;
+    --accent: #9fb8ff; --accent-12: rgba(159,184,255,0.12); --accent-25: rgba(159,184,255,0.25);
+    --border: rgba(255,255,255,0.09);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #000; }
+  body {
+    color: var(--text); font-family: Georgia, 'Times New Roman', serif;
+    font-size: 16.5px; line-height: 1.7;
+    background-image:
+      radial-gradient(1.2px 1.2px at 12% 18%, rgba(255,255,255,0.5) 50%, transparent 51%),
+      radial-gradient(1px 1px at 78% 10%, rgba(255,255,255,0.35) 50%, transparent 51%),
+      radial-gradient(1.4px 1.4px at 55% 64%, rgba(255,255,255,0.3) 50%, transparent 51%),
+      radial-gradient(1px 1px at 30% 82%, rgba(255,255,255,0.4) 50%, transparent 51%),
+      radial-gradient(1.1px 1.1px at 88% 55%, rgba(255,255,255,0.32) 50%, transparent 51%),
+      radial-gradient(1px 1px at 8% 58%, rgba(255,255,255,0.28) 50%, transparent 51%),
+      radial-gradient(680px 380px at 22% 12%, rgba(76,108,185,0.08), transparent 70%);
+    background-attachment: fixed;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 22px 80px; }
+  .banner { width: 100%; display: block; margin: 28px auto 10px; }
+  .tag { text-align: center; color: var(--dim); font-style: italic; margin: 0 0 34px; }
+  h1 { font-size: 30px; font-weight: 560; text-align: center; margin: 0 0 10px; letter-spacing: 0.01em; }
+  .sub { text-align: center; color: var(--dim); max-width: 640px; margin: 0 auto 30px; }
+  .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 0 0 14px; }
+  .btn {
+    display: inline-block; padding: 11px 26px; border-radius: 10px; text-decoration: none;
+    font-size: 15.5px; letter-spacing: 0.02em; transition: filter .15s, border-color .15s;
+    border: 1px solid var(--accent-25);
+  }
+  .btn-primary { background: var(--accent-12); color: var(--accent); }
+  .btn-ghost { color: var(--dim); border-color: var(--border); }
+  .btn:hover { filter: brightness(1.25); border-color: var(--accent-25); }
+  .cta-note { text-align: center; color: var(--faint); font-size: 13px; margin: 0 0 44px; }
+  .card {
+    border: 1px solid var(--border); border-radius: 12px; padding: 22px 26px; margin: 0 0 26px;
+    background: linear-gradient(180deg, rgba(14,18,32,0.86) 0%, rgba(7,9,17,0.92) 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 10px 28px rgba(0,0,0,0.42);
+  }
+  .card h2 { font-size: 19px; margin: 0 0 8px; color: var(--text); font-weight: 560; }
+  .card p { margin: 0; color: var(--dim); }
+  .card p + p { margin-top: 8px; }
+  .shot { width: 100%; border-radius: 10px; border: 1px solid var(--border); display: block; margin: 26px 0 8px; }
+  .cap { text-align: center; color: var(--faint); font-size: 13.5px; font-style: italic; margin: 0 0 34px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; margin-bottom: 40px; }
+  .grid .card { margin: 0; }
+  .honest { border-left: 2px solid var(--accent-25); }
+  footer { border-top: 1px solid var(--border); margin-top: 46px; padding-top: 18px; color: var(--faint); font-size: 13.5px; text-align: center; }
+  footer a { color: var(--dim); }
+  em.acc { color: var(--accent); font-style: normal; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <img class="banner" src="banner.svg" alt="Constellation — your stories, written among the stars" width="880" height="198" />
+  <p class="tag">a private, local-first writing companion — set against a night sky that remembers your story</p>
+
+  <h1>Long stories deserve a book,<br>not a chat log.</h1>
+  <p class="sub">Constellation is a calm Windows desktop studio for long-form AI fiction and roleplay. Bring your own API key — GLM out of the box, or any OpenAI-compatible provider — and write. No accounts. No setup. No server.</p>
+
+  <div class="cta">
+    <a class="btn btn-primary" href="https://github.com/Notsurejr/Constellation/releases/latest">Download the Windows installer</a>
+    <a class="btn btn-ghost" href="https://github.com/Notsurejr/Constellation">View on GitHub</a>
+  </div>
+  <p class="cta-note">Free and open source (MIT) — your key, your machine, your files.</p>
+
+  <div class="card honest">
+    <h2>Coming from SillyTavern?</h2>
+    <p>Constellation isn't a replacement — no extension ecosystem, no character hub, no server to run. It's a different animal: a bring-your-own-key chat harness that arrives <em class="acc">already set up</em>, with SillyTavern-adjacent features. Character cards (<em>chara_card_v2</em>, PNG or JSON), presets, and lorebooks import cleanly — the rest is its own thing.</p>
+    <p>If you want your stories in a book rather than a dashboard, it might be for you.</p>
+  </div>
+
+  <img class="shot" src="screens/reading-view.png" alt="A story in progress — dialogue in a warm voice against receded narration, color words tinted, a scene-break star" width="1600" height="960" />
+  <p class="cap">The reading view — a dialogue voice steps spoken lines out of the narration; the sky weathers the story.</p>
+
+  <div class="grid">
+    <div class="card">
+      <h2>A lorebook that reads the room</h2>
+      <p>Entries watch the scene and ride along only when they matter — keys with word boundaries and wildcards, priorities, linger and cooldown, a bench to test what fires. Long worlds stop costing whole contexts.</p>
+    </div>
+    <div class="card">
+      <h2>Diegetic panes</h2>
+      <p>Fenced text becomes glass set into the reply — deck logs, comms threads, placards, found letters, redacted records. The model writes plain fences; the page does the rest.</p>
+    </div>
+    <div class="card">
+      <h2>A chronicle that remembers</h2>
+      <p>Characters, places, threads and statuses — captured from your own story, kept local, editable. Never misremember your own plot again.</p>
+    </div>
+    <div class="card">
+      <h2>Yours, in plain files</h2>
+      <p>Chats, lorebooks and settings are files on your disk. The optional backup is one JSON you can read. Nothing else sees your writing.</p>
+    </div>
+  </div>
+
+  <img class="shot" src="screens/cast-gallery.png" alt="The Cast — character cards as portrait tiles with tags" width="1536" height="864" />
+  <p class="cap">The Cast — characters as portrait tiles; the full card renders exactly as the model receives it.</p>
+
+  <div class="card">
+    <h2>Learn the conventions</h2>
+    <p>Five short manuals live with the repo — the <a href="https://github.com/Notsurejr/Constellation/blob/main/docs/guides/diegetic-panes.md" style="color:var(--accent)">diegetic panes</a>, the <a href="https://github.com/Notsurejr/Constellation/blob/main/docs/guides/immersion-grammar.md" style="color:var(--accent)">immersion grammar</a>, <a href="https://github.com/Notsurejr/Constellation/blob/main/docs/guides/lorebook-authoring.md" style="color:var(--accent)">lorebook authoring</a>, <a href="https://github.com/Notsurejr/Constellation/blob/main/docs/guides/macros.md" style="color:var(--accent)">macros</a>, and the <a href="https://github.com/Notsurejr/Constellation/blob/main/docs/guides/context-system.md" style="color:var(--accent)">context system map</a> — everything a model needs to be shown, not told.</p>
+  </div>
+
+  <footer>
+    Constellation is a client around <em>your</em> key — no AI of its own, no accounts, nothing sent anywhere except your prompts to the endpoint you choose.<br>
+    MIT licensed · built by <a href="https://github.com/Notsurejr">Notsure_jr</a> · <a href="https://github.com/Notsurejr/Constellation/releases/latest">releases</a>
+  </footer>
+</div>
+</body>
+</html>
