@@ -35,7 +35,9 @@ jobs:
           key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Build the installer
-        run: npm run dist
+        # --publish never: electron-builder otherwise tries to auto-publish a release on CI
+        # (demanding GH_TOKEN) — attachment here is the softprops step's job, not the builder's.
+        run: npm run dist -- --publish never
 
       - name: Compute SHA-256 checksum
         shell: powershell
