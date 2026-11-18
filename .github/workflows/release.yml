@@ -47,11 +47,10 @@ jobs:
           "$hash  $($exe.Name)" | Out-File -Encoding ascii "dist\Constellation-Setup-sha256.txt"
           Get-Content "dist\Constellation-Setup-sha256.txt"
 
-      - name: Upload build artifacts (inspection)
-        if: github.event_name == 'workflow_dispatch'
+      - name: Upload build artifacts (backup copy — always)
         uses: actions/upload-artifact@v4
         with:
-          name: windows-installer
+          name: windows-installer-${{ github.run_id }}
           path: |
             dist/Constellation Setup *.exe
             dist/Constellation-Setup-sha256.txt
