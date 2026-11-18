@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.12.3 — Stagecraft
+
+The rendering systems audited, fixed, and rebuilt for performance on the page: dialogue voices that stage volume and timing, a grammar that grew four new registers, and panes for instruments, verses and dreams.
+
+### Fixed
+
+- **Quote marks stopped reverting to base color.** When a quote contained inline markup (`*emphasis*`, `**bold**`, `{{whispers}}`), the quotation marks wrapped *outside* the dialogue span — so every voice's quote styling missed them and marks randomly looked plain. Marks now wrap identically in every case.
+- **Spaced emphasis around quotes renders.** `** "…" **` with spaces inside the emphasis is invisible to standard Markdown — models write it constantly and the asterisks showed raw. The renderer now tightens exactly those spaces before parsing.
+- **Emphasis outside quotes survives the voice.** `**"…"**` keeps its bold under every dialogue voice, and grammar registers (whispers, alien speech) keep their own color and type inside quotes — the voice no longer swallows them.
+- **Measurement artifacts stop hijacking quotes.** `5'10"` — a straight quote right after a digit with nothing spoken after it — no longer opens a dialogue span that swallows half a paragraph. Curly quotes carry direction; only straight quotes are ambiguous, and they get the guard.
+- **Cadence marks never touch fenced text.** The timing pass walks all ancestors now — dotted leaders and dashes inside logs, diffs and panes stay exactly as written.
+
+### New
+
+- **Dialogue voices, rebuilt.** Chiaroscuro (ambient back-halo, gilded marks), Glass (chiseled capsules with a top edge highlight), Editorial (tapered margin rule, bookplate ink), Acoustic (solid warm speech over a real hairline soundwave), Dramatis (stage contrast) — plus a sixth voice, **Noir**: ink-and-amber, crisp weight, bracketed-feel quotes. No blurring anywhere: depth comes from washes and shadows, never text effects on body text.
+- **Vividness dial.** Subtle / Balanced / Vivid scales how strongly the voice stages itself.
+- **Speaker-accented quotes.** When a line opens with `Name: "…"`, the quote marks take that speaker's color — the same deterministic hue system the comms transcripts use. No syntax the model has to learn.
+- **Four new grammar registers.** `++projected++` (booming speech), `^^lifted^^` (melodic, drawn delivery), `!! impact lines` (full-width kinetic beats), and a lone `...` line as a silent beat — dead air that physically takes up time. Plus `[[!alert]]` urgent messages and inline `[micro-beats]` — tiny bracketed physical cues between spoken lines that render as recessed small-caps stage sparks.
+- **Timing with direction.** The cadence pass now distinguishes hard cutoffs (`—"`, tight and abrupt) from trailing fades (`…`, softly tapered) and mid-line pivots — and when a quote ends in a cutoff and the next voice answers, the gap tightens so interruption reads as interruption.
+- **Three new pane fences.** ```hud / ```status renders instrument readouts — key/value rows, `[|||....]` ratio bars, `[STATUS CHIP]` lines. ```verse / ```chant gives centered ruled literary framing where every line stays its own row. ```memory / ```dream wraps flashbacks and dream logs in soft misty glass.
+- **Grammar style presets.** Literary (default) / Stage / Kinetic / Monochrome — four tunings of the registers, from quiet bookish to cinematic.
+- **Redaction styles.** `||gated text||` hides as the classified bar (default), frosted blur, or animated static — all reveal cleanly on hover.
+- **Live preview in Settings → Appearance.** A sample passage renders through the real pipeline and updates the moment you change voice, vividness, grammar style or redaction style.
+
+### Changed
+
+- Pane polish: engraved corner brackets on placards, ruled stationery lines on notes, quiet badges on comms speaker tags. Prose panes render `**bold**` and `*italics*` written inside them. Copy always keeps the exact original text.
+
+Upgrading is safe: chats, settings, keys, lorebooks and panes keep their state. Voices default to off as before; the new registers are taught only when Immersion grammar and Diegetic panes are enabled.
+
 ## v0.12.2 — Full Discipline
 
 ### Fixed
