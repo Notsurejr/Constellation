@@ -335,6 +335,70 @@ body:not(.pane-classic) .msg .body .codeblock-bar { display: none; }
 }
 .msg .body .codeblock.prose.note .note-sign { display: block; margin-top: 10px; font-style: normal; font-size: 12px; letter-spacing: 0.14em; color: var(--text-faint); }
 body.pane-classic .msg .body .codeblock.prose .prose-content { font-size: inherit; padding: 12px 14px; }
+/* --- pane polish, second generation --- */
+/* placard: engraved corner brackets */
+.msg .body .codeblock.prose.placard { position: relative; }
+.msg .body .codeblock.prose.placard::after,
+.msg .body .codeblock.prose.placard .engrave-b::after {
+  content: ''; position: absolute; width: 14px; height: 14px; pointer-events: none;
+  border-color: rgba(226, 218, 196, 0.28); border-style: solid;
+}
+.msg .body .codeblock.prose.placard::after { top: 7px; left: 7px; border-width: 1px 0 0 1px; }
+.msg .body .codeblock.prose.placard .engrave-b::after { bottom: 7px; right: 7px; border-width: 0 1px 1px 0; }
+/* note: ruled stationery lines */
+.msg .body .codeblock.prose.note .prose-content {
+  background-image: repeating-linear-gradient(180deg, transparent 0 27px, rgba(226, 214, 184, 0.05) 27px 28px);
+}
+/* comms: speaker tags as quiet colored badges */
+.msg .body .codeblock .comms-who {
+  display: inline-block; padding: 1px 8px; border-radius: 9px;
+  background: rgba(255, 255, 255, 0.045); border: 1px solid rgba(255, 255, 255, 0.06);
+}
+/* verse — centered, ruled, literary */
+.msg .body .codeblock.prose.verse .prose-content { text-align: center; font-style: italic; padding-top: 24px; }
+.msg .body .codeblock.prose.verse .prose-content::before,
+.msg .body .codeblock.prose.verse .prose-content::after {
+  content: '\2726'; display: block; text-align: center; color: rgba(218, 209, 182, 0.4);
+  font-style: normal; font-size: 11px; letter-spacing: 0.5em;
+}
+.msg .body .codeblock.prose.verse .prose-content::before { margin-bottom: 14px; }
+.msg .body .codeblock.prose.verse .prose-content::after { margin-top: 14px; }
+.msg .body .codeblock.prose.verse .prose-content p { margin: 0.35em 0; }
+/* memory / dream — soft-edged misty glass: lighter ink, gentle inner wash, italic flow */
+.msg .body .codeblock.prose.dream {
+  border-color: rgba(180, 195, 235, 0.14);
+  background: linear-gradient(180deg, rgba(159, 184, 255, 0.10) 0%, rgba(10, 13, 24, 0.62) 42%, rgba(7, 9, 17, 0.82) 100%);
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.msg .body .codeblock.prose.dream::before {
+  background: linear-gradient(90deg, transparent 0%, rgba(196, 209, 255, 0.18) 30%, rgba(226, 234, 255, 0.3) 50%, rgba(196, 209, 255, 0.18) 70%, transparent 100%);
+}
+.msg .body .codeblock.prose.dream .prose-content {
+  color: #cfd6ea; font-style: italic; line-height: 1.9; letter-spacing: 0.01em;
+}
+.msg .body .codeblock.prose.dream .prose-content p + p { margin-top: 1em; }
+/* hud / status — instruments: key/value rows, ratio bars, status chips */
+.msg .body .codeblock .hud-body {
+  padding: 14px 18px 15px; overflow-x: auto;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: inherit; line-height: 1.75; color: #cbd4e8;
+  font-variant-numeric: tabular-nums;
+}
+.msg .body .codeblock .hud-row { display: flex; align-items: center; gap: 10px; }
+.msg .body .codeblock .hud-row + .hud-row { margin-top: 3px; }
+.msg .body .codeblock .hud-key { color: #9aa6c2; min-width: 10ch; }
+.msg .body .codeblock .hud-val { color: #d9e2f5; }
+.msg .body .codeblock .hud-noise { color: var(--text-faint); }
+.msg .body .codeblock .hud-gap { height: 8px; }
+.msg .body .codeblock .hud-bar { flex: none; width: 120px; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.08); overflow: hidden; }
+.msg .body .codeblock .hud-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent-40), var(--accent-65)); border-radius: 4px; }
+.msg .body .codeblock .hud-bar-src { color: var(--text-faint); font-size: 11px; }
+.msg .body .codeblock .hud-chip {
+  display: inline-block; padding: 2px 10px; border-radius: 10px;
+  font-size: 11px; letter-spacing: 0.12em; color: var(--accent);
+  background: var(--accent-12); border: 1px solid var(--accent-25);
+}
+.msg .body .codeblock .hud-chip + .hud-chip { margin-left: 6px; }
 
 /* --- dossier fence (```file): joins the pane family, keeps its identity --- */
 .msg .body .codeblock[data-lang="file"] { border-left: 2px solid var(--accent-dim); }
@@ -1745,15 +1809,15 @@ select option { background: #0b0e16; color: var(--text); }
 /* Redacted text: a diagonal "classified" hatch so the reader knows it's interactive,
    not a rendering glitch. Hover/click reveals (delegated .on toggle in chat.js). */
 .g-redact {
-  background: repeating-linear-gradient(-45deg, #1c202b, #1c202b 4px, #232836 4px, #232836 8px);
-  color: transparent; border-radius: 3px; padding: 0.04em 0.32em;
-  border: 1px solid var(--accent-12);
-  cursor: pointer; transition: color .22s, background .22s, border-color .22s;
+  background: var(--rd-bg); color: var(--rd-fg); filter: blur(var(--rd-blur));
+  border-radius: 3px; padding: 0.04em 0.32em;
+  border: var(--rd-border);
+  cursor: pointer; transition: color .22s, background .22s, border-color .22s, filter .2s;
   -webkit-tap-highlight-color: transparent; user-select: text;
 }
 .g-redact:hover, .g-redact:focus-visible, .g-redact.on {
-  background: rgba(255,155,155,0.08); color: var(--danger);
-  border-color: rgba(255,155,155,0.35); box-shadow: 0 0 12px rgba(255,155,155,0.15); outline: none;
+  --rd-blur: 0px; --rd-bg: rgba(255,155,155,0.08); --rd-fg: var(--danger); --rd-border: 1px solid rgba(255,155,155,0.35);
+  box-shadow: 0 0 12px rgba(255,155,155,0.15); outline: none;
 }
 .g-redact::selection, .g-redact *::selection { background: var(--danger); color: #000; }
 /* Messages-within-the-story. */
@@ -1764,7 +1828,90 @@ select option { background: #0b0e16; color: var(--text); }
   padding: 5px 12px; margin: 0 4px 6px 0;
 }
 .g-msg.self { border-radius: 12px 12px 3px 12px; background: var(--accent-16); }
+/* Urgent/HUD variant of the on-screen message. */
+.g-msg.urgent { color: #ffd9d0; background: rgba(255, 120, 100, 0.08); border-color: rgba(255, 120, 100, 0.28); }
 /* (Dossier ```file styling moved to the code-pane family — see [data-lang="file"].) */
+/* ---- Immersion grammar, second generation: vocal dynamics + kinetic beats ----
+   Grammar style presets tune the registers through --g-* variables set at body level, so
+   a preset wins INSIDE dialogue quotes too (the voice-over-voice restatements consume the
+   same variables — no specificity war between layers). */
+body {
+  --g-alien-color: #aec6e8; --g-alien-shadow: 0 0 12px var(--accent-25);
+  --g-impact-color: var(--text); --g-impact-track: 0.22em; --g-impact-size: 0.92em;
+  --g-boom-shadow: none; --g-boom-size: 1.02em; --g-boom-color: inherit;
+  --g-lift-color: var(--accent); --g-lift-shift: -0.14em; --g-lift-tilt: -0.4deg;
+  --g-spaced-track: 0.42em; --g-silence-track: 0.6em; --g-silence-space: 26px;
+  --g-msg-bg: var(--accent-08); --g-msg-fg: var(--text); --g-msg-border: var(--panel-border);
+  --rd-bg: repeating-linear-gradient(-45deg, #1c202b, #1c202b 4px, #232836 4px, #232836 8px);
+  --rd-fg: transparent; --rd-blur: 0px; --rd-border: 1px solid var(--accent-12); --rd-anim: none;
+}
+body.gs-stage {
+  --g-impact-track: 0.3em; --g-impact-size: 1em;
+  --g-spaced-track: 0.5em; --g-silence-space: 34px;
+}
+body.gs-kinetic {
+  --g-impact-color: var(--accent); --g-impact-track: 0.34em;
+  --g-boom-shadow: 0 0 14px var(--accent-25); --g-boom-size: 1.06em;
+  --g-lift-shift: -0.22em; --g-lift-tilt: -1deg; --g-silence-track: 0.9em;
+}
+body.gs-ink {
+  --g-alien-color: var(--text-dim); --g-alien-shadow: none;
+  --g-impact-color: var(--text-dim);
+  --g-boom-shadow: none; --g-boom-color: var(--text);
+  --g-lift-color: var(--text);
+  --g-msg-bg: rgba(255,255,255,0.05); --g-msg-fg: var(--text); --g-msg-border: var(--panel-border);
+}
+/* ++projected++ — vocal mass, a commanding presence. */
+.g-boom { font-weight: 700; letter-spacing: 0.012em; font-size: var(--g-boom-size); color: var(--g-boom-color); text-shadow: var(--g-boom-shadow); }
+/* ^^lifted^^ — a slight upward optical lift, airy tracking, light lyrical feel.
+   (Strictly inline; the line-start single-caret drop-cap never sees it.) */
+.g-lift {
+  display: inline-block; transform: translateY(var(--g-lift-shift)) rotate(var(--g-lift-tilt));
+  letter-spacing: 0.07em; font-style: italic; color: var(--g-lift-color);
+}
+/* `!! impact` at line start — a full-width kinetic beat line. */
+.msg .body .g-impact {
+  text-align: center; letter-spacing: var(--g-impact-track); text-transform: uppercase;
+  font-weight: 600; font-size: var(--g-impact-size); color: var(--g-impact-color); margin: 20px auto;
+}
+/* Standalone `...` — the silent beat: dead air that physically takes up time. */
+.msg .body .g-silence {
+  text-align: center; color: var(--text-faint); font-size: 15px;
+  letter-spacing: var(--g-silence-track); margin: var(--g-silence-space) auto;
+  animation: silenceBreath 3.2s ease-in-out infinite;
+}
+@keyframes silenceBreath { 0%, 100% { opacity: 0.28; } 50% { opacity: 0.68; } }
+@media (prefers-reduced-motion: reduce) { .msg .body .g-silence { animation: none; opacity: 0.45; } }
+/* Inline bracketed micro-beats — kinetic stage sparks, registered in peripheral vision. */
+.g-beat {
+  color: var(--text-faint); font-size: 0.78em; letter-spacing: 0.09em;
+  font-variant: small-caps; font-style: normal; margin: 0 0.32em; white-space: nowrap;
+}
+/* Cinematic slate, split: `@ Place · Time` → two-part header. */
+.g-slug { letter-spacing: 0.16em; text-transform: uppercase; font-size: 13px; color: var(--text-dim); margin: 18px auto 10px; }
+.g-slug-a { color: var(--text); }
+.g-slug-b::before { content: '\00B7  '; color: var(--text-faint); margin-right: 0.7em; }
+.g-slug-b { color: var(--text-faint); }
+/* Centered interlude — delicate ornamental framing above and below. */
+.msg .body .g-center {
+  text-align: center; color: #ddd6c4; font-style: italic; margin: 22px auto;
+  padding: 10px 18px; border-top: 1px solid var(--accent-12); border-bottom: 1px solid var(--accent-12);
+}
+.msg .body .g-center::before { content: '\00B7 \00B7 \22EF \2726 \22EF \00B7 \00B7'; display: block; color: var(--accent-dim); letter-spacing: 0.5em; font-size: 11px; margin-bottom: 8px; }
+.msg .body .g-center::after { content: '\00B7 \00B7 \22EF \2726 \22EF \00B7 \00B7'; display: block; color: var(--accent-dim); letter-spacing: 0.5em; font-size: 11px; margin-top: 8px; }
+/* ---- ||redacted|| reveal styles (Appearance → Redaction style) ----
+   bar = classified hatch (default) · blur = frosted, reveals on hover ·
+   scramble = animated static, reveals on hover. All through --rd-* variables. */
+body.rs-blur {
+  --rd-bg: rgba(255, 255, 255, 0.04); --rd-fg: inherit; --rd-blur: 4.5px; --rd-border: none; --rd-anim: none;
+}
+body.rs-scramble {
+  --rd-bg: repeating-linear-gradient(90deg, #2c3346 0 3px, #1c202b 3px 7px);
+  --rd-fg: transparent; --rd-blur: 0px; --rd-border: none;
+  --rd-anim: redactNoise 0.5s steps(4) infinite;
+}
+@keyframes redactNoise { 0% { background-position: 0 0; } 100% { background-position: 7px 0; } }
+@media (prefers-reduced-motion: reduce) { body { --rd-anim: none; } }
 /* Scene-break ornaments. (Heading chapter-chrome moved to the single consolidated
    heading block near the end of this file — this layer used to fight it.) */
 .msg .body hr { border: none; height: auto; text-align: center; margin: 26px auto; background: none; }
@@ -2161,66 +2308,126 @@ input.num::-webkit-outer-spin-button, input.num::-webkit-inner-spin-button { opa
 .chronicle-cfg .chronicle-model { width: 100%; box-sizing: border-box; }
 
 /* ---- Dialogue voices (Appearance → Dialogue voice; assistant replies only) ----
-   .dlg spans are wrapped natively by md.js from paired quotes; .q are the marks.
-   All five are display-only and mutually exclusive via a body-level class. */
-/* 1 · Chiaroscuro — narration takes one subtle step back; speech steps forward.
-      (No text-shadow anywhere on dialogue: glow on serif body text fogs the letter edges.) */
-body.dlg-chiaroscuro .msg.assistant .body p,
-body.dlg-chiaroscuro .msg.assistant .body li { color: #c2cadb; }
-body.dlg-chiaroscuro .msg.assistant .body .dlg { color: #f6f1e4; font-weight: 500; }
-body.dlg-chiaroscuro .msg.assistant .body .dlg .q { color: #d3c69f; }
+   .dlg spans are wrapped natively by md.js from paired quotes; .q are the marks, wrapped
+   inside their own .dlg so every `.dlg .q` selector reaches them in every branch.
+   Six voices, mutually exclusive via a body-level class; Vividness (gv-*) scales
+   intensity through the --dv-* custom properties; nothing here blurs body text.
 
-/* 2 · Glass — clean borderless pill. (Borders + box-decoration-break:clone drew a seam
-      line through every wrapped multi-line quote.) */
+   Vividness dials (body.gv-*) — Subtle / Balanced / Vivid */
+body { --dv-halo: 0.10; --dv-pill: 0.10; --dv-glow: 0.10; }
+body.gv-subtle  { --dv-halo: 0.045; --dv-pill: 0.045; --dv-glow: 0; }
+body.gv-vivid   { --dv-halo: 0.20; --dv-pill: 0.20; --dv-glow: 0.5; }
+
+/* 1 · Chiaroscuro — narration one step back; speech luminous and warm with a soft
+      ambient back-halo and gilded quote marks. (No text-shadow on serif body text:
+      glow fogs letter edges — the halo is a background wash, not blur.) */
+body.dlg-chiaroscuro .msg.assistant .body p,
+body.dlg-chiaroscuro .msg.assistant .body li { color: #b8c0d1; }
+body.dlg-chiaroscuro .msg.assistant .body .dlg {
+  color: #f8f4e9; font-weight: 500;
+  background: linear-gradient(180deg, rgba(211, 198, 159, var(--dv-halo)) 0%, rgba(211, 198, 159, calc(var(--dv-halo) * 0.35)) 100%);
+  border-radius: 5px; padding: 0.05em 0.2em;
+  box-decoration-break: clone; -webkit-box-decoration-break: clone;
+}
+body.dlg-chiaroscuro .msg.assistant .body .dlg .q { color: #d3c69f; font-weight: 600; }
+
+/* 2 · Glass — tactile chiseled capsules: top inner edge highlight, soft accent gradient
+      wash, seam-free clone wrapping, accented quotes. */
 body.dlg-glass .msg.assistant .body .dlg {
-  color: #eff2f9; font-weight: 460;
-  background: var(--accent-08);
-  border-radius: 4px; padding: 0.06em 0.28em;
+  color: #f0f3fa; font-weight: 470;
+  background: linear-gradient(180deg, rgba(159, 184, 255, var(--dv-pill)) 0%, rgba(159, 184, 255, calc(var(--dv-pill) * 0.45)) 100%);
+  border-radius: 6px; padding: 0.07em 0.3em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, calc(0.10 + var(--dv-glow) * 0.4));
   box-decoration-break: clone; -webkit-box-decoration-break: clone;
 }
 body.dlg-glass .msg.assistant .body .dlg .q { color: var(--accent); }
 
-/* 3 · Editorial — quotation marks on the normal baseline (the oversized sunken opening
-      mark sat crooked on the line); the margin callout stays. */
-body.dlg-editorial .msg.assistant .body .dlg { color: #efe6cf; font-weight: 470; }
-body.dlg-editorial .msg.assistant .body .dlg .q { color: var(--accent); opacity: 0.8; font-weight: 600; }
+/* 3 · Editorial — bookplate typography: a tapered accent rule on dialogue-led paragraphs,
+      warm paper-ink speech, crisp baseline-aligned accented quotation marks. */
+body.dlg-editorial .msg.assistant .body .dlg { color: #efe6cf; font-weight: 480; }
+body.dlg-editorial .msg.assistant .body .dlg .q { color: var(--accent); opacity: 0.9; font-weight: 600; }
 body.dlg-editorial .msg.assistant .body p.has-lead-dlg,
 body.dlg-editorial .msg.assistant .body li.has-lead-dlg {
-  border-left: 2px solid var(--accent-25); padding-left: 14px;
+  border-left: 2px solid var(--accent-25);
+  border-image: linear-gradient(180deg, var(--accent-40) 0%, transparent 100%) 1;
+  padding-left: 14px;
 }
 
-/* 4 · Acoustic — crisp solid speech with a hairline soundwave underline. (The old
-      background-clip:text gradient disabled subpixel antialiasing in Chromium — washed
-      out at body sizes.) */
+/* 4 · Acoustic — razor-sharp solid warm speech over a real hairline soundwave
+      (an inline SVG repeat-x at the text baseline — zero text blur, zero text-shadow). */
 body.dlg-acoustic .msg.assistant .body .dlg {
-  color: #f6e8ca; font-weight: 500;
-  text-decoration: underline;
-  text-decoration-color: var(--accent-40);
-  text-decoration-thickness: 1px;
-  text-underline-offset: 4px;
+  color: #f6e8ca; font-weight: 520;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='7'%3E%3Cpath d='M1 3.5h2 M6 1v5 M11 2.5v2 M15 0.5v6 M19 2.5v2 M23 1.5v4' stroke='%239fb8ff' stroke-opacity='0.55' stroke-width='1' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: repeat-x; background-position: left calc(100% - 1px);
+  padding-bottom: 4px;
   box-decoration-break: clone; -webkit-box-decoration-break: clone;
 }
-body.dlg-acoustic .msg.assistant .body .dlg .q { color: var(--accent); }
+body.dlg-acoustic .msg.assistant .body .dlg .q { color: var(--accent); font-weight: 600; }
 
-/* 5 · Dramatis — narration turns italic editorial (one subtle step back), speech stays
-      upright prose */
+/* 5 · Dramatis — atmospheric stage contrast: recessed literary italic narration vs
+      grounded, crisp upright dialogue with gilded quotes. */
 body.dlg-dramatis .msg.assistant .body p,
 body.dlg-dramatis .msg.assistant .body li {
   font-family: 'Newsreader', var(--font-prose-live, 'Literata'), Georgia, serif;
-  font-style: italic; color: #c2cadb;
+  font-style: italic; color: #bfc7d8;
 }
 body.dlg-dramatis .msg.assistant .body .dlg {
   font-family: var(--font-prose-live, 'Literata'), Georgia, serif;
-  font-style: normal; color: #f5f1e8; font-weight: 510;
+  font-style: normal; color: #f5f1e8; font-weight: 520;
 }
-body.dlg-dramatis .msg.assistant .body .dlg .q { color: #dcb87a; }
+body.dlg-dramatis .msg.assistant .body .dlg .q { color: #dcb87a; font-weight: 600; }
 
-/* Cadence marks — em/en-dashes and ellipses get breathing room and a faint tint */
-body.cadence-on .msg.assistant .body .cadence {
-  color: var(--accent); opacity: 0.75; padding: 0 0.18em; font-weight: 300;
+/* 6 · Noir — ink-and-amber: near-mono narration, crisp high-contrast speech with a
+      quiet structural edge, and amber quote marks carrying a bracketed feel. */
+body.dlg-noir .msg.assistant .body p,
+body.dlg-noir .msg.assistant .body li { color: #9aa2b2; }
+body.dlg-noir .msg.assistant .body .dlg {
+  color: #f2f4f8; font-weight: 640; letter-spacing: 0.004em;
+  padding: 0.02em 0.14em;
+  border-left: 2px solid rgba(232, 200, 119, calc(0.22 + var(--dv-glow) * 0.3));
 }
+body.dlg-noir .msg.assistant .body .dlg .q { color: #e8c877; font-weight: 700; }
 
-/* Streaming ink — new words materialize (blur + candle glow → settled). The span carries
+/* Emphasis inheritance — Markdown emphasis OUTSIDE a quote must survive the voice:
+   the voice's .dlg weight/style would otherwise overwrite <strong>/<em> context. */
+body[class*='dlg-'] .msg.assistant .body strong .dlg,
+body[class*='dlg-'] .msg.assistant .body b .dlg { font-weight: inherit; }
+body[class*='dlg-'] .msg.assistant .body em .dlg,
+body[class*='dlg-'] .msg.assistant .body i .dlg { font-style: inherit; }
+
+/* Grammar registers out-rank voice color/weight — a whisper or alien word inside a
+   quote still whispers. Restated at voice-beating specificity; the declarations are
+   the same rules as the grammar block above. */
+body[class*='dlg-'] .msg.assistant .body .dlg.g-whisper { font-size: 0.82em; color: var(--text-dim); font-style: italic; font-weight: inherit; }
+body[class*='dlg-'] .msg.assistant .body .dlg.g-alien { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 0.86em; color: var(--g-alien-color); letter-spacing: 0.08em; font-weight: inherit; text-shadow: var(--g-alien-shadow); }
+body[class*='dlg-'] .msg.assistant .body .dlg.g-smash { letter-spacing: -0.045em; white-space: nowrap; }
+body[class*='dlg-'] .msg.assistant .body .dlg.g-spaced { letter-spacing: 0.42em; margin-right: -0.42em; margin-left: 0.34em; white-space: nowrap; }
+body[class*='dlg-'] .msg.assistant .body .dlg.g-mark { background: linear-gradient(transparent 56%, var(--accent-40) 44%); padding: 0 0.06em; }
+body[class*='dlg-'] .msg.assistant .body .dlg.g-redact { background: var(--rd-bg); color: var(--rd-fg); filter: blur(var(--rd-blur)); border-radius: 3px; padding: 0.04em 0.32em; }
+body[class*='dlg-'] .msg.assistant .body .dlg.g-boom { font-weight: 700; letter-spacing: 0.012em; font-size: var(--g-boom-size); color: var(--g-boom-color); text-shadow: var(--g-boom-shadow); }
+body[class*='dlg-'] .msg.assistant .body .dlg.g-lift { font-style: italic; letter-spacing: 0.06em; }
+
+/* Cadence 2.0 — timing with direction. */
+body.cadence-on .msg.assistant .body .cadence { color: var(--accent); opacity: 0.75; padding: 0 0.18em; font-weight: 300; }
+body.cadence-on .msg.assistant .body .cadence.cut  { opacity: 0.95; font-weight: 500; padding: 0 0.08em; letter-spacing: -0.01em; }
+body.cadence-on .msg.assistant .body .cadence.fade { opacity: 0.45; letter-spacing: 0.12em; }
+body.cadence-on .msg.assistant .body .cadence.pivot { opacity: 0.75; }
+
+/* Collision choreography — a quote cut off (—") followed by another quoted line reads
+   as interruption: tightened gap; a short reply after a cutoff steps in underneath. */
+.msg .body p.tight-reply { margin-top: 0.35em; }
+.msg .body p.interject {
+  margin-top: 0.3em; padding-left: 1.6em; font-size: 0.96em;
+}
+.msg .body li.tight-reply { margin-top: 0.3em; }
+
+/* Self-corrections inside dialogue — a real-time verbal slip, not a redline. */
+.msg .body del { opacity: 0.55; text-decoration-thickness: 1px; text-decoration-color: var(--text-faint); }
+.msg .body .dlg del { opacity: 0.5; font-weight: 300; }
+
+/* Speaker-accented quotes get their hue inline from md.js (same hash as comms). */
+
+/*  */
    an inline NEGATIVE animation-delay equal to the word's age behind the reveal cursor,
    so the 40ms re-renders resume the curve mid-flight instead of restarting it (edge #1). */
 @keyframes tokIn {
@@ -2338,3 +2545,13 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); }
 .lore-bench-row { font-size: 12px; color: var(--text); padding-left: 10px; border-left: 2px solid var(--accent-25); overflow-wrap: anywhere; }
 .lore-bench-cut .lore-bench-row { border-left-color: rgba(240,180,120,0.4); }
 .lore-bench-sup .lore-bench-row { border-left-color: rgba(255,120,120,0.3); color: var(--text-dim); }
+
+/* ---- Appearance live preview: the sample passage rendered through the real pipeline ---- */
+.appearance-preview-wrap { margin-top: 8px; }
+.appearance-preview {
+  border: 1px solid var(--panel-border); border-radius: 10px;
+  background: rgba(0, 0, 0, 0.35); padding: 6px 14px;
+  max-height: 320px; overflow-y: auto;
+}
+.appearance-preview .msg { padding: 8px 0; }
+.appearance-preview .msg .body { max-width: none; }

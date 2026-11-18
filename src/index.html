@@ -388,12 +388,45 @@
           <select id="dialogueStyleInput">
             <option value="off">Off — dialogue matches narration</option>
             <option value="chiaroscuro">Chiaroscuro — narration recedes, speech steps into the light</option>
-            <option value="glass">Glass — spoken lines on dark-glass pills</option>
-            <option value="editorial">Editorial — oversized quotes, margin callout bars</option>
-            <option value="acoustic">Acoustic — warm-to-cool gradient speech, soundwave underline</option>
+            <option value="glass">Glass — spoken lines on chiseled glass capsules</option>
+            <option value="editorial">Editorial — bookplate typography, tapered margin rule</option>
+            <option value="acoustic">Acoustic — warm solid speech over a hairline soundwave</option>
             <option value="dramatis">Dramatis — narration turns italic editorial, speech stays upright</option>
+            <option value="noir">Noir — ink-and-amber: crisp speech, bracketed-feel quotes</option>
           </select>
         </label>
+        <label class="field">
+          <span>Vividness <em class="hint-inline">how strongly the dialogue voice stands out — Subtle keeps the prose calm</em></span>
+          <select id="vividnessInput">
+            <option value="subtle">Subtle — whisper-level separation</option>
+            <option value="balanced">Balanced — distinct but quiet (default)</option>
+            <option value="vivid">Vivid — the voice takes the stage</option>
+          </select>
+        </label>
+        <label class="field checkbox">
+          <input type="checkbox" id="speakerAccentInput" />
+          <span>Speaker-accented quotes — when a line opens with <em>Name: "…"</em>, tint that line's quote marks with the speaker's color</span>
+        </label>
+        <label class="field">
+          <span>Grammar style <em class="hint-inline">how the immersion grammar's registers look — whispers, impact lines, interludes</em></span>
+          <select id="grammarStyleInput">
+            <option value="literary">Literary — quiet, bookish (default)</option>
+            <option value="stage">Stage — expressive, a step louder</option>
+            <option value="kinetic">Kinetic — bold, cinematic</option>
+            <option value="ink">Monochrome — ink-only, no color accents</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Redaction style <em class="hint-inline">how ||gated text|| hides until hovered</em></span>
+          <select id="redactStyleInput">
+            <option value="bar">Classified bar — the classic hatch (default)</option>
+            <option value="blur">Frosted — blurred ink, sharpens on hover</option>
+            <option value="scramble">Static — animated noise, resolves on hover</option>
+          </select>
+        </label>
+        <div class="settings-section appearance-preview-wrap">
+          <div id="appearancePreview" class="appearance-preview"></div>
+        </div>
         <label class="field checkbox">
           <input type="checkbox" id="cadenceMarksInput" />
           <span>Cadence marks — em-dashes and ellipses get breathing room and a faint tint</span>

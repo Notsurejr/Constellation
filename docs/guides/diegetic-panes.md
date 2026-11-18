@@ -14,6 +14,9 @@ The renderer gives fenced text a life of its own: machine output sits in glass p
 | ```note (or ```letter) | A found note: italic serif on a ruled left edge; a final line opening with a dash becomes the signature. For letters, scrawled warnings, diary pages. |
 | ```news (or ```clipping / ```article / ```broadsheet) | A broadsheet: line 1 = publication masthead (`THE CERES DISPATCH · 12 NOV 2186`), line 2 = the headline, then justified serif body under a double rule. For torn articles, newsfeeds, academic abstracts. |
 | ```file | The dossier: joins the pane family (same glass, same text size) with its accent left rule and header-line tint. |
+| ```hud (or ```status) | Instruments: `KEY: value` readouts, `[|||....]` ratio bars, `[STATUS CHIP]` lines — clean telemetry styling |
+| ```verse (or ```chant / ```lyric) | Centered, ruled, italic literary framing — songs, epigraphs, prophecies; every line stays its own row |
+| ```memory (or ```dream / ```flashback) | Soft misty glass — lighter ink, gentle inner wash, italic flow — for flashbacks and dream logs |
 | any fence with long lines (72+ chars) | The pane widens toward the window's edges — charts and surveys get room. |
 
 ## Conventions the model must know
@@ -37,7 +40,7 @@ Inside any pane, the pane's own convention renders on its own, always on — ind
 - `[illegible]`, `[smudged]`, `[torn]`, `[water-damaged]`, `[burned]` and friends render as faded italic.
 - Runs of `████` or `▓▓▓` render as faded ink — the characters stay visible, damaged rather than deleted.
 
-Copy always keeps the exact original text, including the braces and brackets.
+Copy always keeps the exact original text, including the braces and brackets. Placards, notes and news panes also render `**bold**` and `*italics*` written inside them, and pane styling follows the app glass plus four **Code panes** styles (Settings → Appearance).
 
 ### How this relates to the immersion grammar
 

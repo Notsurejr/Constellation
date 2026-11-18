@@ -484,6 +484,10 @@ Constellation.chat = (function () {
     opts.streamCps = cfg.streamCps ?? 0;
     opts.contextWindow = cfg.contextWindow ?? 0;
     opts.dialogueStyle = cfg.dialogueStyle || 'off';
+    opts.speakerAccent = cfg.speakerAccent === true;
+    opts.dialogueVividness = cfg.dialogueVividness || 'balanced';
+    opts.grammarStyle = cfg.grammarStyle || 'literary';
+    opts.redactStyle = cfg.redactStyle || 'bar';
     opts.cadenceMarks = cfg.cadenceMarks === true;
     opts.streamInk = cfg.streamInk === true;
     opts.projectDepth = Math.max(0, Math.min(12, parseInt(cfg.projectDepth, 10) || 0));   // global: which floor the project fence rides
@@ -874,19 +878,32 @@ Constellation.chat = (function () {
   function renderBodyHTML(content, opts) { return Constellation.md.render(applyDisplayFilters(content), opts); }
 
   // ---- dialogue voice + cadence + stream ink (Appearance settings, all off by default) ----
-  const DLG_CLASSES = ['dlg-chiaroscuro', 'dlg-glass', 'dlg-editorial', 'dlg-acoustic', 'dlg-dramatis'];
+  const DLG_CLASSES = ['dlg-chiaroscuro', 'dlg-glass', 'dlg-editorial', 'dlg-acoustic', 'dlg-dramatis', 'dlg-noir'];
+  const GV_CLASSES = ['gv-subtle', 'gv-balanced', 'gv-vivid'];
+  const GS_CLASSES = ['gs-literary', 'gs-stage', 'gs-kinetic', 'gs-ink'];
+  const RS_CLASSES = ['rs-bar', 'rs-blur', 'rs-scramble'];
   function applyDialogue(patch) {
     if (patch) {
       if (patch.dialogueStyle !== undefined) opts.dialogueStyle = patch.dialogueStyle;
       if (patch.cadenceMarks !== undefined) opts.cadenceMarks = !!patch.cadenceMarks;
       if (patch.streamInk !== undefined) opts.streamInk = !!patch.streamInk;
+      if (patch.speakerAccent !== undefined) opts.speakerAccent = !!patch.speakerAccent;
+      if (patch.dialogueVividness !== undefined) opts.dialogueVividness = patch.dialogueVividness;
+      if (patch.grammarStyle !== undefined) opts.grammarStyle = patch.grammarStyle;
+      if (patch.redactStyle !== undefined) opts.redactStyle = patch.redactStyle;
     }
     const md = window.Constellation && window.Constellation.md;
-    if (md && md.setDialogue) md.setDialogue({ style: opts.dialogueStyle || 'off', cadence: !!opts.cadenceMarks });
-    document.body.classList.remove.apply(document.body.classList, DLG_CLASSES.concat(['cadence-on']));
+    if (md && md.setDialogue) md.setDialogue({ style: opts.dialogueStyle || 'off', cadence: !!opts.cadenceMarks, speakers: !!opts.speakerAccent });
+    document.body.classList.remove.apply(document.body.classList, DLG_CLASSES.concat(GV_CLASSES, GS_CLASSES, RS_CLASSES, ['cadence-on']));
     const st = opts.dialogueStyle || 'off';
     if (DLG_CLASSES.indexOf('dlg-' + st) !== -1) document.body.classList.add('dlg-' + st);
     if (opts.cadenceMarks) document.body.classList.add('cadence-on');
+    const viv = opts.dialogueVividness || 'balanced';
+    if (GV_CLASSES.indexOf('gv-' + viv) !== -1) document.body.classList.add('gv-' + viv);
+    const gs = opts.grammarStyle || 'literary';
+    if (GS_CLASSES.indexOf('gs-' + gs) !== -1) document.body.classList.add('gs-' + gs);
+    const rs = opts.redactStyle || 'bar';
+    if (RS_CLASSES.indexOf('rs-' + rs) !== -1) document.body.classList.add('rs-' + rs);
     rerenderAllBodies();
   }
   function rerenderAllBodies() {
@@ -1047,13 +1064,17 @@ Constellation.chat = (function () {
       wrap.appendChild(pre);
 
       // Prose fences — diegetic text that was never machine output (a placard bolted to a
-      // bulkhead, a note left in a drawer, a broadsheet clipping). Structured display, serif,
-      // no tinting; the ORIGINAL fence text is kept on the wrap so Copy stays exact.
+      // bulkhead, a note left in a drawer, a broadsheet clipping, a verse, a dream log).
+      // Structured display, serif, no tinting; the ORIGINAL fence text is kept on the wrap
+      // so Copy stays exact.
       const pl = lang.toLowerCase();
-      const proseKind = { placard: 'placard', sign: 'placard', note: 'note', letter: 'note', news: 'news', clipping: 'news', article: 'news', broadsheet: 'news' }[pl];
+      const proseKind = { placard: 'placard', sign: 'placard', note: 'note', letter: 'note', news: 'news', clipping: 'news', article: 'news', broadsheet: 'news', verse: 'verse', chant: 'verse', lyric: 'verse', memory: 'dream', dream: 'dream', flashback: 'dream' }[pl];
       if (proseKind) { buildProsePane(wrap, pre, proseKind); continue; }
       // Comms fences — text threads, hails, intercom transcripts. A transcript, not a phone.
       if (COMMS_LANGS.includes(pl)) { buildCommsPane(wrap, pre); continue; }
+      // HUD / status fences — key/value readouts, status chips and ASCII ratio bars rendered
+      // as clean instruments (HP: 42/100, [|||..] lifelines, [LOCKED] chips).
+      if (HUD_LANGS.includes(pl)) { buildHudPane(wrap, pre); continue; }
       // Diff fences — models write diffs natively; glass-toned lines give corrupted records
       // and edited drafts for free. Line spans keep every character, so copy stays exact.
       const isDiff = pl === 'diff' || pl === 'patch';
@@ -1162,6 +1183,7 @@ Constellation.chat = (function () {
       if (kind === 'placard' && i === 1 && ln.length <= 48 && !/[.!?]$/.test(ln)) continue;   // subtitle
       if (kind === 'news' && i < 2) continue;                          // masthead + headline handled below
       if (/^[·⋯✦\-\s]{3,}$/.test(ln) || ln === '---') { flush(); continue; }   // divider ornaments
+      if (kind === 'verse') { flush(); paras.push(ln); continue; }     // verse: every line is its own row — poems never merge
       buf.push(ln);
     }
     flush();
@@ -1179,7 +1201,7 @@ Constellation.chat = (function () {
       head.appendChild(dv);
       content.appendChild(head);
     }
-    if (kind === 'news') {
+      if (kind === 'news') {
       const head = document.createElement('div'); head.className = 'news-head';
       const mast = document.createElement('span'); mast.className = 'news-mast';
       mast.textContent = (lines[0] || '').trim();
@@ -1187,6 +1209,9 @@ Constellation.chat = (function () {
       const hl = (lines[1] || '').trim();
       if (hl) { const h = document.createElement('span'); h.className = 'news-headline'; h.textContent = hl; head.appendChild(h); }
       content.appendChild(head);
+    }
+    if (kind === 'verse') {
+      content.classList.add('verse');   // centered ruled literary framing (CSS)
     }
     for (let i = 0; i < paras.length; i++) {
       const p = paras[i];
@@ -1244,6 +1269,62 @@ Constellation.chat = (function () {
       body.appendChild(row);
     }
     panePatterns(body);
+    const ghost = document.createElement('div');
+    ghost.className = 'ghost';
+    ghost.appendChild(paneCopyBtn(() => wrap.__source || ''));
+    wrap.appendChild(ghost);
+    pre.replaceWith(body);
+  }
+
+  // HUD / status fences (```hud / ```status): key/value readouts, status chips and ASCII
+  // ratio bars rendered as clean instruments. Purely structural — copy keeps the exact
+  // source. Anything unparseable stays a plain dim line (graceful degradation).
+  const HUD_LANGS = ['hud', 'status'];
+  function buildHudPane(wrap, pre) {
+    wrap.classList.add('hud');
+    const text = String(pre.textContent || '').replace(/\r/g, '').trimEnd();
+    wrap.__source = text;
+    const body = document.createElement('div');
+    body.className = 'hud-body';
+    for (const raw of text.split('\n')) {
+      if (!raw.trim()) { const gap = document.createElement('div'); gap.className = 'hud-gap'; body.appendChild(gap); continue; }
+      const bar = raw.match(/^\s*[\[(]([|.\u2588\u2591\u2593 :]+)[\])]\s*$/);   // [|||..] / [| | . .] lifelines
+      if (bar) {
+        const track = document.createElement('div'); track.className = 'hud-bar';
+        const fill = document.createElement('div'); fill.className = 'hud-bar-fill';
+        const cells = bar[1];
+        const live = (cells.match(/\||\u2588|\u2593/g) || []).length;
+        const total = cells.length || 1;
+        fill.style.width = Math.round((live / total) * 100) + '%';
+        track.appendChild(fill);
+        const lbl = document.createElement('span'); lbl.className = 'hud-bar-src'; lbl.textContent = raw.trim();
+        const row = document.createElement('div'); row.className = 'hud-row';
+        row.appendChild(track); row.appendChild(lbl);
+        body.appendChild(row);
+        continue;
+      }
+      const chip = raw.match(/^\s*\[([A-Z0-9][A-Z0-9 _]{1,22})\]\s*$/);   // [LOCKED] status chips
+      if (chip) {
+        const row = document.createElement('div'); row.className = 'hud-row';
+        const c = document.createElement('span'); c.className = 'hud-chip'; c.textContent = chip[1].trim();
+        row.appendChild(c);
+        body.appendChild(row);
+        continue;
+      }
+      const kv = raw.match(/^\s*([^:\n]{1,32}?)\s*:\s*(.+)$/);
+      const row = document.createElement('div'); row.className = 'hud-row';
+      if (kv) {
+        const k = document.createElement('span'); k.className = 'hud-key'; k.textContent = kv[1];
+        row.appendChild(k);
+        row.appendChild(document.createTextNode('  '));
+        const v = document.createElement('span'); v.className = 'hud-val'; v.textContent = kv[2].trim();
+        row.appendChild(v);
+      } else {
+        row.className += ' hud-noise';
+        row.textContent = raw;
+      }
+      body.appendChild(row);
+    }
     const ghost = document.createElement('div');
     ghost.className = 'ghost';
     ghost.appendChild(paneCopyBtn(() => wrap.__source || ''));

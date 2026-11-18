@@ -16,7 +16,9 @@ Settings → Generation → **Immersion grammar**. When on, Constellation teache
 | `>> line` | Flush right, bold | The present/other world — contrasts against `<<`. The axis is *origin vs here*, not good vs bad |
 | `@ line` (short) | A cinematic establisher | Time/place shot changes — `@ Night. The hold, three days out.` |
 | `^ paragraph` | Opens with a drop cap | Scene and chapter openings only |
-| `%% block %%` | Centered interlude | Verse, ritual, refrain, an inscription set apart |
+| `%% block %%` | Centered interlude | Verse, ritual, refrain, an inscription set apart — with ornamental framing |
+| `!! line` | Full-width impact line | Abrupt cuts, hard beats — a line that lands like a door slamming |
+| a lone `...` line | The silent beat | Dead air that physically takes up time, with a subtle breath pulse |
 | ``` ```file ``` fences | A dossier | Documents the character can read (part of the code-pane family) |
 
 ### Inline (inside sentences)
@@ -31,10 +33,16 @@ Settings → Generation → **Immersion grammar**. When on, Constellation teache
 | `\|\|text\|\|` | Gated content | The reader chooses to reveal (hover/click). Reserve for the worst moments |
 | `[[message]]` | An on-screen text or written note | Something displayed in the scene |
 | `[[>message]]` | A message the POV character sends | Their side of a written exchange |
+| `++words++` | Projected speech | Booming, commanding — a shout, a name across a hall. The counterpart to `!!panic!!` |
+| `^^words^^` | Lifted delivery | Singing, lilting, drawn-out — a slight upward lift and airy tracking (strictly inline; never collides with the `^` drop-cap) |
+| `[[!text]]` | An urgent on-screen message | HUD alerts, alarm pings |
+| `[two-word cue]` | A kinetic micro-beat | Tiny physical beats between spoken lines — `"Wait—"` `[steps back]` `"—it's awake?"`. Excludes links, `[[messages]]` and citations; 1–5 words reads best |
 
 ### The restraint rules the model is taught
 
 Plain prose is the default. At most one or two devices per scene, only when the moment earns it. Never stack everything. Never explain the marks. White space is a tempo instrument — collapse to short fragments at peak stress, open into long connected sentences at calm.
+
+**The sheet-music mindset:** punctuation is staging. An em-dash closing a quote (`—"`) is a hard interruption and the next voice answers instantly; `...` trailing a phrase fades out; `~~slipped words~~` read as real-time self-correction. The reader's eye should hear timing, volume and body language before any narrator sentence explains them.
 
 ## Getting the most out of it
 
@@ -56,6 +64,13 @@ plainly instead.
 - **Inside diegetic panes**, the pane convention applies: `{{...}}` whispers, `[REDACTED]`-style brackets, `████` damage — and `||redacted||` written in a fence degrades gracefully into the pane's quiet dim redaction (no pipes, no bars). Macro tokens (`{{turn}}`, `{{roll:…}}`, `{{random:…}}`, `{{time}}`, `{{date}}`) are never styled — they keep their braces everywhere, because they are syntax, not prose. See the [diegetic panes guide](diegetic-panes.md) for the full boundary.
 - Marks never render inside tagged code fences (`ts`, `py`, …) — those display exactly what was written.
 - Display filters (Settings → Writing) shape the raw text *before* rendering, so a filter that rewrites text changes what the marks wrap.
+
+## Appearance options
+
+- **Dialogue voice + Vividness**: six voices (Chiaroscuro, Glass, Editorial, Acoustic, Dramatis, Noir) with a Subtle/Balanced/Vivid intensity dial.
+- **Speaker-accented quotes**: when a line opens with `Name: "…"`, the quote marks take that speaker's color (same hue system as comms transcripts).
+- **Grammar style**: Literary (default) / Stage / Kinetic / Monochrome — four tunings of these registers.
+- **Redaction style**: how `||gated text||` hides until hovered — Classified bar (default), Frosted blur, or animated Static.
 
 ## Pairing
 

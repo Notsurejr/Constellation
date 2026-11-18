@@ -80,6 +80,10 @@ Constellation.settings = (function () {
       if ($('lineHeightInput')) { $('lineHeightInput').value = lh; $('lineHeightVal').textContent = Number(lh).toFixed(2); }
       if ($('measureInput')) $('measureInput').value = cfg.proseMeasure || 'off';
       if ($('dialogueStyleInput')) $('dialogueStyleInput').value = cfg.dialogueStyle || 'off';
+      if ($('vividnessInput')) $('vividnessInput').value = cfg.dialogueVividness || 'balanced';
+      if ($('speakerAccentInput')) $('speakerAccentInput').checked = cfg.speakerAccent === true;
+      if ($('grammarStyleInput')) $('grammarStyleInput').value = cfg.grammarStyle || 'literary';
+      if ($('redactStyleInput')) $('redactStyleInput').value = cfg.redactStyle || 'bar';
       if ($('cadenceMarksInput')) $('cadenceMarksInput').checked = cfg.cadenceMarks === true;
       if ($('streamInkInput')) $('streamInkInput').checked = cfg.streamInk === true;
       loadDisplayFiltersPane();
@@ -100,6 +104,7 @@ Constellation.settings = (function () {
           ? ('Last backed up ' + relTime(t) + ' — ' + new Date(t).toLocaleDateString())
           : 'Never backed up. One click below bundles every chat, lorebook, chronicle and setting into one file.';
       }
+      renderAppearancePreview();
       if ($('fxSizeInput')) { const fx = cfg.fxSize != null ? cfg.fxSize : 1; $('fxSizeInput').value = Math.round(fx * 100); $('fxSizeVal').textContent = fx.toFixed(1) + '×'; }
       syncFxSize();   // event size only means something while cosmic events are on
     } catch (e) { console.warn('[constellation]', e && e.message || e); }
@@ -422,6 +427,45 @@ Constellation.settings = (function () {
     flash('genSaved');
   }
 
+  // ---- Appearance live preview: a fixed sample passage rendered through the real pipeline,
+  // so Dialogue voice / Vividness / Grammar style / Redaction style changes land instantly.
+  function renderAppearancePreview() {
+    const host = document.getElementById('appearancePreview');
+    if (!host || !window.Constellation || !window.Constellation.chat) return;
+    const sample = [
+      '@ The Hold \u00B7 Third Watch',
+      '',
+      'She said "Wait\u2014" [steps back] "\u2014it\'s awake?"',
+      '',
+      '**"It heard us."** The hull ticks \u2014 "nothing ~machine-made~ sleeps that quietly."',
+      '',
+      '++No.++ Something ::v e r y:: slow turns over.',
+      '',
+      '!! the seam answers first',
+      '',
+      'Do not re-align it ||on your watch|| \u2014 {{a whisper}} \u2014 \u2026',
+      '',
+      '...',
+      '',
+      '```hud',
+      'HULL: nominal',
+      'DRIFT: 0.02deg',
+      '[|||....]',
+      '[WATCHING]',
+      '```',
+    ].join('\n');
+    const inner = window.Constellation.chat.renderBodyHTML(sample);
+    host.replaceChildren();
+    const msg = document.createElement('div');
+    msg.className = 'msg assistant';
+    const body = document.createElement('div');
+    body.className = 'body md';
+    body.innerHTML = inner;
+    if (window.Constellation.chat.enhanceCodeBlocks) window.Constellation.chat.enhanceCodeBlocks(body);
+    msg.appendChild(body);
+    host.appendChild(msg);
+  }
+
   // GLM-5.3+ accepts only max/high/low — hide Minimal there and fall back to Low if it was set.
   function syncEffortOptions() {
     const msel = $('modelInput'), e = $('effortInput');
@@ -501,8 +545,8 @@ Constellation.settings = (function () {
     const accent = $('accentInput').value;
     const starDensity = Number($('starDensityInput').value) / 100;
     const twinkleSpeed = Number($('twinkleInput').value) / 100;
-    await window.api.saveConfig({ font_scale: fontScale, chat_width: chatWidth, accent, star_density: starDensity, twinkle_speed: twinkleSpeed , font_family: ($('fontFamilyInput') ? $('fontFamilyInput').value : 'Literata'), line_height: parseFloat(($('lineHeightInput') ? $('lineHeightInput').value : 1.65)), prose_measure: ($('measureInput') ? $('measureInput').value : 'off'), dialogue_style: ($('dialogueStyleInput') ? $('dialogueStyleInput').value : 'off'), ui_font: ($('uiFontInput') ? $('uiFontInput').value : 'Atkinson'), chat_layout: ($('chatLayoutInput') ? $('chatLayoutInput').value : 'folio'), glass_style: ($('glassStyleInput') ? $('glassStyleInput').value : 'gradient'), response_window: ($('responseWindowInput') ? $('responseWindowInput').value : 'none'), code_pane_style: ($('codePaneStyleInput') ? $('codePaneStyleInput').value : 'recessed') });
-    if (window.Constellation && window.Constellation.chat && window.Constellation.chat.applyDialogue) window.Constellation.chat.applyDialogue({ dialogueStyle: ($('dialogueStyleInput') ? $('dialogueStyleInput').value : 'off') });
+    await window.api.saveConfig({ font_scale: fontScale, chat_width: chatWidth, accent, star_density: starDensity, twinkle_speed: twinkleSpeed , font_family: ($('fontFamilyInput') ? $('fontFamilyInput').value : 'Literata'), line_height: parseFloat(($('lineHeightInput') ? $('lineHeightInput').value : 1.65)), prose_measure: ($('measureInput') ? $('measureInput').value : 'off'), dialogue_style: ($('dialogueStyleInput') ? $('dialogueStyleInput').value : 'off'), dialogue_vividness: ($('vividnessInput') ? $('vividnessInput').value : 'balanced'), speaker_accent_quotes: ($('speakerAccentInput') ? $('speakerAccentInput').checked : false), grammar_style: ($('grammarStyleInput') ? $('grammarStyleInput').value : 'literary'), redact_style: ($('redactStyleInput') ? $('redactStyleInput').value : 'bar'), ui_font: ($('uiFontInput') ? $('uiFontInput').value : 'Atkinson'), chat_layout: ($('chatLayoutInput') ? $('chatLayoutInput').value : 'folio'), glass_style: ($('glassStyleInput') ? $('glassStyleInput').value : 'gradient'), response_window: ($('responseWindowInput') ? $('responseWindowInput').value : 'none'), code_pane_style: ($('codePaneStyleInput') ? $('codePaneStyleInput').value : 'recessed') });
+    if (window.Constellation && window.Constellation.chat && window.Constellation.chat.applyDialogue) window.Constellation.chat.applyDialogue({ dialogueStyle: ($('dialogueStyleInput') ? $('dialogueStyleInput').value : 'off'), dialogueVividness: ($('vividnessInput') ? $('vividnessInput').value : 'balanced'), speakerAccent: $('speakerAccentInput') ? $('speakerAccentInput').checked : false, grammarStyle: ($('grammarStyleInput') ? $('grammarStyleInput').value : 'literary'), redactStyle: ($('redactStyleInput') ? $('redactStyleInput').value : 'bar') });
     applyAppearanceVars(fontScale, chatWidth);
     applyAccent(accent);
     applyStarfield(starDensity, twinkleSpeed);
@@ -748,7 +792,21 @@ Constellation.settings = (function () {
       $('streamVal').textContent = cpsLabel(sliderToCps($('streamInput').value));
     });
     if ($('fontFamilyInput')) $('fontFamilyInput').addEventListener('change', () => { applyTypography($('fontFamilyInput').value, parseFloat($('lineHeightInput').value), $('measureInput').value); });
-    if ($('dialogueStyleInput')) $('dialogueStyleInput').addEventListener('change', () => { if (window.Constellation && window.Constellation.chat && window.Constellation.chat.applyDialogue) window.Constellation.chat.applyDialogue({ dialogueStyle: $('dialogueStyleInput').value }); });   // live preview — Save persists
+    if ($('dialogueStyleInput')) $('dialogueStyleInput').addEventListener('change', () => { if (window.Constellation && window.Constellation.chat && window.Constellation.chat.applyDialogue) window.Constellation.chat.applyDialogue({ dialogueStyle: $('dialogueStyleInput').value }); renderAppearancePreview(); });   // live preview — Save persists
+    for (const id of ['vividnessInput', 'speakerAccentInput', 'grammarStyleInput', 'redactStyleInput']) {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('change', () => {
+        if (window.Constellation && window.Constellation.chat && window.Constellation.chat.applyDialogue) {
+          window.Constellation.chat.applyDialogue({
+            dialogueVividness: ($('vividnessInput') ? $('vividnessInput').value : 'balanced'),
+            speakerAccent: $('speakerAccentInput') ? $('speakerAccentInput').checked : false,
+            grammarStyle: ($('grammarStyleInput') ? $('grammarStyleInput').value : 'literary'),
+            redactStyle: ($('redactStyleInput') ? $('redactStyleInput').value : 'bar'),
+          });
+        }
+        renderAppearancePreview();
+      });
+    }
     if ($('uiFontInput')) $('uiFontInput').addEventListener('change', applyUiChrome);   // live preview — Save persists
     if ($('chatLayoutInput')) $('chatLayoutInput').addEventListener('change', applyUiChrome);
     if ($('glassStyleInput')) $('glassStyleInput').addEventListener('change', applyUiChrome);
