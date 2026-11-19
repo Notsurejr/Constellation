@@ -689,7 +689,7 @@ Constellation.chat = (function () {
 
   // ---- File attachments: text (.md/.txt) read as context, images read as base64 for vision ----
   function fileSizeLabel(f) {
-    if (f.kind === 'image') {
+    if (f.kind === 'image' || f.kind === 'audio') {
       const kb = (f.size || 0) / 1024;
       return kb >= 1024 ? (kb / 1024).toFixed(1) + 'MB' : Math.round(kb) + 'KB';
     }
@@ -701,15 +701,17 @@ Constellation.chat = (function () {
   function fileChipEl(f, removable) {
     const chip = document.createElement('div');
     const isImg = f.kind === 'image' && f.dataUrl;
+    const isAud = f.kind === 'audio' && f.dataUrl;
     const big = !isImg && f.text != null && f.text.length > 50000;
-    chip.className = 'attach-chip' + (big ? ' large' : '') + (isImg ? ' image' : '') + (f.excluded ? ' excluded' : '');
+    chip.className = 'attach-chip' + (big ? ' large' : '') + (isImg ? ' image' : '') + (isAud ? ' audio' : '') + (f.excluded ? ' excluded' : '');
     if (f.excluded) chip.title = 'Hidden from context — not sent to the model (eye in ✎ Edit)';
     if (isImg) {
       const thumb = document.createElement('img');
       thumb.className = 'attach-thumb'; thumb.src = f.dataUrl; thumb.alt = f.name || ''; thumb.title = f.name || '';
       chip.appendChild(thumb);
     } else {
-      const ico = document.createElement('span'); ico.className = 'attach-ico'; ico.textContent = '📄';
+      const ico = document.createElement('span'); ico.className = 'attach-ico'; ico.textContent = isAud ? '♪' : '📄';
+      if (isAud) ico.title = 'Audio — sent to audio-understanding models';
       chip.appendChild(ico);
     }
     const nm = document.createElement('span'); nm.className = 'attach-name'; nm.textContent = f.name;
@@ -766,6 +768,18 @@ Constellation.chat = (function () {
         reader.onload = () => { pendingFiles.push({ name: file.name, size: file.size, kind: 'image', dataUrl: String(reader.result || '') }); done(); };
         reader.onerror = done;
         reader.readAsDataURL(file);   // base64 data URL — sent to a vision model as image_url
+      } else if (file.type.startsWith('audio/')) {
+        // Audio for audio-understanding models (Gemini et al) — base64 like images, sent as
+        // an input_audio content part. 15MB raw cap: base64 inflates ~33% and providers
+        // reject inline requests past ~20MB.
+        if (file.size > 15 * 1024 * 1024) {
+          if (window.Constellation && window.Constellation.toast) window.Constellation.toast('Audio skipped — "' + file.name + '" is over 15MB. Trim or convert to a lower bitrate.', 9000);
+          done(); continue;
+        }
+        const reader = new FileReader();
+        reader.onload = () => { pendingFiles.push({ name: file.name, size: file.size, kind: 'audio', dataUrl: String(reader.result || '') }); done(); };
+        reader.onerror = done;
+        reader.readAsDataURL(file);
       } else {
         const reader = new FileReader();
         reader.onload = () => { pendingFiles.push({ name: file.name, size: file.size, kind: 'text', text: String(reader.result || '') }); done(); };

@@ -161,15 +161,25 @@ Constellation.compose = (function () {
         const files = suppressed ? [] : m.files.filter((f) => !f.excluded);
         if (!files.length) return { role: 'user', content: m.content };   // nothing sendable left
         const imgs = files.filter((f) => f.kind === 'image' && f.dataUrl);
-        if (imgs.length) {
-          // Multimodal content array: the typed text (+ any text files) then each image, for a vision model.
+        const auds = files.filter((f) => f.kind === 'audio' && f.dataUrl);
+        if (imgs.length || auds.length) {
+          // Multimodal content array: the typed text (+ any text files) then each image
+          // (image_url for vision) and each audio clip (input_audio for audio-understanding
+          // models — Gemini, OpenAI audio models, and OpenRouter audio routes).
           const textParts = [m.content || ''].concat(
-            files.filter((f) => f.kind !== 'image').map((f) => '===== ' + f.name + ' =====\n' + (f.text || ''))
+            files.filter((f) => f.kind !== 'image' && f.kind !== 'audio').map((f) => '===== ' + f.name + ' =====\n' + (f.text || ''))
           );
           const textJoin = textParts.filter(Boolean).join('\n\n');
           const arr = [];
           if (textJoin) arr.push({ type: 'text', text: textJoin });
           for (const f of imgs) arr.push({ type: 'image_url', image_url: { url: f.dataUrl } });
+          const FMT = { 'audio/mpeg': 'mp3', 'audio/mp3': 'mp3', 'audio/wav': 'wav', 'audio/x-wav': 'wav', 'audio/wave': 'wav', 'audio/ogg': 'ogg', 'audio/vorbis': 'ogg', 'audio/flac': 'flac', 'audio/x-flac': 'flac', 'audio/aac': 'aac', 'audio/mp4': 'aac', 'audio/x-m4a': 'aac', 'audio/m4a': 'aac', 'audio/webm': 'webm' };
+          for (const f of auds) {
+            const url = String(f.dataUrl || '');
+            const mime = (url.slice(5, url.indexOf(';')) || 'audio/mpeg').toLowerCase();
+            const data = url.slice(url.indexOf(',') + 1);   // input_audio takes raw base64, no data: prefix
+            arr.push({ type: 'input_audio', input_audio: { data: data, format: FMT[mime] || 'mp3' } });
+          }
           return { role: 'user', content: arr };
         }
         return { role: 'user', content: composeUserContent(m) };   // text files only → single string

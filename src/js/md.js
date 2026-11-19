@@ -37,13 +37,64 @@ Constellation.md = (function () {
   // Tighten ONLY the spaces between the emphasis run and the quote marks: quote-anchored,
   // line-scoped, so genuine asterisk prose is never touched.
   const SPACED_FLANK = /(\*{1,3})[ \t]+(["\u201C\u201D][^*_\n]*["\u201C\u201D])[ \t]+(\*{1,3})/g;
+  // `* Mmm… *` — spaced emphasis flanks WITHOUT quote marks. CommonMark turns the leading
+  // `* ` into a bullet list and leaves the trailing asterisk raw (a double break). Tighten
+  // only when the flanked content carries a spoken-punctuation signal (ellipsis, em-dash,
+  // quote) — genuine bullets ("* buy milk") and math ("2 * 3 * 4") never match.
+  const SPACED_EM = /^(\*{1,3})[ \t]+([^*_\n]+)[ \t]*(\*{1,3})[ \t]*$/;
+  const SPACED_EM_CLOSE = /^(\*{1,3})([^*_\n]+?)[ \t]+(\*{1,3})[ \t]*$/;
+  const SPACED_EM_SIGNAL = /["\u201C\u201D\u2026\u2014]|\.{3}/;
+  function tightenSpacedEmphasis(line) {
+    let m = line.match(SPACED_EM);
+    if (m && SPACED_EM_SIGNAL.test(m[2])) return m[1] + m[2].trim() + m[3];
+    m = line.match(SPACED_EM_CLOSE);   // space only before the closing asterisk — no bullet
+                                       // ambiguity (the line doesn't start `* `), still gated
+    if (m && SPACED_EM_SIGNAL.test(m[2])) return m[1] + m[2] + m[3];
+    return line;
+  }
+  // String-level inline rendering for line-grammar lines. The line branches emit raw HTML
+  // wrappers, and marked treats raw HTML as atomic — emphasis inside slugs, earth/ship
+  // lines, drop-caps and interludes would show literal asterisks forever. This converts
+  // the ESCAPED content to spans/elements in string space (same register classes as
+  // postGrammar; the sanitizer still runs on the fragment afterwards).
+  const LINE_INLINE_RE = /\*\*([^*\n]+)\*\*|\*([^*\n]+)\*|\[\[!([^\]\n]+)\]\]|\[\[>([^\]\n]+)\]\]|\[\[([^\]\n]+)\]\|?\]?|!!([^!\n]+)!!|::([^:\n]+)::|\{\{([^}\n]+)\}\}|\|\|([^|\n]+)\|\||==([^=\n]+)==|~([^~\n]+)~|\uE000([^\uE001\n]+)\uE001|\+\+([^+\n]+)\+\+|\^\^([^\^\n]+)\^\+/g;
+  function lineInlineHTML(escaped) {
+    let out = '';
+    let last = 0, m;
+    LINE_INLINE_RE.lastIndex = 0;
+    while ((m = LINE_INLINE_RE.exec(escaped)) !== null) {
+      if (m.index > last) out += escaped.slice(last, m.index);
+      const wrap = (cls, inner) => '<span class="' + cls + '">' + inner + '</span>';
+      if (m[1] != null) out += '<strong>' + m[1] + '</strong>';
+      else if (m[2] != null) out += '<em>' + m[2] + '</em>';
+      else if (m[3] != null) out += wrap('g-msg urgent', m[3]);
+      else if (m[4] != null) out += wrap('g-msg self', m[4]);
+      else if (m[5] != null) out += wrap('g-msg', m[5]);
+      else if (m[6] != null) out += wrap('g-smash', m[6]);
+      else if (m[7] != null) out += wrap('g-spaced', m[7]);
+      else if (m[8] != null) {
+        if (/^\{\{\s*(?:turn|roll|random|time|date)\b/i.test(m[0])) out += m[0];   // macro tokens keep braces
+        else out += wrap('g-whisper', m[8]);
+      }
+      else if (m[9] != null) out += wrap('g-redact', m[9]);
+      else if (m[10] != null) out += wrap('g-mark', m[10]);
+      else if (m[11] != null) out += wrap('g-alien', m[11]);
+      else if (m[12] != null) out += wrap('g-alien', m[12]);   // PUA sentinel
+      else if (m[13] != null) out += wrap('g-boom', m[13]);
+      else if (m[14] != null) out += wrap('g-lift', m[14]);
+      last = m.index + m[0].length;
+    }
+    if (last === 0) return escaped;
+    if (last < escaped.length) out += escaped.slice(last);
+    return out;
+  }
   function preGrammar(src) {
     src = src.replace(TILDE_IN, function (all, pre, body) { return pre + '\uE000' + body + '\uE001'; });
     const lines = src.split(/\r?\n/);
     const out = [];
     let i = 0;
     while (i < lines.length) {
-      const line = lines[i];
+      const line = tightenSpacedEmphasis(lines[i]);
       const t = line.trim();
       if (t === '...' || t === '\u2026' || t === '. . .') {
         // The silent beat — a standalone ellipsis is deliberate dead air, not a sentence.
@@ -57,11 +108,11 @@ Constellation.md = (function () {
         i++; continue;
       }
       if (t.startsWith('<< ') || t === '<<') {
-        out.push('<p class="g-earth">' + escapeHtml(t.slice(2).trim()) + '</p>'); out.push('');
+        out.push('<p class="g-earth">' + lineInlineHTML(escapeHtml(t.slice(2).trim())) + '</p>'); out.push('');
         i++; continue;
       }
       if (t.startsWith('>> ') || t === '>>') {
-        out.push('<p class="g-ship">' + escapeHtml(t.slice(2).trim()) + '</p>'); out.push('');
+        out.push('<p class="g-ship">' + lineInlineHTML(escapeHtml(t.slice(2).trim())) + '</p>'); out.push('');
         i++; continue;
       }
       if (t.startsWith('@ ') && t.length <= 90) {
@@ -70,9 +121,9 @@ Constellation.md = (function () {
         const body = t.slice(2).trim();
         const at = body.indexOf(' \u00B7 ');
         if (at > 0 && at + 3 < body.length) {
-          out.push('<p class="g-slug"><span class="g-slug-a">' + escapeHtml(body.slice(0, at)) + '</span><span class="g-slug-b">' + escapeHtml(body.slice(at + 3)) + '</span></p>');
+          out.push('<p class="g-slug"><span class="g-slug-a">' + lineInlineHTML(escapeHtml(body.slice(0, at))) + '</span><span class="g-slug-b">' + lineInlineHTML(escapeHtml(body.slice(at + 3))) + '</span></p>');
         } else {
-          out.push('<p class="g-slug">' + escapeHtml(body) + '</p>');
+          out.push('<p class="g-slug">' + lineInlineHTML(escapeHtml(body)) + '</p>');
         }
         out.push('');
         i++; continue;
@@ -87,15 +138,15 @@ Constellation.md = (function () {
       }
       if (t === '%%' + '%%') { out.push(''); i++; continue; }   // unreachable guard
       if (t.startsWith('%%') && t.endsWith('%%') && t.length > 4) {   // single-line interlude
-        out.push('<div class="g-center">' + escapeHtml(t.slice(2, -2).trim()) + '</div>'); out.push('');
+        out.push('<div class="g-center">' + lineInlineHTML(escapeHtml(t.slice(2, -2).trim())) + '</div>'); out.push('');
         i++; continue;
       }
       if (t.startsWith('^') && t.length > 1 && t[1] !== '^') {
         // drop-cap paragraph: through the next blank line. (`^^lifted^^` inline marks are
         // explicitly excluded — they start with a doubled caret, never a drop-cap.)
-        const buf = [escapeHtml(t.slice(1))];
+        const buf = [lineInlineHTML(escapeHtml(t.slice(1)))];
         i++;
-        while (i < lines.length && lines[i].trim() !== '') { buf.push(escapeHtml(lines[i])); i++; }
+        while (i < lines.length && lines[i].trim() !== '') { buf.push(lineInlineHTML(escapeHtml(lines[i]))); i++; }
         out.push('<p class="g-dropcap">' + buf.join('<br>') + '</p>'); out.push('');
         continue;
       }
