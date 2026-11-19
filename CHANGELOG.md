@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.12.4 — In Full Voice
+
+### New
+
+- **Audio attachments.** The file picker accepts .mp3, .wav, .ogg, .m4a, .aac, .flac and .webm (up to 15MB). Audio rides to the model as a standard `input_audio` part with the correct format declared, so audio-understanding models — the Gemini family in particular — receive the actual acoustic features: speaker style, diarization, emotion, heavily character-acted delivery. Chips carry a ♪ mark and size label; the hover eye and send-attachments rules work exactly as for images. Text-only models will reject audio with an error toast — switch to an audio-capable model (e.g. Gemini) and retry.
+
+### Fixed
+
+- **Spaced emphasis stopped double-breaking.** `* Mmm… *` — emphasis with spaces inside the marks — turned into a bullet list with a raw trailing asterisk, and `*Mmm… *` showed its leading asterisk raw. The renderer now tightens those spaces when the content carries a spoken-punctuation signal (ellipsis, em-dash, quotes); genuine bullets ("* buy milk") and math ("2 * 3 * 4") never match.
+- **Emphasis inside line-level grammar renders.** `<<`, `@`, `^` and `%%` lines emit raw HTML wrappers, which Markdown treats as atomic — `*italics*` inside a slug line or interlude showed literal asterisks forever. Those lines now render bold/em and the grammar registers properly (macro tokens still keep their braces).
+
+### Changed
+
+- **Dialogue voice polish.** Chiaroscuro drops its background wash (the per-fragment boxes and seams — pure typography now, with the halo moved to the quote marks); Glass drops horizontal padding (the seam source); Noir drops per-fragment border bars; Acoustic's soundwave refines to a finer, dimmer hairline.
+- **Cadence marks go neutral.** Dashes and ellipses render in the text's own ink at reduced opacity instead of accent-colored — a coherence rule for the whole layer: color means voice or grammar emphasis, neutral ink means timing, red means hidden.
+
 ## v0.12.3 — Stagecraft
 
 The rendering systems audited, fixed, and rebuilt for performance on the page: dialogue voices that stage volume and timing, a grammar that grew four new registers, and panes for instruments, verses and dreams.
