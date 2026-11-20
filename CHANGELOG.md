@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.12.6 — Dry Dock
+
+A hardening round: every bug surfaced by the new regression/chaos test suite is fixed, and the suite itself ships in the repo (three layers, 125 automated checks).
+
+### Fixed
+
+- **Save-in-place keeps its raw text.** Editing a reply and choosing "Save in place" updated the visible message but left the stored source stale — Copy, re-editing the same message, and the 👁 Raw view showed the pre-edit text until reload. The raw source now updates with the edit.
+- **A mid-stream chat switch can no longer contaminate the new chat.** If a reply was still streaming and you switched chats, the late reply could land in — and persist into — the wrong conversation. Switching now aborts the in-flight stream cleanly (composer unlocked immediately, no spurious error toast), and a stream that was started in one chat can never write into another.
+- **Corrupt session files can't become phantom chats.** A parseable-but-wrong-shape session JSON file (an array or a bare value) used to appear as an empty chat with a broken identity; such files are now skipped, and loading one yields a clean empty session.
+- **Hostile character-card PNGs are capped.** A crafted card could carry a compressed chunk that inflated to gigabytes inside the app at import. Decompression is now capped at 8MB — oversized chunks fail the import cleanly.
+
+### Added
+
+- **A regression + chaos test suite** (`npm run test:unit` / `test:e2e` / `test:chaos` / `test:all` — 125 checks): pure-Node units for the request/response engines, a full end-to-end boot-and-drive suite over CDP, and a chaos layer fuzzing hostile cards, corrupt files, injection vectors and broken network streams. Internal quality infrastructure — no behavior changes beyond the fixes above.
+
 ## v0.12.5 — Slipstream
 
 A performance round, measured before and after with a benchmark harness: large chats load about twice as fast, replies land without the finishing stutter, saves never block the app, and fenced panes behave like props instead of typewriters.
