@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.12.5 — Slipstream
+
+A performance round, measured before and after with a benchmark harness: large chats load about twice as fast, replies land without the finishing stutter, saves never block the app, and fenced panes behave like props instead of typewriters.
+
+### New
+
+- **Panes print at arrival speed.** Fenced panes no longer type out character-by-character at the reveal rate: while a fence is still arriving, its content prints as fast as the model sends it; a fence that has already closed never drags the rest of the reply out with it — prose resumes normal pacing right after the pane.
+- **Word wrap is the default for code panes.** Long lines wrap instead of overflowing sideways; the ghost toggle on the pane unwraps to raw lines when you want them.
+
+### Fixed
+
+- **Cast chats kept their re-injection settings.** A bug from the module split made every autosave wipe the per-chat fence tag and the card re-injection depth from disk — cast chats silently lost their card recall after the first send. Fixed, with a regression test against the save file itself.
+- **The v0.12.4 voice polish actually ships here.** The Chiaroscuro / Glass / Acoustic polish described in the v0.12.4 notes missed the published build (that release commit carried only the changelog and version) — this is the first exe with it.
+
+### Changed
+
+- **Large chats load about twice as fast.** A 100-turn chat's render dropped from ~350–430ms to ~170ms — the color-word scanner had been compiling a ~200-alternative regex for every text node it touched; it compiles once now.
+- **Replies land without the stutter.** The tick that finishes a reply no longer drops frames — its worst case went from ~49ms to ~36ms with streaming ink on, ~14ms without.
+- **Saves never block the app.** Chat autosave moved off the main process and writes atomically (temp file + rename) through a per-chat queue — a crash mid-save can never tear a session file, and saved chats stay human-readable.
+- **The sidebar stops rebuilding on every send.** Routine autosave updates the active chat's row in place; full refreshes still run for renames, folders, pins and deletes. Character cards load from a file-stat cache.
+- **Color-word scanning throttles during scroll and streaming** — at most one scan per ~100ms, with a trailing pass that settles the glow where you stopped.
+- **Wide panes stay inside the response window.** The wide-pane bleed now stops at the frame's inner edge inside response-window treatments; outside them it still reaches toward the column edges.
+
 ## v0.12.4 — In Full Voice
 
 ### New
