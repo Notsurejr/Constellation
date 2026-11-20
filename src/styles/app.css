@@ -2323,11 +2323,9 @@ body.gv-vivid   { --dv-halo: 0.20; --dv-pill: 0.20; --dv-glow: 0.5; }
       glow fogs letter edges — the halo is a background wash, not blur.) */
 body.dlg-chiaroscuro .msg.assistant .body p,
 body.dlg-chiaroscuro .msg.assistant .body li { color: #b8c0d1; }
-body.dlg-chiaroscuro .msg.assistant .body .dlg {
-  color: #f8f4e9; font-weight: 500;
-  background: linear-gradient(180deg, rgba(211, 198, 159, var(--dv-halo)) 0%, rgba(211, 198, 159, calc(var(--dv-halo) * 0.35)) 100%);
-  border-radius: 5px; padding: 0.05em 0.2em;
-  box-decoration-break: clone; -webkit-box-decoration-break: clone;
+body.dlg-chiaroscuro .msg.assistant .body .dlg { color: #f8f4e9; font-weight: 500; }
+body.dlg-chiaroscuro .msg.assistant .body .dlg .q {
+  text-shadow: 0 0 calc(6px + var(--dv-glow) * 10px) rgba(211, 198, 159, calc(0.35 + var(--dv-halo)));
 }
 body.dlg-chiaroscuro .msg.assistant .body .dlg .q { color: #d3c69f; font-weight: 600; }
 
@@ -2336,7 +2334,7 @@ body.dlg-chiaroscuro .msg.assistant .body .dlg .q { color: #d3c69f; font-weight:
 body.dlg-glass .msg.assistant .body .dlg {
   color: #f0f3fa; font-weight: 470;
   background: linear-gradient(180deg, rgba(159, 184, 255, var(--dv-pill)) 0%, rgba(159, 184, 255, calc(var(--dv-pill) * 0.45)) 100%);
-  border-radius: 6px; padding: 0.07em 0.3em;
+  border-radius: 4px; padding: 0.1em 0;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, calc(0.10 + var(--dv-glow) * 0.4));
   box-decoration-break: clone; -webkit-box-decoration-break: clone;
 }
@@ -2357,9 +2355,9 @@ body.dlg-editorial .msg.assistant .body li.has-lead-dlg {
       (an inline SVG repeat-x at the text baseline — zero text blur, zero text-shadow). */
 body.dlg-acoustic .msg.assistant .body .dlg {
   color: #f6e8ca; font-weight: 520;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='7'%3E%3Cpath d='M1 3.5h2 M6 1v5 M11 2.5v2 M15 0.5v6 M19 2.5v2 M23 1.5v4' stroke='%239fb8ff' stroke-opacity='0.55' stroke-width='1' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-repeat: repeat-x; background-position: left calc(100% - 1px);
-  padding-bottom: 4px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='5'%3E%3Cpath d='M1 2.5h2 M6 1v3 M11 1.5v2 M15 0.5v4 M19 1.5v2 M23 2h2' stroke='%239fb8ff' stroke-opacity='0.38' stroke-width='1' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: repeat-x; background-position: left calc(100% - 2px);
+  padding-bottom: 3px;
   box-decoration-break: clone; -webkit-box-decoration-break: clone;
 }
 body.dlg-acoustic .msg.assistant .body .dlg .q { color: var(--accent); font-weight: 600; }
@@ -2383,8 +2381,6 @@ body.dlg-noir .msg.assistant .body p,
 body.dlg-noir .msg.assistant .body li { color: #9aa2b2; }
 body.dlg-noir .msg.assistant .body .dlg {
   color: #f2f4f8; font-weight: 640; letter-spacing: 0.004em;
-  padding: 0.02em 0.14em;
-  border-left: 2px solid rgba(232, 200, 119, calc(0.22 + var(--dv-glow) * 0.3));
 }
 body.dlg-noir .msg.assistant .body .dlg .q { color: #e8c877; font-weight: 700; }
 
@@ -2408,9 +2404,9 @@ body[class*='dlg-'] .msg.assistant .body .dlg.g-boom { font-weight: 700; letter-
 body[class*='dlg-'] .msg.assistant .body .dlg.g-lift { font-style: italic; letter-spacing: 0.06em; }
 
 /* Cadence 2.0 — timing with direction. */
-body.cadence-on .msg.assistant .body .cadence { color: var(--accent); opacity: 0.75; padding: 0 0.18em; font-weight: 300; }
-body.cadence-on .msg.assistant .body .cadence.cut  { opacity: 0.95; font-weight: 500; padding: 0 0.08em; letter-spacing: -0.01em; }
-body.cadence-on .msg.assistant .body .cadence.fade { opacity: 0.45; letter-spacing: 0.12em; }
+body.cadence-on .msg.assistant .body .cadence { color: inherit; opacity: 0.55; padding: 0 0.18em; font-weight: 300; }
+body.cadence-on .msg.assistant .body .cadence.cut  { opacity: 1; font-weight: 600; padding: 0 0.06em; letter-spacing: -0.01em; }
+body.cadence-on .msg .body .cadence.fade { opacity: 0.38; letter-spacing: 0.12em; }
 body.cadence-on .msg.assistant .body .cadence.pivot { opacity: 0.75; }
 
 /* Collision choreography — a quote cut off (—") followed by another quoted line reads
