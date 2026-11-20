@@ -313,6 +313,33 @@
     return out;
   }
 
+  // ---------- Display filters (display-only regex rules) ----------
+  // config/display-filters.txt, one rule per line: /pattern/flags => replacement
+  // (JS regex flavor; replacement supports $1 backrefs; bare /pattern/flags = delete).
+  // '#' lines are comments. A commented-OUT rule ('# /…') is a disabled rule — the Settings
+  // panel toggles rules by rewriting that marker. Invalid regexes come back as {valid:false}
+  // rows so the panel can show them greyed. DISPLAY-ONLY by contract: the caller applies the
+  // rules to rendered bodies only — stored text, wire context and exports keep the raw source.
+  function parseDisplayFilters(text) {
+    const rules = [];
+    for (const line of String(text || '').split('\n')) {
+      const l = line.trim();
+      if (!l) continue;
+      const disabled = l.startsWith('#');
+      const body = disabled ? l.replace(/^#\s?/, '') : l;
+      if (!body.startsWith('/')) {
+        if (!disabled) console.warn('[constellation] display filter: unparsed line: ' + l.slice(0, 80));
+        continue;   // plain comments and stray lines are not rules
+      }
+      const m = body.match(/^\/(.+)\/([gimsu]*)(?:\s*=>\s*([\s\S]*))?$/);
+      const base = { src: line, enabled: !disabled, label: body };
+      if (!m) { rules.push(Object.assign(base, { valid: false })); continue; }
+      try { rules.push(Object.assign(base, { valid: true, re: new RegExp(m[1], m[2]), repl: m[3] != null ? m[3] : '' })); }
+      catch (e) { console.warn('[constellation] display filter: bad regex: ' + l.slice(0, 80)); rules.push(Object.assign(base, { valid: false })); }
+    }
+    return rules;
+  }
+
   // ---------- Phrase bans ----------
   // Rules are `find = replace` lines (or `find =` to delete); matched at word boundaries, case-insensitive.
   function parsePhraseBans(text) {
@@ -340,5 +367,6 @@
     filesBlock, simpleHash,
     lore: { LORE_STOP, loreTokenize, loreLabel, loreSource, chunkText, bm25Scores, cosineSim, buildLoreContext, extractPickups, classifyKeys },
     bans: { parse: parsePhraseBans, apply: applyPhraseBans },
+    displayFilters: { parse: parseDisplayFilters },
   };
 });

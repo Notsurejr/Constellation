@@ -801,31 +801,12 @@ Constellation.chat = (function () {
   // is the exact, unedited concatenation of the model's own reasoning_content deltas.
 
   // ---- Display filters: display-only regex rules from config/display-filters.txt.
-  // Format: one rule per line — /pattern/flags => replacement  (bare pattern = delete).
-  // '#' lines are comments; a commented-OUT rule ('# /…') is a disabled rule — the Settings
-  // panel toggles rules by rewriting that marker, so no Notepad, no restart. DISPLAY-ONLY:
-  // applied to rendered message bodies; the stored text, the model's context, and exports
-  // keep the raw source.
+  // The PARSER lives in Constellation.engines (shared pure-parsers module, unit-tested);
+  // chat keeps the loading + application + Settings wiring. DISPLAY-ONLY: applied to
+  // rendered message bodies; the stored text, the model's context, and exports keep the
+  // raw source.
   let displayFilters = null;   // null = not yet loaded; [] = loaded, no rules
-  function parseDisplayFilters(text) {
-    const rules = [];
-    for (const line of String(text || '').split('\n')) {
-      const l = line.trim();
-      if (!l) continue;
-      const disabled = l.startsWith('#');
-      const body = disabled ? l.replace(/^#\s?/, '') : l;
-      if (!body.startsWith('/')) {
-        if (!disabled) console.warn('[constellation] display filter: unparsed line: ' + l.slice(0, 80));
-        continue;   // plain comments and stray lines are not rules
-      }
-      const m = body.match(/^\/(.+)\/([gimsu]*)(?:\s*=>\s*([\s\S]*))?$/);
-      const base = { src: line, enabled: !disabled, label: body };
-      if (!m) { rules.push(Object.assign(base, { valid: false })); continue; }
-      try { rules.push(Object.assign(base, { valid: true, re: new RegExp(m[1], m[2]), repl: m[3] != null ? m[3] : '' })); }
-      catch (e) { console.warn('[constellation] display filter: bad regex: ' + l.slice(0, 80)); rules.push(Object.assign(base, { valid: false })); }
-    }
-    return rules;
-  }
+  const parseDisplayFilters = (text) => Constellation.engines.displayFilters.parse(text);
   async function loadDisplayFilters() {
     try { displayFilters = parseDisplayFilters(await window.api.loadDisplayFilters()); }
     catch (e) { displayFilters = []; console.warn('[constellation]', e && e.message || e); }

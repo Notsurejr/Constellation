@@ -23,3 +23,6 @@ jobs:
             fi
           done
           exit $fail
+      - name: Unit tests (pure Node — no deps to install)
+        shell: bash
+        run: npm run test:unit

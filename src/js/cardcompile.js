@@ -4,7 +4,9 @@
 // The card's own system_prompt / post_history_instructions are opt-in via the "Card
 // directives" base (system_prompt as base, PHI as the final Reminder block). Still dropped:
 // creator_notes (author storefront) and extensions.
-var Constellation = window.Constellation || (window.Constellation = {});
+// (Environment-safe header: the browser path is unchanged; Node resolves the global so the
+// unit suite can require this module.)
+var Constellation = (typeof window !== 'undefined' ? window : globalThis).Constellation || (typeof window !== 'undefined' ? (window.Constellation = {}) : (globalThis.Constellation = {}));
 
 Constellation.cardcompile = (function () {
   function substitute(text, charName, userName) {
@@ -90,3 +92,6 @@ Constellation.cardcompile = (function () {
 
   return { substitute: substitute, characterBlock: characterBlock, personaBlock: personaBlock, assemble: assemble, bookToLore: bookToLore, estimateTokens: estimateTokens };
 })();
+
+// Node-side export for the unit suite (additive — the browser path never touches this).
+if (typeof module !== 'undefined' && module.exports) module.exports = Constellation.cardcompile;

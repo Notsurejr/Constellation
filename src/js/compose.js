@@ -7,7 +7,9 @@
 // request. This module was extracted from chat.js (v0.11.5-era split) so the request
 // pipeline can be read, tested, and modified without loading the whole chat — and so
 // closure-local values can never be referenced across a boundary by accident.
-var Constellation = window.Constellation || (window.Constellation = {});
+// (Environment-safe header: the browser path is unchanged; Node resolves the global so the
+// unit suite can require this module.)
+var Constellation = (typeof window !== 'undefined' ? window : globalThis).Constellation || (typeof window !== 'undefined' ? (window.Constellation = {}) : (globalThis.Constellation = {}));
 
 Constellation.compose = (function () {
   // Does this text carry any macro we substitute? (Exported: the send path gates
@@ -379,3 +381,6 @@ Constellation.compose = (function () {
 
   return { MACRO_HINT: MACRO_HINT, lastUserIndex: lastUserIndex, estTokens: estTokens, buildSystem: buildSystem, applySendMacros: applySendMacros, composeUserContent: composeUserContent, toApiMessages: toApiMessages, trimForApi: trimForApi };
 })();
+
+// Node-side export for the unit suite (additive — the browser path never touches this).
+if (typeof module !== 'undefined' && module.exports) module.exports = Constellation.compose;
