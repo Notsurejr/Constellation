@@ -314,6 +314,55 @@ Constellation.sessions = (function () {
     if (searchQuery && Constellation.chat.scrollToMatch) Constellation.chat.scrollToMatch(searchQuery);
   }
 
+  // Routine autosave: update THIS chat's row in place (usage readout + recent-sort
+  // position) instead of rebuilding the whole drawer on every send. Full refresh still
+  // runs for anything structural — rename, create, delete, folder, pin, hidden — and as
+  // the fallback whenever the row isn't there yet (first save of a brand-new chat) or
+  // anything about the row is ambiguous.
+  function refreshActiveRow(usage) {
+    const el = $('sessionList');
+    if (!el || !currentId) return false;
+    const item = el.querySelector('.session-item[data-id="' + currentId + '"]');
+    if (!item) return false;
+    // lifetime-token readout under the title (created by the first full refresh once usage exists)
+    if (usage && usage.tokens > 0) {
+      const u = item.querySelector('.session-usage');
+      if (!u) return false;
+      u.textContent = fmtTokens(usage.tokens);
+    }
+    // recent sort: the active row moves to the front of its partition (pinned block,
+    // its folder's children, or the top level). Name/size sorts keep their own order.
+    if (sortMode === 'recent') {
+      if (item.classList.contains('pinned')) {
+        const firstPinned = Array.from(el.children).find((c) => c.classList && c.classList.contains('session-item') && c.classList.contains('pinned') && c !== item);
+        if (firstPinned) el.insertBefore(item, firstPinned);
+      } else {
+        const fc = item.closest('.folder-children');
+        if (fc) {
+          const head = Array.from(fc.children).find((c) => c.classList && c.classList.contains('session-item') && c !== item);
+          if (head) fc.insertBefore(item, head);
+        } else {
+          const head = Array.from(el.children).find((c) => c.classList && c.classList.contains('session-item') && !c.classList.contains('pinned') && c !== item);
+          if (head) el.insertBefore(item, head);
+        }
+      }
+    }
+    return true;
+  }
+  // Quiet catch-up: after routine autosaves, a debounced full refresh restores the footer
+  // totals and any ordering the row-update skipped. Skipped while a rename/folder input
+  // or the folder menu is open — a rebuild would destroy in-progress edits.
+  let listCatchUpTimer = null;
+  function scheduleListCatchUp() {
+    clearTimeout(listCatchUpTimer);
+    listCatchUpTimer = setTimeout(() => {
+      const typing = document.querySelector('.session-rename-input, .folder-name-input');
+      const menu = document.querySelector('.folder-menu');
+      if (typing || menu) { scheduleListCatchUp(); return; }
+      refresh();
+    }, 4000);
+  }
+
   async function saveCurrent(messages, system, project, gen, usage, systemFiles, projectFiles, projectFenceTag, cardBlock, personaBlock, cardReinject, cardReinjectAt) {
     const _diagT0 = performance.now();
     try {
@@ -321,7 +370,8 @@ Constellation.sessions = (function () {
       const res = await window.api.saveSession({ id: currentId, title, messages, system, project, systemFiles, projectFiles, gen, usage, lore: currentLore, projectFenceTag: projectFenceTag || null, cardBlock: cardBlock || null, personaBlock: personaBlock || null, cardReinject: cardReinject || 0, cardReinjectAt: cardReinjectAt || 0 });
       currentId = res.id;
       currentTitle = title;   // keep it across later auto-saves
-      refresh();
+      if (!refreshActiveRow(usage)) refresh();
+      scheduleListCatchUp();
     } catch (e) { console.warn('[constellation]', e && e.message || e); }
     finally { if (window.Constellation && window.Constellation.diag) window.Constellation.diag.span('save+sidebar', performance.now() - _diagT0); }
   }

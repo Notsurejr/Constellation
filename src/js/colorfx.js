@@ -213,16 +213,38 @@ Constellation.colorfx = (function () {
 
   // --- The scan: finds nearby color words, drives flare + fires events ---
   // Wrapper: skip the scan entirely when the chat hasn't moved (the rects can't have
-  // changed), and time what remains for the flight recorder. Every scroll event used to
-  // re-measure EVERY color word in the chat — in a long conversation that is real layout
-  // work per keystroke-nudge.
+  // changed), and THROTTLE the rest — during a stream or a fast scroll the scroll events
+  // arrive far faster than the flare can visibly change, so at most one scan runs per
+  // ~100ms, with a trailing pass that settles the flare at the final position. Every
+  // scroll event used to re-measure EVERY color word in the chat — in a long conversation
+  // that is real layout work per keystroke-nudge.
+  const SCAN_MIN_GAP = 100;
   let lastScanTop = -1;
-  function scan(messagesEl) {
-    if (messagesEl.scrollTop === lastScanTop) return;
-    lastScanTop = messagesEl.scrollTop;
+  let lastScanAt = -SCAN_MIN_GAP;
+  let scanTrailing = null;
+  function runScan(messagesEl) {
     const t0 = performance.now();
     try { scanInner(messagesEl); }
     finally { if (window.Constellation && window.Constellation.diag) window.Constellation.diag.span('colorfx.scan', performance.now() - t0); }
+  }
+  function scan(messagesEl) {
+    const top = messagesEl.scrollTop;
+    if (top === lastScanTop) return;
+    lastScanTop = top;
+    const now = performance.now();
+    const since = now - lastScanAt;
+    if (since < SCAN_MIN_GAP) {
+      if (scanTrailing == null) {
+        scanTrailing = setTimeout(function () {   // trailing pass — the flare settles where the reader stopped
+          scanTrailing = null;
+          lastScanAt = performance.now();
+          runScan(messagesEl);
+        }, SCAN_MIN_GAP - since + 10);
+      }
+      return;
+    }
+    lastScanAt = now;
+    runScan(messagesEl);
   }
   function scanInner(messagesEl) {
     const f = ensureFlare();

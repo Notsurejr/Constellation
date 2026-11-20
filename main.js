@@ -5,6 +5,7 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu, MenuItem, clipboard, shell, nativeImage, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const fsp = fs.promises;   // async variants — session writes leave the main process free
 const http = require('http');
 const crypto = require('crypto');
 const os = require('os');
@@ -611,30 +612,57 @@ ipcMain.handle('sessions:load', (_e, id) => {
   } catch (e) { return { id, title: 'Untitled', messages: [] }; }
 });
 
+// Per-chat write chains: saves for one session SERIALIZE (a rename or pin arriving
+// mid-save can never read a half-written file), and each write lands ATOMICALLY —
+// temp file + rename, so a crash mid-write can never leave a torn session file.
+// The old handler wrote the whole conversation SYNCHRONOUSLY on every turn, on the
+// main process, with the cost growing linearly with chat size.
+const SESSION_WRITE_CHAIN = new Map();   // session id -> last write promise
+function queueSessionWrite(id, fn) {
+  const prev = SESSION_WRITE_CHAIN.get(id) || Promise.resolve();
+  const next = prev.catch(() => {}).then(fn);
+  SESSION_WRITE_CHAIN.set(id, next);
+  next.then(() => { if (SESSION_WRITE_CHAIN.get(id) === next) SESSION_WRITE_CHAIN.delete(id); }).catch(() => {});
+  return next;
+}
+// A session-file mutator must wait out any queued write for that id before reading it.
+async function drainSessionWrites(id) {
+  const w = SESSION_WRITE_CHAIN.get(id);
+  if (w) await w.catch(() => {});
+}
+async function writeSessionFileAtomic(file, data) {
+  const tmp = file + '.tmp';
+  await fsp.writeFile(tmp, JSON.stringify(data, null, 2), 'utf8');
+  await fsp.rename(tmp, file);
+}
+
 ipcMain.handle('sessions:save', (_e, { id, title, messages, system, project, gen, usage, parentId, parentTitle, systemFiles, projectFiles, lore, character, projectFenceTag, cardBlock, personaBlock, cardReinject, cardReinjectAt }) => {
   fs.mkdirSync(SESSIONS_DIR, { recursive: true });
   id = safeId(id) || 's_' + Date.now() + '_' + Math.floor(Math.random() * 1e9);   // invalid/absent id → fresh one, never trusted
   const file = path.join(SESSIONS_DIR, id + '.json');
-  let pinned = false, pId, pTitle, folder = null, pLore = null, wasHidden = false, pChar = null;
-  try { const ex = JSON.parse(fs.readFileSync(file, 'utf8')); pinned = !!ex.pinned; pId = ex.parentId; pTitle = ex.parentTitle; folder = ex.folder || null; pLore = Array.isArray(ex.lore) ? ex.lore : null; wasHidden = !!ex.hidden; pChar = ex.character || null; } catch (e) {}
-  const data = {
-    id, title: title || 'Untitled', messages: messages || [], system, project, systemFiles: systemFiles || [], projectFiles: projectFiles || [], gen, usage, pinned, hidden: wasHidden,
-    projectFence: /^[A-Za-z0-9_-]{1,40}$/.test(String(projectFenceTag || '')) ? String(projectFenceTag) : null,
-    cardBlock: typeof cardBlock === 'string' && cardBlock.length < 200000 ? cardBlock : null,
-    personaBlock: typeof personaBlock === 'string' && personaBlock.length < 50000 ? personaBlock : null,
-    cardReinject: Math.max(0, Math.min(12, parseInt(cardReinject, 10) || 0)),
-    cardReinjectAt: Math.max(0, Math.min(1000000, parseInt(cardReinjectAt, 10) || 0)),
-    parentId: parentId !== undefined ? parentId : pId, parentTitle: parentTitle !== undefined ? parentTitle : pTitle,
-    folder, lore: Array.isArray(lore) ? lore : (pLore || []),
-    character: character !== undefined ? character : pChar,   // { id, name } — seeds the sidebar badge
-    updatedAt: Date.now(),
-  };
-  fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8');
-  return { id };
+  return queueSessionWrite(id, async () => {
+    let pinned = false, pId, pTitle, folder = null, pLore = null, wasHidden = false, pChar = null;
+    try { const ex = JSON.parse(await fsp.readFile(file, 'utf8')); pinned = !!ex.pinned; pId = ex.parentId; pTitle = ex.parentTitle; folder = ex.folder || null; pLore = Array.isArray(ex.lore) ? ex.lore : null; wasHidden = !!ex.hidden; pChar = ex.character || null; } catch (e) {}
+    const data = {
+      id, title: title || 'Untitled', messages: messages || [], system, project, systemFiles: systemFiles || [], projectFiles: projectFiles || [], gen, usage, pinned, hidden: wasHidden,
+      projectFence: /^[A-Za-z0-9_-]{1,40}$/.test(String(projectFenceTag || '')) ? String(projectFenceTag) : null,
+      cardBlock: typeof cardBlock === 'string' && cardBlock.length < 200000 ? cardBlock : null,
+      personaBlock: typeof personaBlock === 'string' && personaBlock.length < 50000 ? personaBlock : null,
+      cardReinject: Math.max(0, Math.min(12, parseInt(cardReinject, 10) || 0)),
+      cardReinjectAt: Math.max(0, Math.min(1000000, parseInt(cardReinjectAt, 10) || 0)),
+      parentId: parentId !== undefined ? parentId : pId, parentTitle: parentTitle !== undefined ? parentTitle : pTitle,
+      folder, lore: Array.isArray(lore) ? lore : (pLore || []),
+      character: character !== undefined ? character : pChar,   // { id, name } — seeds the sidebar badge
+      updatedAt: Date.now(),
+    };
+    await writeSessionFileAtomic(file, data);
+    return { id };
+  });
 });
 
-ipcMain.handle('sessions:delete', (_e, id) => {
+ipcMain.handle('sessions:delete', async (_e, id) => {
   if (!safeId(id)) return { ok: false };
+  await drainSessionWrites(id);
   try { fs.unlinkSync(path.join(SESSIONS_DIR, id + '.json')); } catch (e) { console.warn('[constellation]', e && e.message || e); }
   try {   // a deleted chat's bookmarks are now orphans — drop them
     const bms = readBookmarks();
@@ -644,8 +672,9 @@ ipcMain.handle('sessions:delete', (_e, id) => {
   return { ok: true };
 });
 
-ipcMain.handle('sessions:rename', (_e, { id, title }) => {
+ipcMain.handle('sessions:rename', async (_e, { id, title }) => {
   if (!safeId(id)) return { ok: false };
+  await drainSessionWrites(id);
   try {
     const file = path.join(SESSIONS_DIR, id + '.json');
     const d = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -655,8 +684,9 @@ ipcMain.handle('sessions:rename', (_e, { id, title }) => {
   } catch (e) { return { ok: false }; }
 });
 
-ipcMain.handle('sessions:setHidden', (_e, { id, hidden }) => {
+ipcMain.handle('sessions:setHidden', async (_e, { id, hidden }) => {
   if (!safeId(id)) return { ok: false };
+  await drainSessionWrites(id);
   try {
     const file = path.join(SESSIONS_DIR, id + '.json');
     const d = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -666,8 +696,9 @@ ipcMain.handle('sessions:setHidden', (_e, { id, hidden }) => {
   } catch (e) { return { ok: false }; }
 });
 
-ipcMain.handle('sessions:setPinned', (_e, { id, pinned }) => {
+ipcMain.handle('sessions:setPinned', async (_e, { id, pinned }) => {
   if (!safeId(id)) return { ok: false };
+  await drainSessionWrites(id);
   try {
     const file = path.join(SESSIONS_DIR, id + '.json');
     const d = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -677,8 +708,9 @@ ipcMain.handle('sessions:setPinned', (_e, { id, pinned }) => {
   } catch (e) { return { ok: false }; }
 });
 
-ipcMain.handle('sessions:setFolder', (_e, { id, folder }) => {
+ipcMain.handle('sessions:setFolder', async (_e, { id, folder }) => {
   if (!safeId(id)) return { ok: false };
+  await drainSessionWrites(id);
   try {
     const file = path.join(SESSIONS_DIR, id + '.json');
     const d = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -689,8 +721,9 @@ ipcMain.handle('sessions:setFolder', (_e, { id, folder }) => {
 });
 
 // Which lorebooks a chat has enabled (per-chat lorebook selection). Empty = lore off for that chat.
-ipcMain.handle('sessions:setLore', (_e, { id, lore }) => {
+ipcMain.handle('sessions:setLore', async (_e, { id, lore }) => {
   if (!safeId(id)) return { ok: false };
+  await drainSessionWrites(id);
   try {
     const file = path.join(SESSIONS_DIR, id + '.json');
     const d = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -1362,14 +1395,28 @@ ipcMain.handle('characters:importDrops', async (_e, files) => {
   }
 });
 
+// Character summaries, cached by file stat — the sidebar refreshes after every save, and
+// re-reading + re-parsing every card JSON each time was real disk work per send. Rows
+// re-read only when the file actually changed (mtimeMs + size), same discipline as
+// SESSION_LIST_CACHE.
+const CHAR_LIST_CACHE = new Map();   // filename -> { mtimeMs, size, rec }
 ipcMain.handle('characters:list', () => {
   const out = [];
   try {
     fs.mkdirSync(CHARACTERS_DIR, { recursive: true });
-    for (const f of fs.readdirSync(CHARACTERS_DIR)) {
-      if (!f.endsWith('.json')) continue;
-      try { out.push(JSON.parse(fs.readFileSync(path.join(CHARACTERS_DIR, f), 'utf8'))); } catch (e) { console.warn('[constellation]', e && e.message || e); }
+    const files = fs.readdirSync(CHARACTERS_DIR).filter((f) => f.endsWith('.json'));
+    for (const f of files) {
+      try {
+        const p = path.join(CHARACTERS_DIR, f);
+        const st = fs.statSync(p);
+        const c = CHAR_LIST_CACHE.get(f);
+        if (c && c.mtimeMs === st.mtimeMs && c.size === st.size) { out.push(c.rec); continue; }
+        const rec = JSON.parse(fs.readFileSync(p, 'utf8'));
+        CHAR_LIST_CACHE.set(f, { mtimeMs: st.mtimeMs, size: st.size, rec });
+        out.push(rec);
+      } catch (e) { console.warn('[constellation]', e && e.message || e); }
     }
+    for (const k of CHAR_LIST_CACHE.keys()) if (!files.includes(k)) CHAR_LIST_CACHE.delete(k);   // deleted cards drop their cache
   } catch (e) { console.warn('[constellation]', e && e.message || e); }
   out.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
   return out;
