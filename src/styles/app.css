@@ -214,8 +214,9 @@ html, body {
   font-size: inherit; line-height: 1.6; color: #cbd4e8;
   padding: 14px 16px 15px; overflow-x: auto; tab-size: 2;
   font-variant-numeric: tabular-nums;
+  white-space: pre-wrap; word-break: break-word;   /* wrapped is the DEFAULT; the ghost toggle escapes to raw lines */
 }
-.msg .body .codeblock pre.wrapped { white-space: pre-wrap; word-break: break-word; }
+.msg .body .codeblock pre.unwrapped { white-space: pre; word-break: normal; }
 .msg .body .codeblock pre::-webkit-scrollbar { height: 6px; }
 .msg .body .codeblock pre::-webkit-scrollbar-track { background: transparent; }
 .msg .body .codeblock pre::-webkit-scrollbar-thumb { background: var(--accent-16); border-radius: 99px; }
@@ -473,6 +474,13 @@ body:not(.pane-classic) .msg .body .codeblock.wide {
   --bleed: min(96px, max(0px, calc((100vw - var(--chat-col, 880px) - 320px) / 2)));
   width: calc(100% + var(--bleed) * 2);
   margin-left: calc(-1 * var(--bleed));
+}
+/* inside a response window the bleed stops at the frame's inner edge: the pane may widen
+   into the frame's own padding, never across its border */
+body.rw-void .msg .body .codeblock.wide,
+body.rw-soft .msg .body .codeblock.wide,
+body.rw-glass .msg .body .codeblock.wide {
+  --bleed: min(18px, max(0px, calc((100vw - var(--chat-col, 880px) - 320px) / 2)));
 }
 .chat { overflow-x: clip; }
 .msg .body hr { border: none; border-top: 1px solid var(--panel-border); margin: 0.8em 0; }

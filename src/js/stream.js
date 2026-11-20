@@ -158,6 +158,23 @@ Constellation.stream = (function () {
       lastTs = ts;
       if (revealedN < bodyBuf.length) {
         revealedN = isFinite(rate) ? Math.min(bodyBuf.length, revealedN + rate * dt) : bodyBuf.length;
+        // Fences reveal at ARRIVAL speed, not at the typewriter's cps — pane content must
+        // not type out character-by-character. When the reveal cursor sits inside a fence:
+        //   open fence (no ``` closer in the buffer yet) → track the wire head exactly;
+        //   already-closed fence → jump only to the closer's line end, so prose after the
+        //   pane resumes normal cps pacing instead of dumping with it.
+        if (isFinite(rate)) {
+          let depth = 0, i = 0;
+          while ((i = bodyBuf.indexOf('```', i)) !== -1 && i < revealedN) { depth++; i += 3; }
+          if (depth % 2 === 1) {
+            const closeAt = bodyBuf.indexOf('```', i > revealedN ? i : revealedN);
+            if (closeAt === -1) revealedN = bodyBuf.length;   // still open — ride the wire
+            else {
+              const nl = bodyBuf.indexOf('\n', closeAt);
+              revealedN = Math.min(bodyBuf.length, nl === -1 ? bodyBuf.length : nl + 1);   // closed — cap at the closer's line
+            }
+          }
+        }
         if (ts - lastRender > 40) { renderPrefix(true, true); lastRender = ts; }
       }
       if (revealedN < bodyBuf.length || streaming) {

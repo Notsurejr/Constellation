@@ -1107,11 +1107,12 @@ Constellation.chat = (function () {
       ghost.className = 'ghost';
       const cbtn = paneCopyBtn(() => wrap.__source || pre.textContent || '');
       const wbtn = document.createElement('button');
-      wbtn.type = 'button'; wbtn.title = 'Toggle line wrap'; wbtn.setAttribute('aria-label', 'Toggle line wrap');
+      wbtn.type = 'button'; wbtn.title = 'Unwrap lines'; wbtn.setAttribute('aria-label', 'Toggle line wrap');
       wbtn.innerHTML = SVG_WRAP;
       wbtn.addEventListener('click', () => {
-        const on = pre.classList.toggle('wrapped');
-        wbtn.classList.toggle('active', on);
+        const off = pre.classList.toggle('unwrapped');   // wrap is the DEFAULT now; the toggle escapes to raw lines
+        wbtn.classList.toggle('active', off);
+        wbtn.title = off ? 'Wrap long lines' : 'Unwrap lines';
         paneScrollFade(wrap);
       });
       ghost.appendChild(wbtn);
