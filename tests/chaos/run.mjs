@@ -100,24 +100,10 @@ await t('zTXt decompression bomb: inflateSync caps output against a hostile comp
   let result = null, threw = null;
   try { result = M.extractCardFromPng(buf); } catch (e) { threw = e; }
   const ms = Date.now() - t0;
-  // deterministic cap check: does zlib inflate the SAME payload beyond any cap when called
-  // the way the app calls it (no maxOutputLength)? The downstream JSON.parse failing does
-  // NOT undo the allocation — the vulnerability is the uncapped inflate itself.
-  let inflated = 0;
-  try { inflated = zlib.inflateSync(small).length; } catch (e) {}
-  if (threw && / allocation|maxOutput/i.test(threw.message)) { record('bomb rejected by an output cap', true, threw.message.slice(0, 80)); return; }
-  if (inflated >= bombRaw.length) {
-    record('bomb inflated WITHOUT a cap (uncapped main-process allocation)', false, Math.round(small.length / 1024) + 'KB → ' + Math.round(inflated / 1048576) + 'MB in ' + ms + 'ms (parse then failed, allocation already made)');
-    finding(
-      'PNG zTXt decompression bomb — inflateSync has no output cap',
-      'src/js/mainutil.js — extractCardFromPng, the zTXt branch (zlib.inflateSync)',
-      'A crafted .png card (~62KB compressed) inflates to 64MB+ inside the MAIN process at import; a multi-GB chunk freezes or OOMs the app before the downstream JSON.parse fails. zlib supports maxOutputLength — the call does not use it.',
-      'tests/chaos/run.mjs → "zTXt decompression bomb" (pure-Node, direct-inflate proof)',
-      'inflateSync(data, { maxOutputLength: 4 * 1024 * 1024 }) in a try/catch — over the cap throws, the import fails cleanly.',
-    );
-  } else {
-    record('bomb capped or rejected', true, 'ms=' + ms + (threw ? '; threw: ' + threw.message.slice(0, 60) : ''));
-  }
+  // strict: the app caps inflateSync at 8MB — a hostile chunk must fail the WHOLE
+  // extraction cleanly (null), never return a giant string and never throw out
+  assert.equal(result, null, 'bomb chunk rejected in ' + ms + 'ms (threw: ' + (threw && threw.message || 'no') + ')');
+  record('bomb chunk rejected cleanly by the 8MB output cap', true, 'ms=' + ms);
 });
 
 await t('corrupt/truncated/non-PNG card files fail cleanly through the parser', () => {
@@ -164,25 +150,19 @@ try {
   current = { name: '1 corrupt profile at boot' };
   console.log('\n== 1. corrupt profile at boot ==');
   await sleep(2500);
-  await t('boot survives corrupt session files (truncated / empty skipped; wrong shape → FINDING)', async () => {
+  await t('boot survives corrupt session files (truncated / empty / wrong shape all excluded)', async () => {
     const s = await app.ev(`(async () => ({
       booted: !!(window.Constellation && window.Constellation.chat),
       listed: (await window.api.listSessions()).map((x) => x.id).sort(),
     }))()`, true);
     assert.ok(s.booted, JSON.stringify(s));
-    assert.ok(!s.listed.includes('corrupt_truncated') && !s.listed.includes('corrupt_empty'), 'truncated/empty skipped: ' + JSON.stringify(s.listed));
-    if (s.listed.includes('corrupt_shape')) {
-      finding(
-        'Parseable-but-wrong-shape session JSON becomes a phantom sidebar chat',
-        'main.js — sessions:list (row builder) and sessions:load (no plain-object guard)',
-        'A session file containing valid JSON of the wrong shape ([1,2,3]) parses fine, so it appears in the sidebar as an empty chat with an undefined id; loading it hands the renderer undefined id fields.',
-        'tests/chaos/run.mjs stages data/sessions/corrupt_shape.json = "[1, 2, 3]" → boot → sessions:list includes corrupt_shape',
-        'In sessions:list, skip rows where the parsed file is not a plain object (Array.isArray(d) || d === null), and give sessions:load the same guard before reading d.messages.',
-      );
-      record('wrong-shape JSON creates a phantom entry (finding recorded)', false, JSON.stringify(s.listed));
-    } else {
-      record('wrong-shape JSON skipped', true);
-    }
+    assert.ok(!s.listed.includes('corrupt_truncated') && !s.listed.includes('corrupt_empty') && !s.listed.includes('corrupt_shape'), 'no phantom rows: ' + JSON.stringify(s.listed));
+  });
+  await t('wrong-shape session loads as a clean empty chat under the requested id', async () => {
+    const s = await app.ev(`window.api.loadSession('corrupt_shape').then((d) => ({ id: d.id, msgs: (d.messages || []).length, title: d.title }))`, true);
+    assert.equal(s.id, 'corrupt_shape');
+    assert.equal(s.msgs, 0);
+    assert.equal(s.title, 'Untitled');
   });
   await t('loading a corrupt id falls back to a clean empty session', async () => {
     const s = await app.ev(`window.api.loadSession('corrupt_truncated').then((d) => ({ id: d.id, msgs: (d.messages || []).length }))`, true);
@@ -370,34 +350,28 @@ try {
     const controlReplies = disk.messages.filter((m) => m.role === 'assistant' && (m.content || '').includes('Control reply')).length;
     assert.equal(controlReplies, 1, 'exactly one reply for three clicks: ' + controlReplies);
   });
-  await t('switch chat mid-stream: stream detaches cleanly, both chats intact', async () => {
+  await t('switch chat mid-stream: no cross-chat contamination, both chats intact', async () => {
     await app.ev(`(function(){ document.getElementById('input').value = 'Control reply for the race send'; document.getElementById('send').click(); })()`);
-    // switch DURING the short stream's lifetime
+    // switch DURING the short stream's lifetime — the origin-generation guard must abort
+    // it cleanly: no spurious error toast, composer unlocked, reply never lands in chat B
     await app.ev(`Constellation.sessions.load('chaossmall')`, true);
     await sleep(1100);
     const s = await app.ev(`({
       n: document.querySelectorAll('#messages .msg').length,
       roles: Array.from(document.querySelectorAll('#messages .msg .role')).map((x) => x.textContent.trim()),
       pwned: window.__pwned,
+      busy: document.getElementById('send').classList.contains('stop'),
+      statusCls: (document.getElementById('status') || { className: '' }).className,
     })`);
-    assert.equal(s.pwned, 0);
     assert.equal(s.n, 2, 'DOM shows only chaossmall: ' + JSON.stringify(s.roles));
+    assert.equal(s.pwned, 0);
+    assert.equal(s.busy, false, 'composer unlocked immediately in the new chat');
+    assert.ok(!String(s.statusCls).includes('err'), 'no spurious error from the abandoned stream');
     await waitSettled(15000);
     const diskMain = JSON.parse(fs.readFileSync(path.join(PROFILE, 'data', 'sessions', 'chaosmain.json'), 'utf8'));
     assert.ok(Array.isArray(diskMain.messages), 'main chat JSON intact');
     const diskSmall = JSON.parse(fs.readFileSync(path.join(PROFILE, 'data', 'sessions', 'chaossmall.json'), 'utf8'));
-    if (diskSmall.messages.length !== 2) {
-      finding(
-        'Mid-stream chat switch contaminates the NEW chat conversation',
-        'src/js/stream.js — onDone pushes via H.getConv(), which resolves to the CURRENT conversation after the switch',
-        'A stream started in chat A that finishes after switching to chat B appends its reply (and persists it) into chat B — cross-chat contamination. DOM showed ' + s.n + ' messages, disk chaossmall has ' + diskSmall.messages.length + '.',
-        'tests/chaos/run.mjs → "switch chat mid-stream" (send, switch before done, inspect disk)',
-        'Capture the conversation reference at stream START (const conv = H.getConv()) and push into that captured array — or cancel the in-flight stream when a session switch resets the DOM.',
-      );
-      record('mid-stream switch contaminated the new chat (finding recorded)', false, 'chaossmall disk: ' + diskSmall.messages.length + ' msgs');
-    } else {
-      record('no cross-chat contamination', true);
-    }
+    assert.equal(diskSmall.messages.length, 2, 'the superseded reply NEVER lands in chat B: ' + diskSmall.messages.length);
   });
   await t('stop + resend flapping: state stays consistent', async () => {
     for (let i = 0; i < 3; i++) {

@@ -49,6 +49,24 @@ test('hostile PNGs fail safe: non-PNG, truncated, no chunks, invalid base64 JSON
   assert.equal(M.extractCardFromPng(Buffer.alloc(0)), null);
 });
 
+test('zTXt decompression bomb is capped — oversized chunks fail cleanly, legit cards still parse', () => {
+  // 64MB of zeros deflate to ~62KB — a hostile card must not allocate that in the main process
+  const bombData = Buffer.concat([
+    Buffer.from('chara\0', 'latin1'),
+    Buffer.from([0]),
+    zlib.deflateSync(Buffer.alloc(64 * 1024 * 1024, 0)),
+  ]);
+  const bomb = pngBuf([chunk('zTXt', bombData), chunk('IEND', Buffer.alloc(0))]);
+  assert.equal(M.extractCardFromPng(bomb), null, 'over the 8MB cap → chunk skipped → null');
+  // a legitimate card well under the cap still inflates
+  const legit = pngBuf([chunk('zTXt', Buffer.concat([
+    Buffer.from('chara\0', 'latin1'),
+    Buffer.from([0]),
+    zlib.deflateSync(cardJson('Legit')),
+  ])), chunk('IEND', Buffer.alloc(0))]);
+  assert.equal(M.extractCardFromPng(legit).data.name, 'Legit');
+});
+
 test('normalizeCard prefers the v2 data wrapper and coerces fields', () => {
   const n = M.normalizeCard({ spec: 'chara_card_v2', data: { name: 'Vex', description: 'd', first_mes: 'hi', alternate_greetings: ['g'], tags: ['t1'], character_book: { entries: [{ content: 'c' }] } } });
   assert.equal(n.name, 'Vex');

@@ -505,6 +505,9 @@ ipcMain.handle('sessions:list', () => {
           const c = SESSION_LIST_CACHE.get(f);
           if (c && c.mtimeMs === st.mtimeMs && c.size === st.size) return c.row;
           const d = JSON.parse(fs.readFileSync(p, 'utf8'));
+          // shape guard: parseable-but-wrong-shape JSON (arrays, primitives) must never
+          // become a phantom sidebar row with an undefined id
+          if (!d || typeof d !== 'object' || Array.isArray(d)) return null;
           const row = { id: d.id || f.replace(/\.json$/, ''), title: d.title || 'Untitled', updatedAt: d.updatedAt || 0, pinned: !!d.pinned, hidden: !!d.hidden, usage: d.usage || { tokens: 0, requests: 0 }, parentId: d.parentId, parentTitle: d.parentTitle, folder: d.folder || null, character: d.character || null };
           SESSION_LIST_CACHE.set(f, { mtimeMs: st.mtimeMs, size: st.size, row: row });
           return row;
@@ -524,6 +527,8 @@ ipcMain.handle('sessions:load', (_e, id) => {
   if (!safeId(id)) return { id: null, title: 'Untitled', messages: [] };
   try {
     const d = JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, id + '.json'), 'utf8'));
+    // shape guard: wrong-shape JSON (arrays, primitives) loads as a clean empty session
+    if (!d || typeof d !== 'object' || Array.isArray(d)) return { id, title: 'Untitled', messages: [] };
     return { id: d.id, title: d.title, messages: d.messages || [], system: d.system, project: d.project, systemFiles: d.systemFiles || [], projectFiles: d.projectFiles || [], gen: d.gen, usage: d.usage, parentId: d.parentId, parentTitle: d.parentTitle, lore: Array.isArray(d.lore) ? d.lore : [], character: d.character || null, projectFence: d.projectFence || null, cardBlock: d.cardBlock || null, personaBlock: d.personaBlock || null, cardReinject: d.cardReinject || 0, cardReinjectAt: d.cardReinjectAt || 0 };   // character = cast-chat marker (badge + macro eligibility)
   } catch (e) { return { id, title: 'Untitled', messages: [] }; }
 });

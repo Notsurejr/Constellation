@@ -432,7 +432,7 @@ try {
     assert.equal(sawOpen, true);
     assert.equal(end.open, false, 'folded at finish');
   });
-  await t('edit-in-place (Save in place) swaps the body without resending', async () => {
+  await t('edit-in-place (Save in place) swaps the body AND el.__raw — Copy / re-edit / Raw all reflect it', async () => {
     const before = await app.ev(`document.querySelectorAll('#messages .msg').length`);
     await app.ev(`(function(){ const ms = document.querySelectorAll('#messages .msg'); const last = ms[ms.length-1]; const edit = last && last.previousElementSibling ? last.previousElementSibling.querySelector('[data-action="edit"]') : null; if (edit) edit.click(); })()`);
     await sleep(350);
@@ -446,11 +446,27 @@ try {
       btn.click();
     })()`);
     await sleep(700);
-    const after = await app.ev(`({ n: document.querySelectorAll('#messages .msg').length, swapped: (function(){ const ms = document.querySelectorAll('#messages .msg'); for (const m of ms) { const b = m.querySelector('.body'); if (b && b.textContent.includes('edited in place by e2e')) return true; } return false; })() })`);
+    const after = await app.ev(`({
+      n: document.querySelectorAll('#messages .msg').length,
+      swapped: (function(){ const ms = document.querySelectorAll('#messages .msg'); for (const m of ms) { const b = m.querySelector('.body'); if (b && b.textContent.includes('edited in place by e2e')) return true; } return false; })(),
+      rawUpdated: (function(){ const ms = document.querySelectorAll('#messages .msg'); for (const m of ms) if (m.__raw && m.__raw.includes('edited in place by e2e')) return true; return false; })(),
+    })`);
     assert.equal(after.n, before, 'no message added: ' + before + ' → ' + after.n);
     assert.equal(after.swapped, true, 'visible body swapped');
-    // Save-in-place persists — the DISK conversation carries the new content (KNOWN BUG
-    // tracked in the Phase 4 report: el.__raw keeps the stale pre-edit text until reload)
+    assert.equal(after.rawUpdated, true, 'el.__raw carries the edit (Copy / re-edit / Raw read it)');
+
+    // re-edit shows the EDITED text, not the stale original
+    await app.ev(`(function(){ const ms = document.querySelectorAll('#messages .msg'); for (const m of ms) { if (m.__raw && m.__raw.includes('edited in place by e2e')) { m.querySelector('[data-action="edit"]').click(); break; } } })()`);
+    await sleep(350);
+    const reEdit = await app.ev(`(function () {
+      const area = document.querySelector('#messages textarea, #messages .edit-area');
+      const v = area ? area.value : '';
+      const cancel = document.querySelector('#messages .edit-bar [data-action="cancel"], #messages .edit-bar button');
+      if (cancel) cancel.click();
+      return v;
+    })()`);
+    assert.ok(String(reEdit).includes('edited in place by e2e'), 're-edit textarea holds the edited text');
+    // Save-in-place persists — the DISK conversation carries the new content
     const disk = JSON.parse(fs.readFileSync(path.join(PROFILE, 'data', 'sessions', FIXTURE_ID + '.json'), 'utf8'));
     assert.ok(disk.messages.some((m) => (m.content || '').includes('edited in place by e2e')), 'persisted');
   });

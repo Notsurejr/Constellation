@@ -22,6 +22,7 @@ Constellation.chat = (function () {
   let busy = false;
   let currentCharacter = null;   // cast chats carry their card; macros fire ONLY in these chats
   let currentRequest = null;   // active stream id, so the Stop button can cancel it
+  let sessionGen = 0;          // bumped on every session switch/reset — superseded streams check it
   let lastRequest = null;      // the exact payload of the most recent send (for the ◐ inspector)
   let activePrefill = '';      // reasoning seed for THIS send only ("lead its thinking" drawer)
   let contextExact = null;     // exact token count from the GLM tokenizer (null = estimate shown)
@@ -551,6 +552,7 @@ Constellation.chat = (function () {
       setLastRequest: (lr) => { lastRequest = lr; },
       setLastUsage: (u) => { lastUsageCache = u; updateContextMeter(); },
       setCurrentRequest: (id) => { currentRequest = id; },
+      sessionGen: () => sessionGen,   // origin guard — a superseded stream must never touch the new chat
       cancelStream: cancelStream,
       restoreSendBtn: restoreSendBtn,
       addUsageTokens: (n) => { usage.tokens += n; },
@@ -1776,6 +1778,7 @@ Constellation.chat = (function () {
 
   // Start a fresh empty chat (keeps the current system prompt + project instructions).
   function reset() {
+    sessionGen++;   // a fresh chat invalidates any stream started under the previous one
     conversation = [{ role: 'system', content: compose.buildSystem({ roleplayPrompt: roleplayPrompt, systemFiles: systemFiles, projectFiles: projectFiles, immersion: opts.immersion, paneTeach: opts.paneTeach }) }];
     usage = { tokens: 0, requests: 0 };
     currentCharacter = null;
@@ -1803,6 +1806,12 @@ Constellation.chat = (function () {
   // the new one (a real crossfade, not a dip-to-black). Per-message auto-scroll is suppressed during
   // the bulk render so there's no vertical snap; we land once at the latest message.
   function loadSession(msgs, system, project, gen, incomingUsage, systemFiles, projectFiles, character, projectFence, cardBlk, personaBlk, cRe, cAt) {
+    // A switch aborts any in-flight stream belonging to the OLD chat: cancel the wire,
+    // unlock the composer immediately for the new chat, and let the origin-generation
+    // guard discard the superseded stream's callbacks (no error toast, no cross-chat
+    // contamination — a late reply can never land in or persist into the new conversation).
+    if (busy) { cancelStream(); busy = false; restoreSendBtn(); }
+    sessionGen++;
     cardBlock = typeof cardBlk === 'string' ? cardBlk : null;
     personaBlock = typeof personaBlk === 'string' ? personaBlk : null;
     cardReinject = Math.max(0, Math.min(12, parseInt(cRe, 10) || 0));

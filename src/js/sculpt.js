@@ -218,6 +218,7 @@ Constellation.sculpt = (function () {
       el.dataset.editing = '';
       if (!v || !m) { restoreMessage(el, original); return; }
       m.content = v;
+      el.__raw = v;   // keep the raw source in step — Copy / re-edit / 👁 Raw read it
       restoreMessage(el, v);   // re-renders the body + rebuilds the action bar
       H.persist();
       H.meter();

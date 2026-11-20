@@ -111,6 +111,11 @@ Constellation.stream = (function () {
       body.classList.add('caret');
     }
     H.setStatus('thinking…', 'ok');
+    // Origin guard: a session switch bumps the generation and aborts this request — every
+    // callback below re-checks, so a superseded stream can never touch the new chat's
+    // state, DOM, or conversation, and never calls persist().
+    const myGen = H.sessionGen();
+    const superseded = () => myGen !== H.sessionGen();
     H.maybeScroll();   // follow only if reading at the bottom — regen/continue from mid-read must not snap
     H.updateJumpBtn();
     body.classList.remove('caret');
@@ -153,6 +158,7 @@ Constellation.stream = (function () {
     }
 
     function pump(ts) {
+      if (superseded()) { rafId = null; return; }   // session switched — stop the loop, touch nothing
       if (lastTs === 0) lastTs = ts;
       const dt = (ts - lastTs) / 1000;
       lastTs = ts;
@@ -242,6 +248,7 @@ Constellation.stream = (function () {
       clearTimeout(watchdog);
       const ms = streamStarted ? 90000 : 420000;
       watchdog = setTimeout(() => {
+        if (superseded()) return;   // the session moved on — this stream was already abandoned
         H.cancelStream();
         streaming = false;
         H.setBusy(false);
@@ -265,6 +272,7 @@ Constellation.stream = (function () {
     H.setCurrentRequest(window.api.chatStream(reqMsgs, opts, {
       onRetry: (attempt) => H.setStatus('retrying… (attempt ' + attempt + ')', 'ok'),
       onThink: (delta) => {
+        if (superseded()) return;
         streamStarted = true;
         kickWatchdog();
         thinkBuf += delta;
@@ -289,6 +297,7 @@ Constellation.stream = (function () {
         }
       },
       onChunk: (delta) => {
+        if (superseded()) return;
         streamStarted = true;
         hideThinking(el);
         kickWatchdog();
@@ -297,6 +306,7 @@ Constellation.stream = (function () {
         if (H.statusText() !== 'writing…') H.setStatus('writing…', 'ok');
       },
       onDone: (full, finishReason, usage) => {
+        if (superseded()) return;   // the switch already cancelled us — never touch the new chat or persist
         hideThinking(el);
         clearTimeout(watchdog);
         if (usage) H.setLastUsage(usage);   // provider cache accounting (cached_tokens et al.) — the ◐ meter reads it
@@ -350,6 +360,7 @@ Constellation.stream = (function () {
         if (!rafId) rafId = requestAnimationFrame(pump);   // flush any buffered tail at the flow rate
       },
       onError: (message) => {
+        if (superseded()) return;   // the switch abandoned us — no spurious toast in the new chat
         hideThinking(el);
         clearTimeout(watchdog);
         streaming = false;

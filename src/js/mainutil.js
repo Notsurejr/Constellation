@@ -119,7 +119,10 @@ function extractCardFromPng(buf) {
       if (nul > 0) {
         const key = data.toString('latin1', 0, nul);
         if (data[nul + 1] === 0) {   // compression method 0 = zlib
-          try { out[key] = zlib.inflateSync(data.slice(nul + 2)).toString('latin1'); } catch (e) { console.warn('[constellation]', e && e.message || e); }
+          // maxOutputLength caps decompression-bomb chunks (a ~62KB hostile card could
+          // otherwise inflate to GBs inside the main process); over the cap throws and
+          // the chunk is skipped — the import fails cleanly.
+          try { out[key] = zlib.inflateSync(data.slice(nul + 2), { maxOutputLength: 8 * 1024 * 1024 }).toString('latin1'); } catch (e) { console.warn('[constellation]', e && e.message || e); }
         }
       }
     } else if (type === 'IEND') break;
