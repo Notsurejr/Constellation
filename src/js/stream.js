@@ -32,21 +32,31 @@ Constellation.stream = (function () {
   // Streaming ink: wrap the trailing words in the materialize animation with an inline
   // NEGATIVE delay equal to each word's age behind the reveal cursor — rebuilt nodes resume
   // the keyframe mid-flight instead of restarting (the 40ms re-render would reset them).
+  // The walk runs BACKWARD from the body's tail and stops once it has passed the reveal
+  // window: words deeper than `win` chars behind the cursor can never be younger than the
+  // 480ms wrap threshold, so visiting them (the old forward walk visited EVERY text node
+  // on every tick — the dominant ink cost on long replies) is pure waste.
   function inkEdge(body, cps) {
     const win = Math.max(24, Math.ceil(cps * 0.55));   // only words younger than ~550ms
     const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT, null);
-    const tails = [];
-    while (walker.nextNode()) {
+    if (!walker.lastChild()) return;   // no text nodes at all
+    while (walker.lastChild()) { /* descend to the last text node in document order */ }
+    const tails = [];   // reverse document order: tails[0] is the body's final text node
+    let dist = 0;
+    do {
       const n = walker.currentNode;
       const p = n.parentElement;
-      if (!p) continue;
-      const tag = p.tagName.toLowerCase();
-      if (tag === 'code' || tag === 'pre' || p.classList.contains('tok-in')) continue;
-      tails.push(n);
-      if (tails.length > 40) tails.shift();
-    }
-    let dist = 0;   // rendered chars from the very end of the reply-so-far
-    for (let i = tails.length - 1; i >= 0 && dist < win; i--) {
+      if (p) {
+        const tag = p.tagName.toLowerCase();
+        if (tag !== 'code' && tag !== 'pre' && !p.classList.contains('tok-in')) {
+          tails.push(n);
+          dist += n.textContent.length;
+          if (dist >= win) break;
+        }
+      }
+    } while (walker.previousNode());
+    dist = 0;   // restart the count: the wrap pass measures age from the very end of the reply
+    for (let i = 0; i < tails.length && dist < win; i++) {
       const n = tails[i];
       const parts = n.textContent.split(/(\s+)/);
       const frag = document.createDocumentFragment();

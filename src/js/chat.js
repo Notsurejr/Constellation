@@ -1877,10 +1877,13 @@ Constellation.chat = (function () {
   }
 
   // Persist the current chat (messages + instructions + settings) now — used when you edit
-  // instructions or generation in Settings without sending a new message.
+  // instructions or generation in Settings without sending a new message. The per-chat
+  // restoration fields ride along: dropping them (as the module split once did) meant every
+  // autosave silently wiped projectFence/cardBlock/personaBlock/cardReinject from disk and
+  // cast chats lost their re-injection depth after the first send.
   function persist() {
     if (conversation.length > 1 && window.Constellation && window.Constellation.sessions) {
-      window.Constellation.sessions.saveCurrent(conversation.slice(1), roleplayPrompt, projectInstructions, genSnapshot(), usage, systemFiles, projectFiles);
+      window.Constellation.sessions.saveCurrent(conversation.slice(1), roleplayPrompt, projectInstructions, genSnapshot(), usage, systemFiles, projectFiles, projectFenceTag, cardBlock, personaBlock, cardReinject, cardReinjectAt);
     }
   }
 
