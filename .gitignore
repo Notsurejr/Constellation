@@ -17,3 +17,8 @@ yarn-debug.log*
 
 # user phrase-ban list (personal data)
 config/phrase_bans.txt
+
+# disposable test profiles (chaos/e2e runs) — never commit, never dirty git status
+tests/.e2e-profile/
+tests/.chaos-profile/
+tests/.*-profile/

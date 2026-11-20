@@ -8,9 +8,9 @@ import { sleep } from './mock.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const E2E_CDP_PORT = 9233;
+export { sleep };   // re-exported from mock.mjs for the suite runners
 
-export async function launchApp({ userData, cliPort }) {
-  const cdpPort = E2E_CDP_PORT;
+export async function launchApp({ userData, cliPort, cdpPort = E2E_CDP_PORT }) {
   const child = spawn('npx', ['electron', '.', '--remote-debugging-port=' + cdpPort,
     '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding'], {
     cwd: REPO,
