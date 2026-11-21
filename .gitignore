@@ -22,3 +22,6 @@ config/phrase_bans.txt
 tests/.e2e-profile/
 tests/.chaos-profile/
 tests/.*-profile/
+
+# real chat-export cuts (user-added test material — never commit)
+"Markdown test import/"

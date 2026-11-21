@@ -649,16 +649,29 @@ Constellation.chat = (function () {
     const allowDrop = (e) => {
       if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) e.preventDefault();
     };
-    const drop = (e) => {
+    // The prompt box stays STRICTLY attachments (exported chats are often attached to a
+    // prompt for review); the chat area routes recognized exports / cards to the importer
+    // or The Cast, and everything else lands as attachments too.
+    const dropInput = (e) => {
       if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
         e.preventDefault();
         handleFiles(e.dataTransfer.files);
       }
     };
-    [inputEl, messagesEl].forEach((el) => {
-      el.addEventListener('dragover', allowDrop);
-      el.addEventListener('drop', drop);
-    });
+    const dropMessages = (e) => {
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+        e.preventDefault();
+        if (window.Constellation.sessions && window.Constellation.sessions.routeDroppedFiles) {
+          window.Constellation.sessions.routeDroppedFiles(Array.from(e.dataTransfer.files), 'chat');
+          return;
+        }
+        handleFiles(e.dataTransfer.files);
+      }
+    };
+    inputEl.addEventListener('dragover', allowDrop);
+    inputEl.addEventListener('drop', dropInput);
+    messagesEl.addEventListener('dragover', allowDrop);
+    messagesEl.addEventListener('drop', dropMessages);
   }
 
   function autoGrow() {
@@ -1908,5 +1921,5 @@ Constellation.chat = (function () {
     }
   }
 
-  return { init, setPrompts, getPrompts, getOptions, persist, setOptions, setActiveLore, setPhraseBans, setDraft, scrollToMatch, scrollToMessage, refreshBookmarkGlyphs, reset, loadSession, getUserWriting, recentMessages, getState, testRetrieve, testBans, dryRun, applyDialogue, loreBench, displayFiltersRules, toggleDisplayFilter, reloadDisplayFilters, renderBodyHTML, enhanceCodeBlocks, testCompose: (list) => compose.toApiMessages(opts, projectInstructions, null, list || conversation) };   // bare call = the live conversation (probe convention)
+  return { init, setPrompts, getPrompts, getOptions, persist, setOptions, setActiveLore, setPhraseBans, setDraft, scrollToMatch, scrollToMessage, refreshBookmarkGlyphs, reset, loadSession, getUserWriting, recentMessages, getState, testRetrieve, testBans, dryRun, applyDialogue, loreBench, displayFiltersRules, toggleDisplayFilter, reloadDisplayFilters, renderBodyHTML, enhanceCodeBlocks, attachFiles: (files) => handleFiles(files), testCompose: (list) => compose.toApiMessages(opts, projectInstructions, null, list || conversation) };   // bare call = the live conversation (probe convention)
 })();

@@ -528,8 +528,230 @@ try {
     await app.ev(`(function(){ const sel = document.getElementById('dialogueStyleInput'); if (sel) { sel.value = 'chiaroscuro'; sel.dispatchEvent(new Event('change', { bubbles: true })); } })()`);
   });
 
-// ---------------- error budget ----------------
-current = { name: 'D global error budget', failures: 0 };
+  // ---------------- Suite I: chat importer ----------------
+  current = { name: 'I chat importer', failures: 0 };
+  console.log('\n== I. chat importer ==');
+  const claudeMdExport = [
+    '## User',
+    'Stage a synthetic question about the docks.',
+    '',
+    '## Claude',
+    '**Model:** mock-1',
+    '### Thinking',
+    'synthetic reasoning pass',
+    '',
+    '### Response',
+    'Synthetic answer with a color word: emerald.',
+  ].join('\n');
+  const anthropicMulti = JSON.stringify([
+    { uuid: 'a', name: 'Anthro One', created_at: '2026-01-02T10:00:00Z', chat_messages: [
+      { sender: 'human', content: [{ type: 'text', text: 'anthro q1' }] },
+      { sender: 'assistant', content: [{ type: 'text', text: 'anthro a1' }] },
+    ] },
+    { uuid: 'b', name: 'Anthro Two', created_at: '2026-01-03T10:00:00Z', chat_messages: [
+      { sender: 'human', content: [{ type: 'text', text: 'anthro q2' }] },
+      { sender: 'assistant', content: [{ type: 'text', text: 'anthro a2' }] },
+    ] },
+  ]);
+  const customMd = '## WRITE\nsynthetic draft\n## NOTES\nsynthetic notes\n## REPLY\nsynthetic reply';
+  const cardJson = JSON.stringify({ spec: 'chara_card_v2', data: { name: 'Import Probe Card', description: 'probe card body' } });
+
+  await t('sidebar Import button + claude md: modal opens, badge, preview, thinking OFF default', async () => {
+    await app.ev(`Constellation.sessions.importFromText('claude-export.md', ${JSON.stringify(claudeMdExport)})`, true);
+    await sleep(400);
+    const s = await app.ev(`({
+      overlay: !!document.querySelector('.import-overlay'),
+      badge: (document.querySelector('.import-badge') || {}).textContent,
+      title: (document.querySelector('.import-title-edit') || {}).value,
+      thinkChecked: (document.querySelector('.import-check input') || {}).checked,
+      turns: document.querySelectorAll('.import-preview-turn').length,
+      warns: document.querySelectorAll('.import-warning').length
+    })`);
+    assert.equal(s.overlay, true, JSON.stringify(s));
+    assert.equal(s.badge, 'md_claude');
+    assert.ok(String(s.title).includes('Stage a synthetic question'), 'derived title: ' + s.title);
+    assert.equal(s.thinkChecked, false, 'thinking OFF default');
+    assert.ok(s.turns >= 2, 'preview turns: ' + s.turns);
+    assert.ok(s.warns >= 1, 'thinking-strip warning shown');
+  });
+  await t('confirm creates the session, loads it, and the wire keeps strict alternation', async () => {
+    await app.ev(`(function(){ const b = document.querySelector('.import-btn.primary'); if (b) b.click(); })()`);
+    await sleep(1400);
+    const s = await app.ev(`({
+      n: document.querySelectorAll('#messages .msg').length,
+      title: document.querySelector('.session-item.active .session-title') ? document.querySelector('.session-item.active .session-title').textContent : (document.querySelector('.session-title') || {}).textContent,
+      roles: Array.from(document.querySelectorAll('#messages .msg')).map((m) => m.classList.contains('user') ? 'user' : 'assistant'),
+    })`);
+    assert.equal(s.n, 2, 'imported turns rendered: ' + s.n);
+    assert.ok(s.roles[0] === 'user', 'starts with user');
+    const wire = await app.ev(`Constellation.chat.testCompose().map((m) => m.role)`);
+    assert.equal(wire[0], 'system');
+    for (let i = 1; i < wire.length; i++) assert.ok(wire[i] !== wire[i - 1], 'alternation broken at ' + i);
+  });
+  await t('mock send in the imported chat works', async () => {
+    await app.ev(`(function(){ document.getElementById('input').value = 'continue the imported chat'; document.getElementById('send').click(); })()`);
+    for (let i = 0; i < 40; i++) { const busy = await app.ev(`document.getElementById('send').classList.contains('stop')`); if (busy) break; await sleep(120); }
+    for (let i = 0; i < 60; i++) { const d = await app.ev(`!document.getElementById('send').classList.contains('stop')`); if (d) break; await sleep(150); }
+    await sleep(900);
+    const s = await app.ev(`document.querySelectorAll('#messages .msg').length`);
+    assert.ok(s >= 4, 'reply arrived: ' + s);
+  });
+  await t('anthropic multi-chat: checklist, search, select, batch import', async () => {
+    await app.ev(`Constellation.sessions.importFromText('conversations.json', ${JSON.stringify(anthropicMulti)})`, true);
+    await sleep(400);
+    const s = await app.ev(`({
+      badge: (document.querySelector('.import-badge') || {}).textContent,
+      rows: document.querySelectorAll('.import-check-row').length,
+      go: (document.querySelector('.import-go') || {}).textContent
+    })`);
+    assert.equal(s.badge, 'anthropic', JSON.stringify(s));
+    assert.equal(s.rows, 2);
+    assert.ok(String(s.go).includes('2'), s.go);
+    // search narrows the VIEW; selection is explicit — clear, select the visible row, import
+    await app.ev(`(function () {
+      const inp = document.querySelector('.import-search');
+      inp.value = 'Two';
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`);
+    await sleep(200);
+    const searched = await app.ev(`document.querySelectorAll('.import-check-row').length`);
+    assert.equal(searched, 1, 'search filtered rows: ' + searched);
+    await app.ev(`(function () {
+      document.querySelector('.import-check-row').click();   // select the visible row
+      document.querySelector('.import-btn.primary').click();
+    })()`);
+    await sleep(1600);
+    const count = await app.ev(`window.api.listSessions().then((l) => l.filter((x) => (x.title || '').includes('Anthro')).length)`, true);
+    assert.equal(count, 1, 'only the matching session imported');
+  });
+  await t('custom markers: unknown txt opens into the marker editor, live re-parse works', async () => {
+    await app.ev(`Constellation.sessions.importFromText('mystery.txt', ${JSON.stringify(customMd)})`, true);
+    await sleep(400);
+    const before = await app.ev(`({ badge: (document.querySelector('.import-badge') || {}).textContent, peek: !!document.querySelector('.import-raw-peek'), open: (document.querySelector('.import-markers') || {}).open })`);
+    assert.ok(String(before.badge).includes('Unrecognized'), JSON.stringify(before));
+    assert.equal(before.peek, true, 'raw peek shown');
+    assert.equal(before.open, true, 'markers section open by default');
+    // set the markers via sync step-evals (async evals returning objects have proven
+    // flaky through this CDP connection), then wait out the 200ms debounce
+    await app.ev(`(function () {
+      const rows = Array.from(document.querySelectorAll('.import-marker-row'));
+      const set = (idx, val) => { const inp = rows[idx].querySelector('input'); inp.value = val; inp.dispatchEvent(new Event('input', { bubbles: true })); };
+      set(0, '## WRITE'); set(1, '## REPLY'); set(2, '## NOTES');
+      return rows.length;
+    })()`);
+    await sleep(500);   // debounced live re-parse
+    const after = await app.ev(`({
+      badge: (document.querySelector('.import-badge') || { textContent: '(no badge)' }).textContent,
+      bodyChildren: (document.querySelector('.import-body') || { children: [] }).children.length,
+      overlays: document.querySelectorAll('.import-overlay').length,
+      turns: document.querySelectorAll('.import-preview-turn').length,
+      previewText: (document.querySelector('.import-preview-text') || { textContent: '(none)' }).textContent
+    })`);
+    assert.equal(after.badge, 'custom', JSON.stringify(after));
+    assert.ok(after.turns >= 2, 'parsed with custom markers: ' + after.turns);
+    assert.equal(after.previewText, 'synthetic draft', 'user preview shows the draft');
+    await app.ev(`(function(){ const b = document.querySelector('.import-close'); if (b) b.click(); })()`);
+    await sleep(300);
+  });
+  await t('chara_card_v2 JSON drop on the chat area routes to The Cast (no modal, no chip)', async () => {
+    const before = {
+      chars: (await app.ev(`window.api.listCharacters().then((l) => l.length)`, true)),
+      overlay: await app.ev(`!!document.querySelector('.import-overlay')`),
+      chips: await app.ev(`document.querySelectorAll('#attachments .attach-chip').length`),
+    };
+    await app.ev(`(async () => {
+      const file = new File([${JSON.stringify(cardJson)}], 'probe-card.json', { type: 'application/json' });
+      const dt = new DataTransfer(); dt.items.add(file);
+      document.getElementById('messages').dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: dt }));
+    })()`, true);
+    await sleep(1400);
+    const after = {
+      chars: (await app.ev(`window.api.listCharacters().then((l) => l.length)`, true)),
+      overlay: await app.ev(`!!document.querySelector('.import-overlay')`),
+      overlayCount: await app.ev(`document.querySelectorAll('.import-overlay').length`),
+      badge: await app.ev(`(document.querySelector('.import-badge')||{textContent:'(none)'}).textContent`),
+      bodyChildren: await app.ev(`(document.querySelector('.import-body')||{children:[]}).children.length`),
+      chips: await app.ev(`document.querySelectorAll('#attachments .attach-chip').length`),
+    };
+    assert.ok(after.chars > before.chars, 'card landed in The Cast: ' + before.chars + ' → ' + after.chars + ' | overlays: ' + after.overlayCount + ' badge: ' + after.badge + ' bodyChildren: ' + after.bodyChildren + ' chips: ' + after.chips);
+    assert.equal(after.overlay, false, 'no importer modal for cards');
+    assert.equal(after.chips, before.chips, 'no attachment chip for cards');
+  });
+  await t('prompt box drop stays STRICTLY an attachment', async () => {
+    const before = await app.ev(`document.querySelectorAll('#attachments .attach-chip').length`);
+    await app.ev(`(async () => {
+      const file = new File([${JSON.stringify(claudeMdExport)}], 'attached-export.md', { type: 'text/markdown' });
+      const dt = new DataTransfer(); dt.items.add(file);
+      document.getElementById('input').dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: dt }));
+    })()`, true);
+    await sleep(900);
+    const after = {
+      chips: await app.ev(`document.querySelectorAll('#attachments .attach-chip').length`),
+      overlay: await app.ev(`!!document.querySelector('.import-overlay')`),
+    };
+    assert.ok(after.chips > before, 'attached as a chip: ' + before + ' → ' + after.chips);
+    assert.equal(after.overlay, false, 'no importer modal from the prompt box');
+  });
+  await t('chat-area drop in an IN-USE chat attaches directly with a ping (no modal)', async () => {
+    const before = {
+      chips: await app.ev(`document.querySelectorAll('#attachments .attach-chip').length`),
+      msgs: await app.ev(`document.querySelectorAll('#messages .msg').length`),
+    };
+    assert.ok(before.msgs > 0, 'in-use chat has messages');
+    await app.ev(`(async () => {
+      const file = new File([${JSON.stringify(claudeMdExport)}], 'dropped-export.md', { type: 'text/markdown' });
+      const dt = new DataTransfer(); dt.items.add(file);
+      document.getElementById('messages').dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: dt }));
+    })()`, true);
+    await sleep(900);
+    const after = await app.ev(`({
+      chips: document.querySelectorAll('#attachments .attach-chip').length,
+      overlay: !!document.querySelector('.import-overlay'),
+      toast: Array.from(document.querySelectorAll('.toast')).map((t) => t.textContent).join(' | ')
+    })`);
+    assert.ok(after.chips > before.chips, 'attached directly: ' + before.chips + ' → ' + after.chips);
+    assert.equal(after.overlay, false, 'no modal in an in-use chat');
+    assert.ok(after.toast.includes('Recognized a chat export'), 'ping toast: ' + after.toast);
+  });
+  await t('chat-area drop in a FRESH chat opens the modal (attach-instead still escapes)', async () => {
+    // fresh chat = no model replies yet
+    await app.ev(`window.Constellation.chat.reset()`);
+    await sleep(500);
+    assert.equal(await app.ev(`document.querySelectorAll('#messages .msg.assistant').length`), 0, 'fresh chat has no replies');
+    await app.ev(`(async () => {
+      const file = new File([${JSON.stringify(claudeMdExport)}], 'dropped-export.md', { type: 'text/markdown' });
+      const dt = new DataTransfer(); dt.items.add(file);
+      document.getElementById('messages').dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: dt }));
+    })()`, true);
+    await sleep(700);
+    const s = await app.ev(`({
+      overlay: !!document.querySelector('.import-overlay'),
+      attach: Array.from(document.querySelectorAll('.import-foot .import-btn')).some((b) => b.textContent.includes('Attach to current chat')),
+    })`);
+    assert.equal(s.overlay, true, JSON.stringify(s));
+    assert.equal(s.attach, true, 'attach-instead escape present');
+    await app.ev(`(function(){ const b = Array.from(document.querySelectorAll('.import-foot .import-btn')).find((x) => x.textContent.includes('Attach')); if (b) b.click(); })()`);
+    await sleep(600);
+    const done = await app.ev(`({ overlay: !!document.querySelector('.import-overlay'), chips: document.querySelectorAll('#attachments .attach-chip').length })`);
+    assert.equal(done.overlay, false, 'modal closed');
+    assert.ok(done.chips > 0, 'file attached instead');
+  });
+  await t('sidebar drop highlight + sidebar drop opens the importer', async () => {
+    const hl = await app.ev(`(function () {
+      const sb = document.getElementById('sidebar');
+      sb.classList.add('open');
+      const dt = new DataTransfer();
+      dt.items.add(new File(['x'], 'side-drop.md', { type: 'text/markdown' }));   // Files type present
+      sb.dispatchEvent(new DragEvent('dragover', { bubbles: true, dataTransfer: dt }));
+      const highlighted = sb.classList.contains('drag-over');
+      sb.classList.remove('drag-over');
+      return highlighted;
+    })()`);
+    assert.equal(hl, true, 'drag-over highlight class');
+  });
+
+  // ---------------- error budget ----------------
+  current = { name: 'D global error budget', failures: 0 };
 const thrownAll = app.events.filter((e) => e.method === 'Runtime.exceptionThrown');
 record('zero uncaught exceptions across the whole run', thrownAll.length === 0, thrownAll.slice(0, 3).map((x) => JSON.stringify(x.params).slice(0, 150)).join(' | '));
 const consoleErrs = app.events.filter((e) => e.method === 'Runtime.consoleAPICalled' && e.params.type === 'error');

@@ -1,7 +1,7 @@
 // e2e helper — launch the app in an isolated profile (CONSTELLATION_USER_DATA) on its own
 // ports, connect over raw-WebSocket CDP, and tear everything down by PID. The shared
 // .lab-sandbox and the installed app are never touched.
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sleep } from './mock.mjs';
@@ -10,7 +10,26 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 export const E2E_CDP_PORT = 9233;
 export { sleep };   // re-exported from mock.mjs for the suite runners
 
+// Pre-flight: kill stale repo-launched electron instances left over from an interrupted
+// run (they hold the CDP port and the disposable profile). Matches ONLY processes named
+// electron.exe whose command line contains this repo's path — the installed app runs as
+// Constellation.exe from a different location and is never touched.
+function killStaleRepoInstances() {
+  try {
+    const script = `
+      $procs = Get-CimInstance Win32_Process -Filter "Name='electron.exe'"
+      foreach ($p in $procs) {
+        if ($p.CommandLine -like '*${REPO.replace(/'/g, "''")}*') {
+          try { Stop-Process -Id $p.ProcessId -Force -ErrorAction Stop } catch {}
+        }
+      }`;
+    spawnSync('powershell', ['-NoProfile', '-Command', script], { stdio: 'ignore', timeout: 20000 });
+  } catch (e) { /* best effort */ }
+}
+
 export async function launchApp({ userData, cliPort, cdpPort = E2E_CDP_PORT }) {
+  killStaleRepoInstances();   // close previous sandbox runs before launching (user rule)
+  await sleep(400);
   const child = spawn('npx', ['electron', '.', '--remote-debugging-port=' + cdpPort,
     '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding'], {
     cwd: REPO,

@@ -30,11 +30,13 @@
     for (const t of turns) if (t.role === 'user' && t.content) return String(t.content).replace(/\s+/g, ' ').trim().slice(0, 42) || 'Imported chat';
     return 'Imported chat';
   }
-  // exporter timestamp lines sitting right under a section header
+  // exporter timestamp lines sitting right under a section header — bare or **bold-wrapped**
   function looksLikeTimestamp(line) {
-    return /^\d{4}-\d{1,2}-\d{1,2}([T\s]\d{1,2}:\d{2}(:\d{2})?)?\s*(am|pm)?\s*$/i.test(line.trim())
-      || /^\d{1,2}:\d{2}(:\d{2})?\s*(am|pm)?\s*$/i.test(line.trim())
-      || /^\([A-Za-z]{3},?\s+\d{1,2}\s+[A-Za-z]{3}.*\)\s*$/.test(line.trim());
+    const bare = line.trim().replace(/^\*\*(.*)\*\*$/g, '$1').trim();
+    return /^\d{4}-\d{1,2}-\d{1,2}([T\s]\d{1,2}:\d{2}(:\d{2})?(\.\d+)?Z?)?\s*(am|pm)?\s*$/i.test(bare)
+      || /^\d{1,2}:\d{2}(:\d{2})?\s*(am|pm)?\s*$/i.test(bare)
+      || /^\([A-Za-z]{3},?\s+\d{1,2}\s+[A-Za-z]{3}.*\)\s*$/.test(bare)
+      || /^\d{1,2}\/\d{1,2}\/\d{4},?\s+\d{1,2}:\d{2}\s*(am|pm)?\s*$/i.test(bare);
   }
 
   // fence-state tracker: toggles on ``` / ~~~ lines so marker scanning can ignore
@@ -238,7 +240,8 @@
 
   // ---------- markdown shared preprocessing ----------
   // strips leading YAML frontmatter (harvesting title/model/date) and a leading
-  // [!summary] callout + --- divider; returns { text, title, model, date }
+  // [!summary] callout + --- divider; harvests a leading "# Title" H1 and metadata-block
+  // **Model:**/**Created:**/**Exported:** lines; returns { text, title, model, date }
   function preprocessMarkdown(text) {
     const out = { text: String(text || ''), title: undefined, model: undefined, date: undefined };
     let lines = out.text.split(/\r?\n/);
@@ -266,6 +269,28 @@
       while (start < lines.length && !lines[start].trim()) start++;
       lines = lines.slice(start);
     }
+    // leading metadata block: "# Title" H1 and **Created/Updated/Exported/Model:** lines
+    // (third-party exporter headers) — harvested, then removed up to the first turn marker
+    let h1 = null, blockEnd = 0, sawMeta = false;
+    let i2 = 0;
+    while (i2 < lines.length && i2 < 30) {
+      const lt = lines[i2].trim();
+      if (!lt) { i2++; continue; }
+      if (/^#\s+[^#]/.test(lt) && h1 === null) { h1 = lt.replace(/^#\s+/, '').trim(); i2++; continue; }
+      const mm = /^\*\*(Model|Created|Updated|Exported|Link):\*\*\s*(.*)$/i.exec(lt);
+      if (mm) {
+        const k = mm[1].toLowerCase(), v = mm[2].trim();
+        if (k === 'model' && !out.model) out.model = v;
+        else if ((k === 'exported' || k === 'created') && !out.date) out.date = v;
+        sawMeta = true;
+        i2++;
+        continue;
+      }
+      if (/^---\s*$/.test(lt) && sawMeta) { i2++; blockEnd = i2; }
+      break;
+    }
+    if (h1) out.title = h1;
+    if (blockEnd) lines = lines.slice(blockEnd);
     out.text = lines.join('\n');
     return out;
   }
@@ -338,7 +363,7 @@
       role: s.role,
       content: s.content.join('\n').replace(/^\n+|\n+$/g, ''),
       reasoning: s.reasoning.join('\n').replace(/^\n+|\n+$/g, '') || undefined,
-      model: s.model,
+      model: s.model || (s.role === 'assistant' ? (pre && pre.model) : undefined),
     }));
     const norm = normalizeTurns(raw, opts, warnings);
     return finalize(pre && pre.title, norm.turns, warnings, undefined, opts, pre && (pre.date || pre.model && undefined));
@@ -449,11 +474,14 @@
       fence.feed(line);
       if (cur.role === 'user') {
         if (/^>/.test(line)) { cur.content.push(line.replace(/^>\s?/, '')); continue; }
-        // an unquoted line hands off to the model's answer (blank lines included)
+        // an unquoted line hands off to the model's answer (blank lines included);
+        // a --- divider closes the user turn and opens the answer cleanly
+        if (/^---\s*$/.test(line.trim())) { sections.push(cur); cur = { role: 'assistant', content: [] }; continue; }
         sections.push(cur);
         cur = { role: 'assistant', content: [line] };
         continue;
       }
+      if (/^---\s*$/.test(line.trim()) && !fence.inFence && !cur.content.some((l) => l.trim())) { continue; }   // stray divider at the answer's edge
       cur.content.push(line);   // the answer accumulates, blank lines included
     }
     if (cur) sections.push(cur);

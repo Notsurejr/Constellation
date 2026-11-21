@@ -484,6 +484,7 @@ Constellation.sessions = (function () {
   function init() {
     $('sidebarToggle').addEventListener('click', toggle);
     $('newChat').addEventListener('click', newChat);
+    initImport();   // ⤓ Import chat button + sidebar drag-drop routing
 
     // Click anywhere outside the drawer (and not on the ☰ toggle) to close it.
     document.addEventListener('click', (e) => {
@@ -590,5 +591,408 @@ Constellation.sessions = (function () {
   }
   function getLore() { return currentLore; }
 
-  return { init, saveCurrent, forkFrom, saveDraft, load, toggleBookmark, bookmarksForCurrent, setLore, getLore, open, close, chatId: () => currentId, chatTitle: () => currentTitle };
+  // ---- Chat Importer (sidebar entry + drag-drop + preview modal) ----
+  // Parsing lives in Constellation.chatimport (pure, unit-tested); this layer only reads
+  // files, renders the preview with textContent, and saves through the normal sessions:save
+  // path. DnD routing: prompt-box drops stay attachments (chat.js); sidebar drops and the
+  // ⤓ button route here; chat-area drops route here only for detected chat formats.
+  let importSeq = 0;
+  const IMPORT = { overlay: null, filename: '', rawText: '', parsed: null, selected: new Set(), opts: {}, allowAttach: false, rawFiles: null, search: '' };
+
+  function importToast(msg) { if (window.Constellation && window.Constellation.toast) window.Constellation.toast(msg); }
+
+  // Sniff a dropped/staged file: 'card' (chara_card_v2 → The Cast), 'chat' (recognized
+  // export → importer), or null (not a chat/card — caller decides: attachments or ignore).
+  function sniffFile(filename, text) {
+    const ci = window.Constellation.chatimport;
+    if (!ci) return null;
+    if (/\.json$/i.test(filename)) {
+      try { if (ci.isCharacterCard(JSON.parse(text))) return 'card'; } catch (e) {}
+    }
+    const fmt = ci.detect(text);
+    if (fmt && fmt !== 'unknown' && fmt !== 'card') return 'chat';
+    return null;
+  }
+
+  async function routeDroppedFiles(files, source) {
+    const arr = Array.from(files || []);
+    if (!arr.length) return;
+    let attached = 0, imported = 0;
+    for (const f of arr) {
+      const name = f.name || '';
+      if (/\.(json|jsonl|md|txt)$/i.test(name)) {
+        let text = '';
+        try { text = await f.text(); } catch (e) { /* fall through to attachments */ }
+        const sniff = text ? sniffFile(name, text) : null;
+        if (sniff === 'card') {
+          try {
+            const buf = new Uint8Array(await f.arrayBuffer());
+            let bin = '';
+            for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+            const r = await window.api.importCharacterDrops([{ name, b64: btoa(bin) }]);
+            if (r && r.some((x) => x.ok)) importToast('Card added to The Cast');
+            continue;
+          } catch (e) {
+            console.warn('[constellation] card drop import failed:', e && e.message || e);
+            /* fall through to attachments */
+          }
+        }
+        if (sniff === 'chat') {
+          // Chat-area routing (the prompt box itself never routes here): an IN-USE chat
+          // (has model replies) treats the export as context — attach directly with a
+          // ping; a FRESH chat (no model replies yet) opens the preview modal, with
+          // attach-instead still available as the escape hatch. Sidebar drops always
+          // open the modal — that entry point exists to import.
+          const inUse = document.querySelectorAll('#messages .msg.assistant').length > 0;
+          if (source === 'chat' && inUse) {
+            if (window.Constellation.chat && window.Constellation.chat.attachFiles) {
+              window.Constellation.chat.attachFiles([f]);
+              importToast('Recognized a chat export — attached to this chat (⤓ Import chat converts it)');
+            }
+            continue;
+          }
+          openImportModal(name, text, { allowAttach: source === 'chat', rawFiles: source === 'chat' ? [f] : null });
+          imported++;
+          continue;
+        }
+        // unrecognized: sidebar imports fall open into Custom markers; chat-area keeps it as an attachment
+        if (source === 'sidebar' && /\.(md|txt)$/i.test(name)) {
+          openImportModal(name, text, { unknown: true });
+          imported++;
+          continue;
+        }
+      }
+      if (source === 'chat') {
+        if (window.Constellation.chat && window.Constellation.chat.attachFiles) window.Constellation.chat.attachFiles([f]);
+        attached++;
+      } else {
+        importToast('"' + name.slice(0, 40) + '" is not a recognized chat export');
+      }
+    }
+    if (imported > 1) importToast('Opening the last import — ' + imported + ' file' + (imported === 1 ? '' : 's') + ' queued in the modal history');
+  }
+
+  function openImportModal(filename, text, o) {
+    o = o || {};
+    const ci = window.Constellation.chatimport;
+    if (!ci) return;
+    closeImportModal();
+    IMPORT.filename = filename;
+    IMPORT.rawText = text;
+    IMPORT.allowAttach = !!o.allowAttach;
+    IMPORT.rawFiles = o.rawFiles || null;
+    IMPORT.opts = { includeThinking: false, includeSystem: true, swapRoles: false, userMarker: '', assistantMarker: '', thinkMarker: '' };
+    IMPORT.selected = new Set();
+    IMPORT.search = '';
+    IMPORT.parsed = (o.unknown || !ci.detect(text)) ? { format: 'unknown', multiChat: false, chats: [], rawPreview: ci.estimateTokens ? text.split(/\r?\n/).slice(0, 25).join('\n') : '' } : ci.parse(text, IMPORT.opts);
+    buildImportOverlay();
+  }
+
+  function closeImportModal() {
+    if (IMPORT.overlay) { IMPORT.overlay.remove(); IMPORT.overlay = null; }
+    document.removeEventListener('mousedown', importDismiss, true);
+  }
+  function importDismiss(e) { if (IMPORT.overlay && !IMPORT.overlay.contains(e.target)) closeImportModal(); }
+
+  function reparse() {
+    const ci = window.Constellation.chatimport;
+    if (IMPORT.opts.userMarker || IMPORT.opts.assistantMarker) {
+      IMPORT.parsed = ci.parseCustom(IMPORT.rawText, IMPORT.opts);
+    } else if (IMPORT.parsed.format === 'unknown') {
+      IMPORT.parsed = { format: 'unknown', multiChat: false, chats: [], rawPreview: IMPORT.rawText.split(/\r?\n/).slice(0, 25).join('\n') };
+    } else {
+      IMPORT.parsed = ci.parse(IMPORT.rawText, IMPORT.opts);
+    }
+  }
+
+  function buildImportOverlay() {
+    const ov = document.createElement('div');
+    ov.className = 'import-overlay';
+    const panel = document.createElement('div');
+    panel.className = 'import-panel';
+    const head = document.createElement('div');
+    head.className = 'import-head';
+    head.appendChild(Object.assign(document.createElement('div'), { className: 'import-title', textContent: '⤓ Import chat' }));
+    const fname = document.createElement('div');
+    fname.className = 'import-filename';
+    fname.textContent = IMPORT.filename;
+    head.appendChild(fname);
+    const x = document.createElement('button');
+    x.className = 'import-close';
+    x.textContent = '×'; x.title = 'Close';
+    x.addEventListener('click', closeImportModal);
+    head.appendChild(x);
+    panel.appendChild(head);
+    const body = document.createElement('div');
+    body.className = 'import-body';
+    panel.appendChild(body);
+    ov.appendChild(panel);
+    ov.addEventListener('mousedown', (e) => { if (e.target === ov) closeImportModal(); });
+    document.addEventListener('mousedown', importDismiss, true);
+    const foot = document.createElement('div');
+    foot.className = 'import-foot';
+    const attach = document.createElement('button');
+    attach.type = 'button'; attach.className = 'import-btn';
+    attach.textContent = 'Attach to current chat instead';
+    attach.title = 'Skip importing — add this file to the current chat as an attachment';
+    attach.addEventListener('click', attachInstead);
+    if (!IMPORT.allowAttach) attach.style.display = 'none';
+    foot.appendChild(attach);
+    const spacer = document.createElement('div');
+    spacer.className = 'spacer';
+    foot.appendChild(spacer);
+    const cancel = document.createElement('button');
+    cancel.type = 'button'; cancel.className = 'import-btn';
+    cancel.textContent = 'Cancel';
+    cancel.addEventListener('click', closeImportModal);
+    foot.appendChild(cancel);
+    const go = document.createElement('button');
+    go.type = 'button'; go.className = 'import-btn primary import-go';
+    go.addEventListener('click', () => confirmImport());
+    foot.appendChild(go);
+    panel.appendChild(foot);
+    document.body.appendChild(ov);
+    IMPORT.overlay = ov;
+    renderImportBody(body);
+  }
+
+  function renderImportBody(body) {
+    const ci = window.Constellation.chatimport;
+    body.replaceChildren();
+    const parsed = IMPORT.parsed;
+
+    // format badge + raw peek for unknown formats
+    const badgeRow = document.createElement('div');
+    badgeRow.className = 'import-badge-row';
+    const badge = document.createElement('span');
+    badge.className = 'import-badge';
+    badge.textContent = parsed.format === 'unknown' ? 'Unrecognized format — set custom markers' : parsed.format;
+    badgeRow.appendChild(badge);
+    body.appendChild(badgeRow);
+    if (parsed.format === 'unknown') {
+      const peek = document.createElement('pre');
+      peek.className = 'import-raw-peek';
+      peek.textContent = parsed.rawPreview || IMPORT.rawText.split(/\r?\n/).slice(0, 25).join('\n');
+      body.appendChild(peek);
+    }
+
+    // multi-chat checklist
+    if (parsed.multiChat) {
+      if (!IMPORT.selected.size) parsed.chats.forEach((c, i) => IMPORT.selected.add(i));
+      const search = document.createElement('input');
+      search.type = 'text'; search.className = 'import-search';
+      search.placeholder = '🔍 Search chats…'; search.value = IMPORT.search;
+      search.addEventListener('input', () => { IMPORT.search = search.value; renderImportBody(body); const s = body.querySelector('.import-search'); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } });
+      body.appendChild(search);
+      const selRow = document.createElement('div');
+      selRow.className = 'import-select-row';
+      const all = document.createElement('button'); all.className = 'import-mini'; all.textContent = 'Select all';
+      all.addEventListener('click', () => { parsed.chats.forEach((c, i) => { if (!IMPORT.search || (c.title || '').toLowerCase().includes(IMPORT.search.toLowerCase())) IMPORT.selected.add(i); }); renderImportBody(body); });
+      const none = document.createElement('button'); none.className = 'import-mini'; none.textContent = 'Clear';
+      none.addEventListener('click', () => { IMPORT.selected.clear(); renderImportBody(body); });
+      selRow.appendChild(all); selRow.appendChild(none);
+      const cnt = document.createElement('span'); cnt.className = 'import-count'; cnt.textContent = IMPORT.selected.size + ' of ' + parsed.chats.length + ' selected';
+      selRow.appendChild(cnt);
+      body.appendChild(selRow);
+      const listEl = document.createElement('div');
+      listEl.className = 'import-list';
+      parsed.chats.forEach((c, i) => {
+        if (IMPORT.search && !(c.title || '').toLowerCase().includes(IMPORT.search.toLowerCase())) return;
+        const row = document.createElement('div');
+        row.className = 'import-check-row' + (IMPORT.selected.has(i) ? ' selected' : '');
+        const box = document.createElement('input');
+        box.type = 'checkbox'; box.checked = IMPORT.selected.has(i);
+        box.addEventListener('click', (e) => { e.stopPropagation(); if (box.checked) IMPORT.selected.add(i); else IMPORT.selected.delete(i); row.classList.toggle('selected', box.checked); updateCount(); });
+        row.appendChild(box);
+        const label = document.createElement('div');
+        label.className = 'import-row-label';
+        const t = document.createElement('div'); t.className = 'import-row-title'; t.textContent = c.title || 'Untitled';
+        const meta = document.createElement('div'); meta.className = 'import-row-meta'; meta.textContent = (c.date ? c.date.slice(0, 10) + ' · ' : '') + c.count + ' messages';
+        label.appendChild(t); label.appendChild(meta);
+        row.appendChild(label);
+        row.addEventListener('click', (e) => { if (e.target === box) return; IMPORT.selected.has(i) ? IMPORT.selected.delete(i) : IMPORT.selected.add(i); renderImportBody(body); });
+        listEl.appendChild(row);
+      });
+      body.appendChild(listEl);
+      function updateCount() { const el = body.querySelector('.import-count'); if (el) el.textContent = IMPORT.selected.size + ' of ' + parsed.chats.length + ' selected'; }
+    }
+
+    // single-chat preview: editable title, turn count, tokens, first 2–3 turns
+    const chat = parsed.multiChat ? null : parsed.chats[0];
+    if (chat && chat.turns) {
+      const titleEdit = document.createElement('input');
+      titleEdit.type = 'text'; titleEdit.className = 'import-title-edit';
+      titleEdit.value = chat.title || 'Imported chat';
+      titleEdit.setAttribute('aria-label', 'Chat title');
+      body.appendChild(titleEdit);
+      const stats = document.createElement('div');
+      stats.className = 'import-stats';
+      stats.textContent = chat.turns.length + ' turns · ~' + ci.estimateTokens(chat.turns.map((t) => t.content || '').join('\n\n')) + ' tokens (content)';
+      body.appendChild(stats);
+      const preview = document.createElement('div');
+      preview.className = 'import-preview';
+      chat.turns.slice(0, 3).forEach((t) => {
+        const row = document.createElement('div');
+        row.className = 'import-preview-turn role-' + t.role;
+        const who = document.createElement('div');
+        who.className = 'import-preview-role';
+        who.textContent = (t.role === 'user' ? 'You' : (t.model || 'Assistant')) + (t.reasoning ? ' · ✦ thinking ' + (opts.includeThinking ? 'on' : 'stripped') : '');
+        const txt = document.createElement('div');
+        txt.className = 'import-preview-text';
+        txt.textContent = String(t.content || '').slice(0, 400) + (String(t.content || '').length > 400 ? '…' : '');
+        row.appendChild(who); row.appendChild(txt);
+        preview.appendChild(row);
+      });
+      body.appendChild(preview);
+    }
+    // keep the footer button label in step with the selection
+    const go = IMPORT.overlay.querySelector('.import-go');
+    if (go) go.textContent = parsed.multiChat ? ('Import ' + IMPORT.selected.size + ' chat' + (IMPORT.selected.size === 1 ? '' : 's')) : 'Import chat';
+
+    // warnings strip
+    const allWarnings = [];
+    (parsed.chats || []).forEach((c) => (c.warnings || []).forEach((w) => { if (!allWarnings.includes(w)) allWarnings.push(w); }));
+    (parsed.warnings || []).forEach((w) => { if (!allWarnings.includes(w)) allWarnings.push(w); });
+    if (allWarnings.length) {
+      const strip = document.createElement('div');
+      strip.className = 'import-warnings';
+      allWarnings.forEach((w) => { const wl = document.createElement('div'); wl.className = 'import-warning'; wl.textContent = '· ' + w; strip.appendChild(wl); });
+      body.appendChild(strip);
+    }
+
+    // custom markers (open by default for unknown formats)
+    const markersOpen = parsed.format === 'unknown' || parsed.format === 'custom' || !!IMPORT.opts.userMarker || !!IMPORT.opts.assistantMarker;
+    const det = document.createElement('details');
+    det.className = 'import-markers' + (markersOpen ? ' open' : '');
+    if (markersOpen) det.open = true;
+    const sum = document.createElement('summary');
+    sum.textContent = 'Custom markers';
+    det.appendChild(sum);
+    const markerHint = document.createElement('div');
+    markerHint.className = 'import-marker-hint';
+    markerHint.textContent = 'Type the exact speaker lines your export uses — the preview re-parses live.';
+    det.appendChild(markerHint);
+    const mk = [['userMarker', 'User marker', IMPORT.opts.userMarker], ['assistantMarker', 'Assistant marker', IMPORT.opts.assistantMarker], ['thinkMarker', 'Thinking marker (optional)', IMPORT.opts.thinkMarker]];
+    for (const [key, label, val] of mk) {
+      const row = document.createElement('div');
+      row.className = 'import-marker-row';
+      const lab = document.createElement('label'); lab.textContent = label;
+      const inp = document.createElement('input');
+      inp.type = 'text'; inp.value = val || ''; inp.placeholder = 'e.g. ## User';
+      inp.addEventListener('input', () => {
+        IMPORT.opts[key] = inp.value;
+        clearTimeout(IMPORT._mkTimer);
+        IMPORT._mkTimer = setTimeout(() => { reparse(); renderImportBody(body); }, 200);
+      });
+      row.appendChild(lab); row.appendChild(inp);
+      det.appendChild(row);
+    }
+    body.appendChild(det);
+    if (parsed.format === 'unknown' || parsed.format === 'custom') {
+      const customNote = document.createElement('div');
+      customNote.className = 'import-marker-hint';
+      customNote.textContent = IMPORT.opts.userMarker || IMPORT.opts.assistantMarker ? 'Parsing with your markers — check the preview below.' : 'This file did not match a known exporter. Type its speaker markers above and the preview below parses live.';
+      body.appendChild(customNote);
+    }
+
+    // options
+    const optsRow = document.createElement('div');
+    optsRow.className = 'import-opts';
+    const mkCheck = (key, label, checked) => {
+      const lab = document.createElement('label');
+      lab.className = 'import-check';
+      const box = document.createElement('input');
+      box.type = 'checkbox'; box.checked = !!checked;
+      box.addEventListener('change', () => { IMPORT.opts[key] = box.checked; reparse(); renderImportBody(body); });
+      lab.appendChild(box);
+      lab.appendChild(document.createTextNode(label));
+      optsRow.appendChild(lab);
+    };
+    mkCheck('includeThinking', 'Include thinking blocks', IMPORT.opts.includeThinking);
+    const hasSystem = (parsed.chats || []).some((c) => c.system);
+    if (hasSystem) mkCheck('includeSystem', 'Include system prompt', IMPORT.opts.includeSystem !== false);
+    const swap = document.createElement('button');
+    swap.type = 'button'; swap.className = 'import-mini';
+    swap.textContent = IMPORT.opts.swapRoles ? 'Roles swapped — swap back' : 'Swap roles';
+    swap.addEventListener('click', () => { IMPORT.opts.swapRoles = !IMPORT.opts.swapRoles; reparse(); renderImportBody(body); });
+    optsRow.appendChild(swap);
+    body.appendChild(optsRow);
+  }
+
+  async function confirmImport() {
+    const ci = window.Constellation.chatimport;
+    const parsed = IMPORT.parsed;
+    const selections = parsed.multiChat ? Array.from(IMPORT.selected).sort((a, b) => a - b) : [0];
+    if (!selections.length) { importToast('Nothing selected'); return; }
+    let cfgGen = null;
+    try { cfgGen = cfgToGen(await window.api.loadConfig()); } catch (e) {}
+    if (cfgGen && window.Constellation.chat && window.Constellation.chat.getOptions) {
+      const o = window.Constellation.chat.getOptions();
+      if (o && o.model) cfgGen.model = o.model;
+    }
+    const ids = [];
+    let firstChat = null, firstTitle = null;
+    for (const idx of selections) {
+      const chat = parsed.multiChat ? ci.parseOne(IMPORT.rawText, idx, IMPORT.opts).chats[0] : parsed.chats[0];
+      if (!chat || !chat.turns || !chat.turns.length) continue;
+      const id = 'imp_' + Date.now().toString(36) + '_' + (++importSeq) + '_' + Math.floor(Math.random() * 1e6).toString(36);
+      const title = (IMPORT.parsed.multiChat ? (chat.title || 'Imported chat ' + (idx + 1)) : (document.querySelector('.import-title-edit') ? document.querySelector('.import-title-edit').value.trim() : '') || chat.title) || 'Imported chat';
+      const tokens = ci.estimateTokens(chat.turns.map((t) => t.content || '').join('\n\n'));
+      const res = await window.api.saveSession({
+        id, title, messages: chat.turns,
+        system: chat.system || '', project: chat.project || '',
+        systemFiles: [], projectFiles: [],
+        gen: cfgGen || { model: 'mock-1' },
+        usage: { tokens, requests: 0 },
+        lore: [], character: chat.character || undefined,
+        projectFenceTag: chat.projectFenceTag || null,
+      });
+      ids.push(res.id);
+      if (!firstChat) { firstChat = res.id; firstTitle = title; }
+    }
+    if (!ids.length) { importToast('Nothing importable found'); return; }
+    closeImportModal();
+    refresh();   // one sidebar refresh after the whole batch
+    if (ids.length === 1) importToast('Imported "' + firstTitle + '"');
+    else importToast('Imported ' + ids.length + ' chats');
+    await load(ids[0]);
+  }
+
+  function attachInstead() {
+    if (IMPORT.rawFiles && window.Constellation.chat && window.Constellation.chat.attachFiles) {
+      window.Constellation.chat.attachFiles(IMPORT.rawFiles);
+      importToast('Attached to the current chat instead');
+    }
+    closeImportModal();
+  }
+
+  function openImportDialog() {
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.multiple = true;
+    inp.accept = '.json,.jsonl,.md,.txt';
+    inp.addEventListener('change', () => { routeDroppedFiles(inp.files, 'sidebar'); });
+    inp.click();
+  }
+
+  function initImport() {
+    const btn = $('importChat');
+    if (btn) btn.addEventListener('click', openImportDialog);
+    const sidebar = $('sidebar');
+    if (sidebar) {
+      sidebar.addEventListener('dragover', (e) => {
+        if (e.dataTransfer && Array.prototype.some.call(e.dataTransfer.types || [], (t) => t === 'Files')) { e.preventDefault(); sidebar.classList.add('drag-over'); }
+      });
+      sidebar.addEventListener('dragleave', (e) => { if (e.relatedTarget && sidebar.contains(e.relatedTarget)) return; sidebar.classList.remove('drag-over'); });
+      sidebar.addEventListener('drop', async (e) => {
+        sidebar.classList.remove('drag-over');
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+          e.preventDefault(); e.stopPropagation();
+          await routeDroppedFiles(e.dataTransfer.files, 'sidebar');
+        }
+      });
+    }
+  }
+
+  return { init, initImport, routeDroppedFiles, importFromText: (name, text) => openImportModal(name, text, {}), openImportModal, closeImportModal, confirmImport, saveCurrent, forkFrom, saveDraft, load, toggleBookmark, bookmarksForCurrent, setLore, getLore, open, close, chatId: () => currentId, chatTitle: () => currentTitle };
 })();
+

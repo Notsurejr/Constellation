@@ -256,6 +256,72 @@ test('claude md: <thinking> blocks end on the closing tag', () => {
   assert.equal(r.chats[0].turns[1].reasoning, 'inner');
   assert.equal(r.chats[0].turns[1].content, 'answer body');
 });
+test('claude md: H1 title, metadata Model stamp, and bold-wrapped timestamps stripped', () => {
+  // modeled on real third-party Claude exports: "# Title" H1, a metadata block with
+  // **Created/Updated/Exported/Model:**/**Link:** lines, **bold-wrapped** ISO timestamps
+  const md = [
+    '# Night Shift',
+    '**Created:** 2/28/2026, 5:01:15 PM',
+    '**Updated:** 4/27/2026, 7:06:06 PM',
+    '**Exported:** 5/5/2026, 9:11:43 PM',
+    '**Model:** claude-opus-4-6',
+    '**Link:** [https://claude.ai/chat/x](https://claude.ai/chat/x)',
+    '',
+    '---',
+    '',
+    '## User',
+    '**2026-02-28T23:01:16.755Z**',
+    '',
+    'Hey cutie',
+    '',
+    '## Claude',
+    '**2026-02-28T23:01:41.741Z**',
+    '',
+    '<thinking>',
+    'weigh it',
+    '</thinking>',
+    '*looks up from the manuscript.*',
+  ].join('\n');
+  const on = chatimport.parse(md, { includeThinking: true });
+  assert.equal(on.chats[0].title, 'Night Shift');
+  assert.equal(on.chats[0].turns[0].content, 'Hey cutie', 'bold-wrapped timestamp stripped');
+  assert.equal(on.chats[0].turns[1].model, 'claude-opus-4-6', 'metadata Model stamps assistant turns');
+  assert.equal(on.chats[0].turns[1].reasoning, 'weigh it');
+  assert.equal(on.chats[0].turns[1].content, '*looks up from the manuscript.*');
+});
+test('gemini third-party md: H1 + **Exported:**/**Link:** metadata block harvested', () => {
+  const md = [
+    '# A Fresh Import',
+    '**Exported:** 11/15/2025 5:38:58  ',
+    '**Link:** [https://example.com/x](https://example.com/x)',
+    '',
+    '## Prompt:',
+    'What changed?',
+    '',
+    '## Response:',
+    'Nothing changed.',
+  ].join('\n');
+  const r = chatimport.parse(md);
+  assert.equal(r.format, 'md_chatgpt');
+  assert.equal(r.chats[0].title, 'A Fresh Import');
+  assert.deepEqual(r.chats[0].turns.map((t) => t.content), ['What changed?', 'Nothing changed.']);
+});
+test('aistudio md: --- divider between quoted user turn and unquoted answer', () => {
+  const md = [
+    '> User',
+    '> I. The directives, fully quoted,',
+    '> spanning two lines.',
+    '',
+    '---',
+    '',
+    'The model answer after the divider.',
+  ].join('\n');
+  const r = chatimport.parse(md);
+  assert.equal(r.format, 'md_aistudio');
+  assert.deepEqual(r.chats[0].turns.map((t) => t.role), ['user', 'assistant']);
+  assert.ok(r.chats[0].turns[0].content.includes('directives, fully quoted'));
+  assert.equal(r.chats[0].turns[1].content, 'The model answer after the divider.');
+});
 
 // ---------- ChatGPT / Gemini raw MD ----------
 test('chatgpt/gemini md: ## Prompt:/## Response: with > Thinking blockquotes', () => {
