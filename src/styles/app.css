@@ -2581,6 +2581,10 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); }
 .import-chat:hover { color: var(--accent); border-color: var(--accent-dim); opacity: 1; }
 
 .sidebar.drag-over { box-shadow: inset 0 0 0 2px var(--accent-dim); background: var(--accent-04); }
+/* Same "this surface takes drops" signal for the chat canvas — without it a real drag
+   over the empty thread looks identical to dragging over dead space. Outline only: a
+   fill across the whole thread would read as selection, not reception. */
+.chat.drag-over { box-shadow: inset 0 0 0 2px var(--accent-dim); }
 
 .import-overlay {
   position: fixed; inset: 0; z-index: 90;

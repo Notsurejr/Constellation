@@ -646,8 +646,13 @@ Constellation.chat = (function () {
       attachBtn.addEventListener('click', () => fileInput.click());
       fileInput.addEventListener('change', () => { handleFiles(fileInput.files); fileInput.value = ''; });
     }
+    // Acceptance gate for REAL OS drags: during dragover the DataTransfer sits in protected
+    // mode — files is an EMPTY list (readable only once the drop lands), but types always
+    // carries 'Files'. A files.length check here silently rejects every real drag while
+    // still passing synthetic test events (which bypass protected mode) — that mismatch is
+    // exactly how the canvas drop zone stayed dead behind a passing e2e suite.
     const allowDrop = (e) => {
-      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) e.preventDefault();
+      if (e.dataTransfer && Array.prototype.some.call(e.dataTransfer.types || [], (t) => t === 'Files')) e.preventDefault();
     };
     // The prompt box stays STRICTLY attachments (exported chats are often attached to a
     // prompt for review); the chat area routes recognized exports / cards to the importer
@@ -656,6 +661,21 @@ Constellation.chat = (function () {
       if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
         e.preventDefault();
         handleFiles(e.dataTransfer.files);
+        // Attached-as-context is the right action here, but a recognized platform export
+        // vanishing into the tray without a word reads as the routing being broken —
+        // peek at the text (readable at drop) and say what ⤓ can do with it instead.
+        const candidates = Array.from(e.dataTransfer.files).filter((f) => /\.(json|jsonl|md|txt)$/i.test(f.name || ''));
+        (async () => {
+          for (const f of candidates) {
+            try {
+              const text = await f.text();
+              if (window.Constellation.sessions && window.Constellation.sessions.sniffFile && window.Constellation.sessions.sniffFile(f.name, text) === 'chat') {
+                if (window.Constellation.toast) window.Constellation.toast('Recognized a chat export — attached as context (⤓ Import chat converts it)');
+                break;
+              }
+            } catch (err) { /* unreadable file — stay silent */ }
+          }
+        })();
       }
     };
     const dropMessages = (e) => {
@@ -670,8 +690,18 @@ Constellation.chat = (function () {
     };
     inputEl.addEventListener('dragover', allowDrop);
     inputEl.addEventListener('drop', dropInput);
-    messagesEl.addEventListener('dragover', allowDrop);
-    messagesEl.addEventListener('drop', dropMessages);
+    // The chat area duplicates allowDrop so it can also answer the drag visually: the
+    // sidebar glows when a drag crosses it, and the canvas gave no sign it was receptive,
+    // which reads as "drops land nowhere here".
+    const messagesDragOver = (e) => {
+      if (e.dataTransfer && Array.prototype.some.call(e.dataTransfer.types || [], (t) => t === 'Files')) {
+        e.preventDefault();
+        messagesEl.classList.add('drag-over');
+      }
+    };
+    messagesEl.addEventListener('dragover', messagesDragOver);
+    messagesEl.addEventListener('dragleave', (e) => { if (e.relatedTarget && messagesEl.contains(e.relatedTarget)) return; messagesEl.classList.remove('drag-over'); });
+    messagesEl.addEventListener('drop', (e) => { messagesEl.classList.remove('drag-over'); dropMessages(e); });
   }
 
   function autoGrow() {

@@ -993,6 +993,6 @@ Constellation.sessions = (function () {
     }
   }
 
-  return { init, initImport, routeDroppedFiles, importFromText: (name, text) => openImportModal(name, text, {}), openImportModal, closeImportModal, confirmImport, saveCurrent, forkFrom, saveDraft, load, toggleBookmark, bookmarksForCurrent, setLore, getLore, open, close, chatId: () => currentId, chatTitle: () => currentTitle };
+  return { init, initImport, routeDroppedFiles, sniffFile, importFromText: (name, text) => openImportModal(name, text, {}), openImportModal, closeImportModal, confirmImport, saveCurrent, forkFrom, saveDraft, load, toggleBookmark, bookmarksForCurrent, setLore, getLore, open, close, chatId: () => currentId, chatTitle: () => currentTitle };
 })();
 
