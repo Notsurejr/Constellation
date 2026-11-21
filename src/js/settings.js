@@ -714,6 +714,7 @@ Constellation.settings = (function () {
       if ($('settingsOverlay').classList.contains('open')) close(); else open();
     });
     $('closeSettings').addEventListener('click', close);
+    const px = $('settingsClose'); if (px) px.addEventListener('click', close);   // header ×, same close
     $('savePrompt').addEventListener('click', savePrompt);
     $('saveProject').addEventListener('click', saveProject);
     const sfb = $('systemFileBtn'); if (sfb) sfb.addEventListener('click', () => pickFiles(edSystemFiles, 'systemFilesTray'));

@@ -31,6 +31,7 @@ Constellation.sessions = (function () {
 
   function open() {
     $('sidebar').classList.add('open');
+    const sc = $('sidebarScrim'); if (sc) sc.classList.add('open');
     // Land the list on the chat you're actually in — not the newest one at the top.
     // setTimeout, not rAF: rAF never fires while the window is backgrounded/occluded.
     setTimeout(() => {
@@ -41,7 +42,10 @@ Constellation.sessions = (function () {
       if (active.scrollIntoView) active.scrollIntoView({ block: 'center' });
     }, 80);
   }
-  function close() { $('sidebar').classList.remove('open'); }
+  function close() {
+    $('sidebar').classList.remove('open');
+    const sc = $('sidebarScrim'); if (sc) sc.classList.remove('open');
+  }
   function toggle() {
     if ($('sidebar').classList.contains('open')) close();
     else open();   // through open() so the list lands on the active chat
@@ -60,12 +64,21 @@ Constellation.sessions = (function () {
   }
 
   // Build a single session-item row (reused for pinned, foldered, and top-level chats).
+  // Monochrome inline icons (crisp at 15px, harmonize with every accent) — same
+  // stroke language as the topbar SVGs: currentColor, 1.5px, round caps.
+  var ICO = {
+    folder: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 6.5a1.5 1.5 0 0 1 1.5-1.5h4l2 2.5h8a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/></svg>',
+    pencil: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>',
+    eyeOff: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="M2 2l20 20"/></svg>',
+    chevron: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>'
+  };
+
   function makeItem(s, indented) {
     const item = document.createElement('div');
     item.className = 'session-item' + (s.id === currentId ? ' active' : '') + (s.pinned ? ' pinned' : '') + (indented ? ' indented' : '') + (s.hidden ? ' hidden-chat' : '') + (s.character ? ' char-chat' : '');
     item.dataset.id = s.id;
-    const pin = document.createElement('button');
-    pin.className = 'session-pin'; pin.textContent = s.pinned ? '★' : '☆'; pin.title = s.pinned ? 'Unpin' : 'Pin to top';
+    // Flush-left first: title and meta own the row from the left edge. All actions live
+    // in a right-anchored hover pill; a pinned chat also wears an accent rail + quiet star.
     const title = document.createElement('span');
     title.className = 'session-title'; title.textContent = s.title || 'Untitled';
     if (s.character) {   // character chats wear their face — avatar from the Cast store, falling back to an initial
@@ -81,14 +94,6 @@ Constellation.sessions = (function () {
       }
       title.prepend(chip);
     }
-    const move = document.createElement('button');
-    move.className = 'session-move'; move.textContent = '📁'; move.title = 'Move to folder';
-    const rename = document.createElement('button');
-    rename.className = 'session-rename'; rename.textContent = '✎'; rename.title = 'Rename';
-    const hide = document.createElement('button');
-    hide.className = 'session-hide'; hide.textContent = '⊘'; hide.title = s.hidden ? 'Unhide chat' : 'Hide chat (tucked away — show via the sidebar footer)';
-    const del = document.createElement('button');
-    del.className = 'session-del'; del.textContent = '×'; del.title = 'Delete';
     const main = document.createElement('div');
     main.className = 'session-main';
     main.appendChild(title);
@@ -99,7 +104,26 @@ Constellation.sessions = (function () {
       if (s.usage && s.usage.tokens > 0) { const u = document.createElement('span'); u.className = 'session-usage'; u.textContent = fmtTokens(s.usage.tokens); u.title = 'Lifetime tokens spent in this chat — every send re-carries the full history (this is what the API bills). The ◐ meter in the top bar shows the CURRENT context size instead.'; meta.appendChild(u); }
       main.appendChild(meta);
     }
-    item.appendChild(pin); item.appendChild(main); item.appendChild(move); item.appendChild(rename); item.appendChild(hide); item.appendChild(del);
+    item.appendChild(main);
+    const pin = document.createElement('button');
+    pin.className = 'session-pin'; pin.textContent = s.pinned ? '★' : '☆'; pin.title = s.pinned ? 'Unpin' : 'Pin to top';
+    const move = document.createElement('button');
+    move.className = 'session-move'; move.innerHTML = ICO.folder; move.title = 'Move to folder';
+    const rename = document.createElement('button');
+    rename.className = 'session-rename'; rename.innerHTML = ICO.pencil; rename.title = 'Rename';
+    const hide = document.createElement('button');
+    hide.className = 'session-hide'; hide.innerHTML = ICO.eyeOff; hide.title = s.hidden ? 'Unhide chat' : 'Hide chat (tucked away — show via the sidebar footer)';
+    const del = document.createElement('button');
+    del.className = 'session-del'; del.textContent = '×'; del.title = 'Delete';
+    const pill = document.createElement('div');
+    pill.className = 'session-pill';
+    pill.appendChild(pin); pill.appendChild(move); pill.appendChild(rename); pill.appendChild(hide); pill.appendChild(del);
+    item.appendChild(pill);
+    if (s.pinned) {
+      const star = document.createElement('span');
+      star.className = 'session-pinned-star'; star.textContent = '★'; star.title = 'Pinned';
+      item.appendChild(star);
+    }
     return item;
   }
 
@@ -109,7 +133,7 @@ Constellation.sessions = (function () {
     row.className = 'folder-row' + (folder.collapsed ? ' collapsed' : '');
     row.dataset.folder = folder.id;
     const toggle = document.createElement('span');
-    toggle.className = 'folder-toggle'; toggle.textContent = folder.collapsed ? '▸' : '▾';
+    toggle.className = 'folder-toggle'; toggle.innerHTML = ICO.chevron;
     const name = document.createElement('span');
     name.className = 'folder-name'; name.textContent = folder.name || 'Folder';
     const cnt = document.createElement('span');
@@ -118,7 +142,7 @@ Constellation.sessions = (function () {
     del.className = 'folder-del'; del.textContent = '×'; del.title = 'Delete folder (chats move to top level)';
     row.appendChild(toggle); row.appendChild(name); row.appendChild(cnt);
     const rename = document.createElement('button');
-    rename.className = 'folder-rename'; rename.textContent = '✎'; rename.title = 'Rename folder';
+    rename.className = 'folder-rename'; rename.innerHTML = ICO.pencil; rename.title = 'Rename folder';
     row.appendChild(rename); row.appendChild(del);
     return row;
   }
@@ -485,6 +509,7 @@ Constellation.sessions = (function () {
     $('sidebarToggle').addEventListener('click', toggle);
     $('newChat').addEventListener('click', newChat);
     initImport();   // ⤓ Import chat button + sidebar drag-drop routing
+    const scrim = $('sidebarScrim'); if (scrim) scrim.addEventListener('click', close);
 
     // Click anywhere outside the drawer (and not on the ☰ toggle) to close it.
     document.addEventListener('click', (e) => {
@@ -766,7 +791,9 @@ Constellation.sessions = (function () {
     badgeRow.className = 'import-badge-row';
     const badge = document.createElement('span');
     badge.className = 'import-badge';
-    badge.textContent = parsed.format === 'unknown' ? 'Unrecognized format — set custom markers' : parsed.format;
+    badge.textContent = ci.formatLabel ? ci.formatLabel(parsed.format) : parsed.format;
+    badge.dataset.format = parsed.format;   // the raw enum key rides along for tests/inspection
+    badge.title = 'Detected format: ' + parsed.format;
     badgeRow.appendChild(badge);
     body.appendChild(badgeRow);
     if (parsed.format === 'unknown') {
@@ -820,11 +847,18 @@ Constellation.sessions = (function () {
     // single-chat preview: editable title, turn count, tokens, first 2–3 turns
     const chat = parsed.multiChat ? null : parsed.chats[0];
     if (chat && chat.turns) {
+      const titleWrap = document.createElement('div');
+      titleWrap.className = 'import-title-wrap';
+      const micro = document.createElement('div');
+      micro.className = 'import-microlabel';
+      micro.textContent = 'Title';
       const titleEdit = document.createElement('input');
       titleEdit.type = 'text'; titleEdit.className = 'import-title-edit';
       titleEdit.value = chat.title || 'Imported chat';
       titleEdit.setAttribute('aria-label', 'Chat title');
-      body.appendChild(titleEdit);
+      titleWrap.appendChild(micro);
+      titleWrap.appendChild(titleEdit);
+      body.appendChild(titleWrap);
       const stats = document.createElement('div');
       stats.className = 'import-stats';
       stats.textContent = chat.turns.length + ' turns · ~' + ci.estimateTokens(chat.turns.map((t) => t.content || '').join('\n\n')) + ' tokens (content)';

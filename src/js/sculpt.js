@@ -436,7 +436,9 @@ Constellation.sculpt = (function () {
       next.addEventListener('click', () => switchVariant(el, 1));
       nav.appendChild(prev); nav.appendChild(label); nav.appendChild(next);
       const acts = el.querySelector('.msg-actions');
-      if (acts) el.insertBefore(nav, acts); else el.appendChild(nav);
+      // .msg-actions sits inside the .msg-head row — insert beside it, not into el.
+      if (acts && acts.parentElement) acts.parentElement.insertBefore(nav, acts);
+      else el.appendChild(nav);
     }
     nav.querySelector('.variant-label').textContent = ((m.vActive || 0) + 1) + '/' + m.variants.length;
   }

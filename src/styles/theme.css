@@ -30,12 +30,14 @@
 @font-face { font-family: 'Atkinson Hyperlegible'; font-style: italic; font-weight: 700; font-display: swap; src: url('../fonts/atkinson-700i.woff2') format('woff2'); }
 
 :root {
+  color-scheme: dark;                  /* native controls (checkboxes, selects, scrollbars) render dark — unchecked boxes stop drawing as bright white squares on the sky */
+
   --bg: #000000;                       /* deep-space black */
   --star-rgb: 255, 255, 255;           /* main star color */
   --star-tint-rgb: 190, 210, 255;      /* faint blue-white for some stars */
 
   --panel-bg: rgba(8, 10, 18, 0.62);   /* glassy panels */
-  --panel-border: rgba(150, 175, 230, 0.14);
+  --panel-border: color-mix(in srgb, var(--accent) 14%, rgba(255, 255, 255, 0.08));
 
   --text: #e9eef9;                     /* main text */
   --text-dim: #8b94a8;                 /* secondary text */
@@ -60,7 +62,14 @@
   --font-prose: 'Literata', Georgia, 'Times New Roman', serif;
 
   --radius: 14px;
-  --glow: 0 0 18px rgba(159, 184, 255, 0.25);
+  --glow: 0 0 18px var(--accent-25);
+
+  /* One unified modal/overlay surface language — every panel wears the same body,
+     corner, and top-edge highlight so Settings, Cast, Lorebook, Import, Bookmarks,
+     Craft, Shortcuts and the Request Inspector read as one family. */
+  --modal-bg: rgba(9, 12, 20, 0.94);
+  --modal-radius: 14px;
+  --modal-top-edge: color-mix(in srgb, color-mix(in srgb, var(--accent) 65%, white) 24%, transparent);
 
   --font-scale: 1;       /* text-size preference (set by Settings → Appearance) */
   --chat-col: 880px;     /* width of the centered chat column (set by Settings → Appearance) */

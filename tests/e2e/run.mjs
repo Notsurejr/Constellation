@@ -561,7 +561,8 @@ try {
     await sleep(400);
     const s = await app.ev(`({
       overlay: !!document.querySelector('.import-overlay'),
-      badge: (document.querySelector('.import-badge') || {}).textContent,
+      badge: (document.querySelector('.import-badge') || {}).dataset.format,
+      badgeText: (document.querySelector('.import-badge') || {}).textContent,
       title: (document.querySelector('.import-title-edit') || {}).value,
       thinkChecked: (document.querySelector('.import-check input') || {}).checked,
       turns: document.querySelectorAll('.import-preview-turn').length,
@@ -569,6 +570,7 @@ try {
     })`);
     assert.equal(s.overlay, true, JSON.stringify(s));
     assert.equal(s.badge, 'md_claude');
+    assert.equal(s.badgeText, 'Claude Markdown', 'friendly label shown');
     assert.ok(String(s.title).includes('Stage a synthetic question'), 'derived title: ' + s.title);
     assert.equal(s.thinkChecked, false, 'thinking OFF default');
     assert.ok(s.turns >= 2, 'preview turns: ' + s.turns);
@@ -600,11 +602,13 @@ try {
     await app.ev(`Constellation.sessions.importFromText('conversations.json', ${JSON.stringify(anthropicMulti)})`, true);
     await sleep(400);
     const s = await app.ev(`({
-      badge: (document.querySelector('.import-badge') || {}).textContent,
+      badge: (document.querySelector('.import-badge') || {}).dataset.format,
+      badgeText: (document.querySelector('.import-badge') || {}).textContent,
       rows: document.querySelectorAll('.import-check-row').length,
       go: (document.querySelector('.import-go') || {}).textContent
     })`);
     assert.equal(s.badge, 'anthropic', JSON.stringify(s));
+    assert.equal(s.badgeText, 'Anthropic JSON', 'friendly label shown');
     assert.equal(s.rows, 2);
     assert.ok(String(s.go).includes('2'), s.go);
     // search narrows the VIEW; selection is explicit — clear, select the visible row, import
@@ -641,7 +645,7 @@ try {
     })()`);
     await sleep(500);   // debounced live re-parse
     const after = await app.ev(`({
-      badge: (document.querySelector('.import-badge') || { textContent: '(no badge)' }).textContent,
+      badge: (document.querySelector('.import-badge') || { dataset: {} }).dataset.format,
       bodyChildren: (document.querySelector('.import-body') || { children: [] }).children.length,
       overlays: document.querySelectorAll('.import-overlay').length,
       turns: document.querySelectorAll('.import-preview-turn').length,

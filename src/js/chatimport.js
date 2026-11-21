@@ -733,5 +733,24 @@
     return { format: 'custom', multiChat: false, chats: [chat], warnings };
   }
 
-  return { detect: detectFormat, list, parse, parseOne, parseCustom, estimateTokens, normalizeTurns, isCharacterCard };
+  // Human-friendly names for the detected-format badge — the UI shows these instead of
+  // the raw enum strings (the raw key rides along as data-format for tests/inspecting).
+  var FORMAT_LABELS = {
+    anthropic: 'Anthropic JSON',
+    chatgpt: 'ChatGPT Export',
+    aistudio: 'AI Studio JSON',
+    st_jsonl: 'SillyTavern JSONL',
+    constellation: 'Constellation Backup',
+    md_claude: 'Claude Markdown',
+    md_chatgpt: 'ChatGPT Markdown',
+    md_callout: 'Obsidian Callouts',
+    md_aistudio: 'AI Studio Paste',
+    generic: 'Custom / Generic',
+    custom: 'Custom Markers',
+    card: 'Character Card',
+    unknown: 'Unrecognized format — set custom markers'
+  };
+  function formatLabel(format) { return FORMAT_LABELS[format] || format; }
+
+  return { detect: detectFormat, list, parse, parseOne, parseCustom, estimateTokens, normalizeTurns, isCharacterCard, formatLabel: formatLabel };
 });

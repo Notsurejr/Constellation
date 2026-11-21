@@ -1523,8 +1523,9 @@ Constellation.chat = (function () {
     }
     head.addEventListener('click', () => { const open = list.hidden; list.hidden = !open; head.classList.toggle('open', open); });
     ind.appendChild(head); ind.appendChild(list);
-    const acts = el.querySelector('.msg-actions');
-    if (acts) el.insertBefore(ind, acts); else el.appendChild(ind);
+    // .msg-actions lives inside the .msg-head row now — the indicator belongs at the
+    // bottom of the message, after the meta line, so plain append keeps the old spot.
+    el.appendChild(ind);
   }
 
   function addMessage(role, content, files, reasoning, lore, flags) {
@@ -1534,6 +1535,12 @@ Constellation.chat = (function () {
     if (files && files.length) el.__files = files;
     el.__raw = content || '';   // keep the raw source so Edit works on markdown, not rendered text
 
+    // Message header: the role line and the hover action bar share one flex row, so the
+    // action buttons can never collide with the speaker label on short messages — the
+    // old absolute-positioned bar overlapped `✧ You on one-line prompts.
+    const head = document.createElement('div');
+    head.className = 'msg-head';
+    el.appendChild(head);
     const label = document.createElement('div');
     label.className = 'role';
     const glyph = document.createElement('span');
@@ -1541,7 +1548,7 @@ Constellation.chat = (function () {
     glyph.textContent = role === 'user' ? '✧' : '✦';
     label.appendChild(glyph);
     label.appendChild(document.createTextNode(' ' + (role === 'user' ? 'You' : 'GLM')));
-    el.appendChild(label);
+    head.appendChild(label);
 
     // Response window (assistant only): the frame the reply sits in when a window treatment is
     // active (Settings → Appearance → Response window; body.rw-* classes style it, none = open sky).
@@ -1618,7 +1625,7 @@ Constellation.chat = (function () {
     actions.appendChild(sculpt.actionBtn('copy', '⎘ Copy'));
     const fb = filterBtn(el); if (fb) actions.appendChild(fb);
     actions.appendChild(sculpt.actionBtn('bookmark', '☆'));
-    el.appendChild(actions);
+    head.appendChild(actions);
     applyBookmarkGlyph(el);
     if (role === 'assistant' && lore && lore.length) addLoreIndicator(el, lore);
 

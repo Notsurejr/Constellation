@@ -462,6 +462,7 @@ Constellation.lorebook = (function () {
     load();
     const btn = $('lorebookBtn'); if (btn) btn.addEventListener('click', open);
     const closeBtn = $('closeLorebook'); if (closeBtn) closeBtn.addEventListener('click', close);
+    const closeX = $('lorebookClose'); if (closeX) closeX.addEventListener('click', close);   // header ×, same close
     const o = $('lorebookOverlay');
     if (o) o.addEventListener('click', (ev) => { if (ev.target === o) close(); });
     const neu = $('lorebookNew'); if (neu) neu.addEventListener('click', newLorebook);
