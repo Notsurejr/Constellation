@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.12.7 — Port of Call
+
+The chat importer arrives — bring conversations from other platforms into Constellation as native sessions ready to continue — alongside a three-layer automated test suite (167 checks) that now guards the whole app.
+
+### New
+
+- **Chat Importer.** Drop or pick chat exports from other platforms and preview them before importing as native Constellation sessions. Supported: Anthropic exports (conversations.json + single-chat), ChatGPT exports (mapping trees, active branch walked), Google AI Studio JSON, SillyTavern .jsonl (swipes become variants), Constellation JSON backups (multi-session checklist, native fields preserved), and four markdown dialects (Claude exports, ChatGPT/Gemini raw MD, Obsidian callouts including Constellation's own export round-trip, AI Studio pastes). An open-ended fallback detects common speaker patterns in unknown formats, and fully custom markers with a live re-parsing preview handle anything else.
+- **Import Preview modal.** Detected format badge, editable title, turn and token counts, warnings strip, per-chat checklist for multi-chat files with search and select-all, thinking-block and system-prompt toggles, role swapping, and a live preview of the first parsed turns — everything shown exactly as it will be saved.
+- **Smart drag-and-drop routing.** Dropping on the prompt box attaches the file as context (as always). Dropping a recognized export on the chat area imports or attaches depending on the chat's state — an in-use chat takes it as an attached reference with a ping, a fresh chat opens the preview modal. Character-card JSON still routes to The Cast from anywhere.
+- **Import button in the sidebar.** The ⤓ button under New chat opens a file picker for .json/.jsonl/.md/.txt exports — same preview modal, same confirm.
+
+### Added
+
+- **Three-layer automated test suite** (`npm run test:unit` / `test:e2e` / `test:chaos` / `test:all` — 167 checks): 88 pure-Node unit tests covering the request/response engines, import parser, card compiler and settings; 53 end-to-end checks booting the real app over CDP (boot health gate, full-shape fixture rendering, feature regressions, streaming, the importer itself); 26 chaos checks fuzzing hostile cards, corrupt files, injection vectors and broken network streams. Runs in CI on every push.
+
 ## v0.12.6 — Dry Dock
 
 A hardening round: every bug surfaced by the new regression/chaos test suite is fixed, and the suite itself ships in the repo (three layers, 125 automated checks).
