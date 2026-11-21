@@ -21,7 +21,7 @@ Constellation is a desktop home for long-form AI-assisted writing. Bring your ow
 
 > It's a *client*: Constellation has no AI of its own and no accounts. Your key talks straight to the endpoint you configure; your writing never touches anyone else's server.
 
-**Coming from SillyTavern?** Constellation isn't a replacement — no extension ecosystem, no character hub, no server to run. It's a different animal: a bring-your-own-key chat harness that arrives *already set up*, with SillyTavern-adjacent features. Character cards (`chara_card_v2`, PNG or JSON), presets, and lorebooks import cleanly; everything else — the reading view, the lore engine, the chronicle, the panes — is its own thing. If you want your stories in a book rather than a dashboard, it might be for you. One download, one installer, runs the moment you paste a key.
+**Coming from SillyTavern or other platforms?** Constellation isn't a replacement — no extension ecosystem, no character hub, no server to run. It's a different animal: a bring-your-own-key chat harness that arrives *already set up*, with SillyTavern-adjacent features. Character cards (`chara_card_v2`, PNG or JSON), presets, lorebooks, and now **chat exports from other platforms** (Claude, ChatGPT, Gemini, SillyTavern — JSON or markdown) import cleanly through a preview that shows you exactly what you're getting; everything else — the reading view, the lore engine, the chronicle, the panes — is its own thing. If you want your stories in a book rather than a dashboard, it might be for you. One download, one installer, runs the moment you paste a key.
 
 <p align="center">
   <img src="docs/screens/reading-view.png" width="100%" alt="A story in progress — dialogue in a warm voice against receded narration, color words tinted, a scene-break star, and the composer on the night sky" />
@@ -63,7 +63,9 @@ Constellation is a desktop home for long-form AI-assisted writing. Bring your ow
 
 **Private and portable.** No cloud, no accounts, no telemetry. Chats, lorebooks, chronicles, presets and journals are plain JSON/text in `%AppData%\constellation` — back up and restore the whole app to one file, or export every chat as readable Markdown. The renderer is sandboxed and every IPC surface is validated.
 
-**And the practical bits.** Image input for vision models, collapsible preserved thinking, folders, pinned and hidden chats, full-text search, drafts, a writing coach with a craft journal, a context meter that shows exactly what was sent.
+**Bring your history.** The chat importer converts exports from Claude, ChatGPT, Gemini, SillyTavern, and other platforms into native Constellation sessions — JSON or markdown, single chats or whole batches, with thinking blocks preserved or stripped (your pick). Preview every turn before it lands, set the title, swap roles if the exporter had them backwards, or type custom speaker markers for formats nobody's heard of. Dropping an export onto the prompt box attaches it as reference context instead — both paths work.
+
+**And the practical bits.** Image and audio input for vision and audio models, collapsible preserved thinking, a reasoning-effort dial, folders, pinned and hidden chats, full-text search, drafts, a writing coach with a craft journal, a context meter that shows exactly what was sent, and a display-filter system that quietly rewrites the model's output on screen without touching what's stored.
 
 ---
 
@@ -95,22 +97,24 @@ You need two things: the installer and an API key.
 
 | | |
 |---|---|
-| **Chat** | Streamed markdown replies · expandable code blocks · edit & resend · stop mid-stream · continue after length-cuts · replies up to 64k tokens (log-scale control) |
-| **The Cast** | Import character cards (chara_card_v2 — JanitorAI/Chub exports) · personas you play ({{user}}) · Start-chat compiles your instructions + the card + your persona into one editable prompt · embedded card lorebooks become Constellation lorebooks · chats badged with the character's face |
-| **Thinking** | Collapsible reasoning blocks, saved with the chat · Preserved Thinking carries reasoning between turns · **reasoning editor** steers future replies · "lead its thinking" drawer seeds the next send |
-| **Immersion grammar** | The model writes in restrained typographic registers — split worlds, pacing, whispers, alien speech, gated text — rendered as prose devices, not explained |
+| **Chat** | Streamed markdown replies · edit & resend · stop mid-stream · continue after length-cuts · replies up to 64k tokens (log-scale control) · per-reply model fingerprints |
+| **Import** | Chat exports from Claude, ChatGPT, Gemini, SillyTavern, and more — JSON or markdown, single chats or batches · preview every turn before import · thinking blocks kept or stripped · custom speaker markers for unknown formats · drag-and-drop or the sidebar button |
+| **The Cast** | Import character cards (chara_card_v2 — JanitorAI/Chub exports, JSON or PNG) · personas you play ({{user}}) · Start-chat compiles your instructions + the card + your persona into one editable prompt · embedded card lorebooks become Constellation lorebooks · card re-injection at a chosen depth · chats badged with the character's face |
+| **Thinking** | Collapsible reasoning blocks, saved with the chat · Preserved Thinking carries reasoning between turns (depth control for long chats) · **reasoning editor** steers future replies · "lead its thinking" drawer seeds the next send |
+| **Reading experience** | Six dialogue voices (Chiaroscuro, Glass, Editorial, Acoustic, Dramatis, Noir) with vividness control and speaker-accented quotes · cadence marks (em-dash cuts, ellipsis fades) · streaming ink · immersion grammar rendered as prose devices · response-window frames (void, soft, glass) · four glass surfaces for the message well |
+| **Code panes** | Fenced text renders as glass panes set into the reply — placards, letters, comms threads, HUD readouts, verse, memory, diffs, file dossiers · word-wrap by default · four pane styles · copy keeps the exact source |
 | **Chronicle** | Per-chat fact panel for the reader · chunked capture with live progress · incremental (reads only what's new) · Rebuild re-reads · editable facts · never injected into prompts |
 | **Story Constellations** | Every chat is a constellation · stars = bookmarks · margin pattern with hover previews + jump · Sky map of all stories |
-| **Lorebooks** | Titled collection · per-chat enable/disable · trigger-word entries · smart passage retrieval (BM25 + optional on-device semantic matching) · attach files to entries · the retrieval log shows exactly what was pulled |
-| **Instructions** | Per-chat system + project prompts · presets · file attachments as context · attachment context controls (hide from the model without regenerating, or delete) |
-| **Writing tools** | Sculpt mode · reasoning steering · phrase bans & substitutions · variant takes ‹ n/m › · forks with lineage links · bookmarks · craft coach + journal |
-| **Media** | Image input for vision models (incl. glm-5.3-flash) · thumbnails in chat |
-| **Exports** | Obsidian-friendly Markdown per chat (callout turns, folded thinking, sculpted marks) · Markdown backup: one dated .md per chat · JSON backup/restore for everything |
-| **Reading** | Selectable fonts (Literata, Newsreader, Lora, Atkinson Hyperlegible) · line-height control · optional prose-measure cap (~75/90 characters per line) |
-| **Connection** | GLM (Coding plan / General) · OpenRouter · any OpenAI-compatible base URL + custom model ID · thinking effort mapped per model |
+| **Lorebooks** | Titled collection · per-chat enable/disable · trigger words with `+must`/`-never` operators and `[[pickups]]` · smart passage retrieval (BM25 + optional on-device semantic matching) · priority, depth injection, linger and cooldown · attach files to entries · the test bench shows exactly what fires and why |
+| **Instructions** | Per-chat system + project prompts (injectable at depth) · presets · file attachments as context · attachment context controls (hide from the model without regenerating, or delete) · depth injection for lore and instructions |
+| **Writing tools** | Sculpt mode · reasoning steering · phrase bans & substitutions · display filters (regex rules applied to the screen only) · variant takes ‹ n/m › · forks with lineage links · bookmarks · craft coach + journal |
+| **Media** | Image input for vision models · audio input for audio-understanding models · thumbnails and chips in chat |
+| **Exports** | Obsidian-friendly Markdown per chat (callout turns, folded thinking, sculpted marks, model stamps) · Markdown backup: one dated .md per chat · JSON backup/restore for everything |
+| **Reading** | Selectable fonts (Literata, Newsreader, Lora, Atkinson Hyperlegible) · line-height control · optional prose-measure cap (~75/90 characters per line) · word-wrap defaults for code panes |
+| **Connection** | GLM (Coding plan / General) · OpenRouter · Gemini · any OpenAI-compatible base URL + custom model ID · thinking effort mapped per provider |
 | **Organize** | Folders · pinned chats · hidden chats · full-text search with jump-to-match · drafts per chat · lifetime token usage per chat |
 | **The sky** | Color-word tints in prose (223 names) · margin glows + cosmic events (toggleable) · mood-weather starfield · parallax · twinkle & density controls |
-| **For tinkerers** | Opt-in localhost CLI server + `cli.js` — offline data inspection *and* a prompt lab (`dry --probe … --system-file candidate.txt` iterates system prompts statelessly, thinking digest included) · theme/star colors in plain CSS |
+| **For tinkerers** | Opt-in localhost CLI server + `cli.js` — offline data inspection *and* a prompt lab (`dry --probe … --system-file candidate.txt` iterates system prompts statelessly, thinking digest included) · theme/star colors in plain CSS · three-layer test suite (unit / e2e / chaos — 167 checks) |
 
 **Keyboard:** `Enter` send · `Shift+Enter` newline · `Esc` close panel · `?` cheat sheet.
 
@@ -156,6 +160,19 @@ npm run dist     # build the Windows installer into dist\
 ```
 
 Stack: Electron + vanilla JS (no build step), `marked` for markdown, `@huggingface/transformers` for optional on-device embeddings, bundled reading fonts (SIL OFL 1.1). See [`BUILD_SPEC.md`](./BUILD_SPEC.md) for the full architecture reference and [`CHANGELOG.md`](./CHANGELOG.md) for release history.
+
+### Tests
+
+Three layers, no test-framework dependencies — `node:test` and `node:assert/strict` only, Node 20+.
+
+```bash
+npm run test:unit    # 88 pure-Node tests — engines, compose, card compiler, parser, settings
+npm run test:e2e     # 53 end-to-end checks — boots the real app, drives it over CDP
+npm run test:chaos   # 26 hostile-input checks — XSS, corrupt files, broken network
+npm run test:all     # all three
+```
+
+`test:unit` runs in CI on every push. `test:e2e` and `test:chaos` boot Electron in isolated profiles on dedicated ports — the installed app and any existing data are never touched.
 
 ### Tweaking without code
 
