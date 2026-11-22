@@ -1,6 +1,29 @@
 # Changelog
 
-## v0.12.7 — Port of Call
+## v0.12.8 — Northern Lights
+
+A full visual polish pass — dark native controls, unified chrome with monochrome icons, a reworked sidebar, and a two-column Settings — plus the fix that makes drag-and-drop accept real OS file drags on the message canvas everywhere.
+
+### Fixed
+
+- **Drag-and-drop on the message canvas.** Real OS file drags were silently rejected by the chat area (a `files.length` check that never passes during a drag's protected mode) — drops now work on the canvas, with a drag-over highlight and a hint toast when a recognized export lands in the prompt box.
+
+### Changed
+
+- **Dark native controls.** Checkboxes, selects, and scrollbars render dark app-wide — unchecked boxes stop drawing as bright white squares on the sky.
+- **Unified chrome.** Topbar tools are crisp monochrome SVG icons grouped with hairline dividers; every modal and overlay shares one surface language with a sticky header and footer; Settings and Lorebook gained a header close button.
+- **Message header row.** The hover action bar shares a row with the speaker label, so it can never overlap short messages.
+- **Sidebar redesign.** A dimming scrim behind the drawer, one compact header row (New chat + Import + New folder), flush-left chat rows with hover action pills, a clean accent rail for pinned chats, 36×36 character portraits, and folder guide lines with count badges.
+- **Two-column Settings.** Writing, Generation, and Appearance regroup into paired grids with subhead dividers, sticky headers, and quieter field descriptions — tab and section order unchanged.
+- **Chronicle side-by-side.** On wide windows the story column re-centers beside the open Chronicle panel — both fully legible, zero overlap.
+- **Cast gallery first.** Personas collapse behind a one-line bar; the search bar aligns with the card grid.
+- **Accent harmonization finished.** The last hardcoded periwinkle literals now derive from your accent — an Ember accent carries the whole app with zero blue clash.
+
+### If you're catching up
+
+v0.12.6 added the automated test suite (167 checks across unit, end-to-end, and chaos) plus hardening fixes; v0.12.7 brought the Chat Importer for Claude, ChatGPT, Gemini, AI Studio, SillyTavern, Obsidian, and Constellation backups.
+
+Upgrading is safe: chats, settings, keys, lorebooks and panes keep their state.
 
 The chat importer arrives — bring conversations from other platforms into Constellation as native sessions ready to continue — alongside a three-layer automated test suite (167 checks) that now guards the whole app.
 
