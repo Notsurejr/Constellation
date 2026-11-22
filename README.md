@@ -43,6 +43,11 @@ Constellation is a desktop home for long-form AI-assisted writing. Bring your ow
 </p>
 <p align="center"><em>The lorebook — accordion entries with priority, depth, scan depth, linger and cooldown; inline [[pickups]] in the prose; a test bench that shows what fires, what's cut, and why.</em></p>
 
+<p align="center">
+  <img src="docs/screens/chat-import.png" width="72%" alt="The import preview — a detected Claude export with its format badge, an editable title, turn counts, and the first turns rendered exactly as they will be saved" />
+</p>
+<p align="center"><em>Bring your history — drop or pick a chat export, preview every turn as it will land, then import it as a native chat you can keep talking in.</em></p>
+
 ---
 
 ## Why you might want it
@@ -98,7 +103,7 @@ You need two things: the installer and an API key.
 | | |
 |---|---|
 | **Chat** | Streamed markdown replies · edit & resend · stop mid-stream · continue after length-cuts · replies up to 64k tokens (log-scale control) · per-reply model fingerprints |
-| **Import** | Chat exports from Claude, ChatGPT, Gemini, SillyTavern, and more — JSON or markdown, single chats or batches · preview every turn before import · thinking blocks kept or stripped · custom speaker markers for unknown formats · drag-and-drop or the sidebar button |
+| **Import** | Chat exports from Claude, ChatGPT, Gemini, Google AI Studio, SillyTavern, and Obsidian callouts — plus Constellation JSON backups and custom speaker markers for anything else · JSON or markdown, single chats or batches · preview every turn before import · thinking blocks kept or stripped · drag-and-drop or the sidebar button |
 | **The Cast** | Import character cards (chara_card_v2 — JanitorAI/Chub exports, JSON or PNG) · personas you play ({{user}}) · Start-chat compiles your instructions + the card + your persona into one editable prompt · embedded card lorebooks become Constellation lorebooks · card re-injection at a chosen depth · chats badged with the character's face |
 | **Thinking** | Collapsible reasoning blocks, saved with the chat · Preserved Thinking carries reasoning between turns (depth control for long chats) · **reasoning editor** steers future replies · "lead its thinking" drawer seeds the next send |
 | **Reading experience** | Six dialogue voices (Chiaroscuro, Glass, Editorial, Acoustic, Dramatis, Noir) with vividness control and speaker-accented quotes · cadence marks (em-dash cuts, ellipsis fades) · streaming ink · immersion grammar rendered as prose devices · response-window frames (void, soft, glass) · four glass surfaces for the message well |
