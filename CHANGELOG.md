@@ -1,6 +1,12 @@
 # Changelog
 
-## v0.12.8 — Northern Lights
+## v0.12.9 — Framed
+
+### Fixed
+
+- **Sidebar portraits fit their frame.** Cast chat portraits in the sidebar rendered as a zoomed-in patch of the artwork — the scaling rule was on the wrong element. The avatar now scales to fill its 36×36 tile, cropped and centered like the Cast gallery tiles.
+
+Upgrading is safe: chats, settings, keys, lorebooks and panes keep their state.
 
 A full visual polish pass — dark native controls, unified chrome with monochrome icons, a reworked sidebar, and a two-column Settings — plus the fix that makes drag-and-drop accept real OS file drags on the message canvas everywhere.
 
