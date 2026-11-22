@@ -81,7 +81,11 @@ Constellation.sessions = (function () {
     // in a right-anchored hover pill; a pinned chat also wears an accent rail + quiet star.
     const title = document.createElement('span');
     title.className = 'session-title'; title.textContent = s.title || 'Untitled';
-    if (s.character) {   // character chats wear their face — avatar from the Cast store, falling back to an initial
+    const main = document.createElement('div');
+    main.className = 'session-main';
+    main.appendChild(title);
+    if (s.character) {   // character chats wear their face — a real portrait thumbnail as
+      // the row's left child (spans title + meta lines), monogram fallback when no art.
       const chip = document.createElement('span');
       chip.className = 'session-char';
       chip.title = 'Character chat — ' + (s.character.name || '');
@@ -92,11 +96,8 @@ Constellation.sessions = (function () {
       } else {
         chip.textContent = String(s.character.name || '?').slice(0, 1).toUpperCase();
       }
-      title.prepend(chip);
+      item.appendChild(chip);
     }
-    const main = document.createElement('div');
-    main.className = 'session-main';
-    main.appendChild(title);
     if ((s.parentId && s.parentTitle) || (s.usage && s.usage.tokens > 0)) {
       const meta = document.createElement('div');
       meta.className = 'session-meta';

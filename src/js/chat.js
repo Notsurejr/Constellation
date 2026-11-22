@@ -578,6 +578,8 @@ Constellation.chat = (function () {
     messagesEl.addEventListener('click', (e) => { const r = e.target.closest('.g-redact'); if (r) r.classList.toggle('on'); });   // gated text: click to reveal/hide
     const cr = document.getElementById('closeRequest');
     if (cr) cr.addEventListener('click', closeRequestView);
+    const crX = document.getElementById('requestClose');
+    if (crX) crX.addEventListener('click', closeRequestView);   // header ×, same close
     const ro = document.getElementById('requestOverlay');
     if (ro) {
       ro.addEventListener('click', (e) => { if (e.target === ro) closeRequestView(); });

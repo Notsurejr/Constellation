@@ -734,23 +734,8 @@ body.rw-glass .msg .body .codeblock.wide {
   justify-content: flex-end;
   margin-top: 8px;
 }
-/* Panel-level footers read as footers: the LAST direct .settings-actions row of an
-   overlay gets the hairline (per-section action rows inside sections are untouched). */
-.settings-panel > .settings-actions:last-child {
-  border-top: 1px solid var(--panel-border);
-  padding-top: 14px;
-  margin-top: 4px;
-}
-/* Header × close (Settings, Lorebook) — same handlers as the footer Close. */
-.panel-close {
-  position: absolute; top: 12px; right: 12px;
-  width: 28px; height: 28px;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: none; border: 1px solid transparent; border-radius: 8px;
-  color: var(--text-dim); font-size: 16px; line-height: 1; cursor: pointer;
-  transition: color .15s, border-color .15s, background .15s;
-}
-.panel-close:hover { color: var(--text); border-color: var(--panel-border); background: var(--accent-08); }
+/* (Panel footers moved into .panel-foot with their own hairline — the old
+   last-child divider rule is superseded.) */
 .btn {
   padding: 8px 16px;
   border-radius: 10px;
@@ -778,6 +763,82 @@ body.rw-glass .msg .body .codeblock.wide {
 /* ---------- Form fields (Connection / Generation) ---------- */
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 .field > span { font-size: 13px; color: var(--text-dim); }
+/* Setting-name hierarchy: the name is the loudest line, long explanations drop to a
+   tidy muted sub-line (.field-desc) instead of crowding the label with .hint-inline. */
+.field .field-name { display: block; font-size: 13px; color: var(--text); font-weight: 500; }
+.field .field-desc { display: block; font-size: 11.5px; color: var(--text-faint); line-height: 1.45; }
+
+/* ---- Pass 3: 2-column settings grid + subhead dividers ---- */
+.field-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 18px; margin-bottom: 16px; }
+@media (max-width: 760px) { .field-grid-2 { grid-template-columns: 1fr; } }
+.field-grid-2 input[type="range"] { max-width: 100%; }   /* sliders align with selects in the grid */
+.field-grid-2 .field { margin-bottom: 0; }
+/* Toggle clusters get a quiet top separation so booleans breathe below paired inputs. */
+.field-grid-2.toggle-grid {
+  margin-top: 18px; padding-top: 16px;
+  border-top: 1px solid var(--panel-border);
+}
+/* Paired fields lock to one bottom baseline even when one side's description wraps —
+   the control rides margin-top: auto to the bottom of the taller cell. */
+.field-grid-2 > .field > .slider-row,
+.field-grid-2 > .field > select,
+.field-grid-2 > .field > input[type="number"],
+.field-grid-2 > .field > input[type="text"] { margin-top: auto; }
+.field-grid-2 > .field.checkbox { align-items: flex-start; }
+.field-grid-2 > .field.checkbox input[type="checkbox"] { margin-top: 3px; flex: none; }
+.settings-subhead {
+  font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--accent-dim);
+  margin: 18px 0 10px; padding-bottom: 5px;
+  border-bottom: 1px solid var(--panel-border);
+}
+.settings-subhead:first-child { margin-top: 0; }
+/* Toggle grid: checkboxes align to the top of their cell so multi-line labels stay tidy. */
+.field-grid-2.toggle-grid { align-items: start; }
+.field-grid-2.toggle-grid .field.checkbox { margin-bottom: 0; align-items: flex-start; }
+.field-grid-2.toggle-grid .field.checkbox > span { line-height: 1.45; }
+
+/* ---- Pass 3: unified sticky header/body/footer for the settings-overlay family ---- */
+.settings-panel { padding: 0; overflow: hidden; }
+.settings-panel .panel-head {
+  flex: none;
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 22px 12px;
+  border-bottom: 1px solid var(--panel-border);
+}
+.settings-panel .panel-head .lead { margin: 0; }
+.settings-panel .panel-head .panel-close { margin-left: auto; }
+.settings-panel .panel-body { flex: 1 1 auto; overflow-y: auto; padding: 16px 22px 20px; }
+.settings-panel .panel-foot {
+  flex: none;
+  border-top: 1px solid var(--panel-border);
+  padding: 12px 22px 14px;
+}
+.settings-panel .panel-foot .settings-actions { margin-top: 0; }
+.panel-close {
+  position: static;   /* lives inside .panel-head now (flex, margin-left auto) */
+  width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 1px solid transparent; border-radius: 8px;
+  color: var(--text-dim); font-size: 16px; line-height: 1; cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.panel-close:hover { color: var(--text); border-color: var(--panel-border); background: var(--accent-08); }
+/* Inline toolbar rows (Presets, System/Project instruction footers). */
+.settings-toolbar { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.settings-toolbar .spacer { flex: 1; }
+.settings-toolbar .field { flex: 1; margin-bottom: 0; }
+/* Bare text inputs inside toolbar rows (e.g. #presetName) — they left the .field wrapper,
+   so they carry the standard dark input styling themselves. */
+.settings-toolbar input[type="text"] {
+  flex: 1; min-width: 0;
+  padding: 9px 12px; border-radius: 9px;
+  border: 1px solid var(--panel-border);
+  background: rgba(0, 0, 0, 0.4); color: var(--text);
+  font-family: var(--font-ui); font-size: 14px; outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.settings-toolbar input[type="text"]:focus { border-color: var(--accent-dim); box-shadow: var(--glow); }
 /* (the loud accent hint override that lived here is gone — hints stay quiet slate via
    .hint-inline, so the setting NAME is the loudest thing in the row) */
 .field.checkbox { flex-direction: row; align-items: center; gap: 10px; }
@@ -1012,9 +1073,29 @@ input[type="checkbox"]:focus-visible { outline: 1px solid var(--accent-dim); out
 }
 .session-item:hover { background: var(--accent-08); color: var(--text); }
 .session-item.active { background: var(--accent-12); color: var(--text); border-color: var(--panel-border); }
-/* Pinned chats: a quiet accent rail on the left edge + a persistent right-side star —
-   the row itself stays flush-left (no blank gap reserved for a hidden pin button). */
-.session-item.pinned { border-left: 2px solid var(--accent-55); }
+/* Pinned chats: a clean accent rail (straight ::before indicator, not a border that
+   bends around the row's corner radius) + a persistent right-side star — the row itself
+   stays flush-left (no blank gap reserved for a hidden pin button). */
+.session-item { position: relative; }
+.session-item.pinned::before {
+  content: '';
+  position: absolute; left: 0; top: 6px; bottom: 6px; width: 2px;
+  border-radius: 2px;
+  background: var(--accent-55);
+}
+/* Cast portrait: a real 36×36 thumbnail as the row's left flex child, spanning the
+   title AND meta lines — card art is visible without inflating row height. */
+.session-char {
+  width: 36px; height: 36px; flex: none;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+  object-fit: cover;
+  display: inline-flex; align-items: center; justify-content: center;
+  overflow: hidden;
+  font-size: 15px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.session-item.char-chat { gap: 10px; }
 .session-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .session-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .session-meta { display: flex; gap: 8px; align-items: baseline; margin-top: 1px; font-size: 10.5px; }
@@ -1178,6 +1259,7 @@ input[type="checkbox"]:focus-visible { outline: 1px solid var(--accent-dim); out
   border-left: 1px solid var(--panel-border);
   display: flex; flex-direction: column;
   padding: 18px 16px 16px;
+  overflow-x: hidden;   /* nothing in the 348px column may bleed past the right edge */
   transform: translateX(102%);
   transition: transform .25s ease;
   box-shadow: -20px 0 40px rgba(0,0,0,0.5);
@@ -1188,7 +1270,33 @@ input[type="checkbox"]:focus-visible { outline: 1px solid var(--accent-dim); out
 .chronicle-close { background: none; border: none; color: var(--text-faint); font-size: 20px; cursor: pointer; border-radius: 6px; }
 .chronicle-close:hover { color: var(--text); }
 .chronicle-hint { font-size: 11.5px; color: var(--text-dim); line-height: 1.5; margin-bottom: 12px; }
-.chronicle-actions { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.chronicle-actions { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; min-width: 0; }
+/* Button rows: ✦ Capture new = a full-width primary line, then Summarize + Rebuild
+   share the second row 50/50 (wrap does the split — capture's basis is 100%). */
+.chronicle-btnrow { display: flex; flex-wrap: wrap; gap: 8px; }
+.chronicle-btnrow .btn { flex: 1; min-width: 0; white-space: nowrap; font-size: 12px; }
+.chronicle-btnrow .chronicle-capture { flex: 1 1 100%; }
+.chronicle-actions select,
+.chronicle-actions input { width: 100%; min-width: 0; box-sizing: border-box; }
+/* Side-by-side reading: with the Chronicle panel open on wide windows, the story column
+   and the prompt box re-center inside the remaining space — zero overlap, both legible.
+   The padding/margin math is explicit because PERCENTAGE padding resolves against the
+   PARENT (.app = full window), not the element: margin-right alone would collapse the
+   column (the 280px side padding would eat the shifted-away 348px) instead of shifting it. */
+body.chronicle-open .chronicle-tab { opacity: 0; pointer-events: none; }
+@media (min-width: 1320px) {
+  body.chronicle-open .chat {
+    margin-right: 348px;
+    padding-left: max(22px, calc((100% - 348px - var(--chat-col, 880px)) / 2));
+    padding-right: max(22px, calc((100% - 348px - var(--chat-col, 880px)) / 2));
+    transition: margin-right .25s ease, padding-left .25s ease, padding-right .25s ease;
+  }
+  body.chronicle-open .composer {
+    margin-left: max(22px, calc((100% - 348px - var(--chat-col, 880px)) / 2));
+    margin-right: calc(348px + max(22px, calc((100% - 348px - var(--chat-col, 880px)) / 2)));
+    transition: margin-left .25s ease, margin-right .25s ease;
+  }
+}
 .chronicle-note {
   background: rgba(0,0,0,0.35); border: 1px solid var(--panel-border); border-radius: 8px;
   color: var(--text); font: inherit; font-size: 13px; padding: 8px 10px; outline: none;
@@ -1210,8 +1318,6 @@ input[type="checkbox"]:focus-visible { outline: 1px solid var(--accent-dim); out
 .chronicle-fact-del:hover { color: var(--danger); }
 .chronicle-empty { color: var(--text-faint); font-size: 12.5px; line-height: 1.6; padding: 8px 2px; }
 .chronicle-capture:disabled { opacity: 0.55; cursor: wait; }
-.chronicle-btnrow { display: flex; gap: 8px; }
-.chronicle-btnrow .btn { flex: 1; }
 .chronicle-rebuild.warn { color: var(--danger); border-color: var(--danger); }
 .chronicle-capture.working { animation: chroniclePulse 1.2s ease-in-out infinite; }
 @keyframes chroniclePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
@@ -1233,8 +1339,12 @@ input[type="checkbox"]:focus-visible { outline: 1px solid var(--accent-dim); out
 .chronicle-model {
   background: rgba(0,0,0,0.35); color: var(--text-dim); border: 1px solid var(--panel-border);
   border-radius: 8px; font: inherit; font-size: 12px; padding: 5px 8px; outline: none;
+  width: 100%; min-width: 0; box-sizing: border-box;
 }
 .chronicle-model:focus { border-color: var(--accent-dim); }
+/* Lorebook list heading: title left, ＋ New lorebook right — one line, not stacked. */
+.lore-head-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.lore-head-row h2 { margin: 0; }
 .chronicle-summary { margin-bottom: 10px; }
 .chronicle-summary-body {
   font-size: 12.5px; line-height: 1.65; color: var(--text);
@@ -1258,6 +1368,7 @@ input[type="checkbox"]:focus-visible { outline: 1px solid var(--accent-dim); out
 .chronicle-search {
   background: rgba(0,0,0,0.35); border: 1px solid var(--panel-border); border-radius: 8px;
   color: var(--text); font: inherit; font-size: 12.5px; padding: 6px 10px; outline: none; margin-bottom: 8px;
+  width: 100%; min-width: 0; box-sizing: border-box;
 }
 .chronicle-search:focus { border-color: var(--accent-dim); }
 .chronicle-fact.fresh { border-color: var(--accent-40); }
@@ -2107,6 +2218,15 @@ input.num::-webkit-outer-spin-button, input.num::-webkit-inner-spin-button { opa
 .cast-body { padding: 0 18px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
 .cast-subhead { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-dim); margin-top: 8px; display: flex; align-items: center; justify-content: space-between; }
 .cast-personas { display: flex; flex-direction: column; gap: 8px; }
+/* Personas collapse behind a one-line bar so the Character Gallery leads the panel. */
+.cast-persona-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--panel-border); border-radius: 10px;
+  background: var(--accent-04);
+}
+.cast-persona-bar-name { font-size: 13px; color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cast-persona-toggle { font-size: 12px; padding: 4px 10px; flex: none; }
 .cast-persona { display: grid; grid-template-columns: auto 1fr auto; gap: 6px 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--panel-border); border-radius: 10px; }
 .cast-persona-desc { grid-column: 1 / -1; background: rgba(0,0,0,0.3); border: 1px solid var(--panel-border); border-radius: 6px; color: var(--text); font: inherit; font-size: 12.5px; padding: 6px 8px; resize: vertical; min-height: 34px; }
 .cast-persona-name { background: rgba(0,0,0,0.3); border: 1px solid var(--panel-border); border-radius: 6px; color: var(--text); font: inherit; font-size: 13px; padding: 4px 8px; }
@@ -2127,7 +2247,7 @@ input.num::-webkit-outer-spin-button, input.num::-webkit-inner-spin-button { opa
 
 /* ---- Cast gallery: portrait tiles + the full-card detail view ---- */
 .cast-toolbar { display: flex; gap: 10px; align-items: center; }
-.cast-search { flex: 0 1 340px; background: rgba(0,0,0,0.3); border: 1px solid var(--panel-border); border-radius: 8px; color: var(--text); font: inherit; font-size: 13px; padding: 6px 10px; }
+.cast-search { flex: 1; background: rgba(0,0,0,0.3); border: 1px solid var(--panel-border); border-radius: 8px; color: var(--text); font: inherit; font-size: 13px; padding: 6px 10px; }
 .cast-search:focus { outline: none; border-color: var(--accent-dim); }
 .cast-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(152px, 1fr)); gap: 10px; }
 .cast-tile {

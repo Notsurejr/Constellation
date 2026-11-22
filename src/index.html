@@ -94,7 +94,11 @@
   <!-- Craft overlay (writing coach) -->
   <div class="settings-overlay" id="craftOverlay">
     <div class="settings-panel">
-      <h2 class="lead">✒ Craft — your writing coach</h2>
+      <div class="panel-head">
+        <h2 class="lead">✒ Craft — your writing coach</h2>
+        <button class="panel-close" id="craftClose" type="button" title="Close" aria-label="Close craft">×</button>
+      </div>
+      <div class="panel-body">
       <div class="hint">Review your writing and turn it into lessons that build your craft over time.</div>
 
       <div class="settings-section">
@@ -105,7 +109,6 @@
         <textarea id="craftInput" class="craft-input" placeholder="Paste the writing you want reviewed — or pull it from your current chat above."></textarea>
         <div class="settings-actions">
           <button class="btn" id="craftAnalyze" type="button">Analyze</button>
-          <button class="btn ghost" id="closeCraft" type="button">Close</button>
         </div>
       </div>
 
@@ -119,17 +122,26 @@
         <div class="hint">Accumulated takeaways from every review.</div>
         <div class="craft-journal" id="craftJournal">No lessons yet.</div>
       </div>
+      </div>
+      <div class="panel-foot">
+        <div class="settings-actions">
+          <button class="btn ghost" id="closeCraft" type="button">Close</button>
+        </div>
+      </div>
     </div>
   </div>
 
   <!-- Settings overlay (toggled by the ✦ star) -->
   <div class="settings-overlay" id="settingsOverlay">
     <div class="settings-panel">
-      <button class="panel-close" id="settingsClose" type="button" title="Close" aria-label="Close settings">×</button>
-      <h2 class="lead">✦ Settings</h2>
-      <div class="hint">Shape how the model behaves. Changes apply to your next message.</div>
+      <div class="panel-head">
+        <h2 class="lead">✦ Settings</h2>
+        <button class="panel-close" id="settingsClose" type="button" title="Close" aria-label="Close settings">×</button>
+      </div>
+      <div class="panel-body">
+        <div class="hint">Shape how the model behaves. Changes apply to your next message.</div>
 
-      <div class="settings-tabwrap">
+        <div class="settings-tabwrap">
         <nav class="settings-tabs" id="settingsTabs">
           <button class="settings-tab active" data-tab="writing" type="button">✎ Writing</button>
           <button class="settings-tab" data-tab="generation" type="button">✦ Generation</button>
@@ -141,11 +153,8 @@
         <h2>Presets</h2>
         <div class="hint">Saved sets of system + project instructions. Click one to load it; × to delete.</div>
         <div class="preset-list" id="presetList"></div>
-        <label class="field">
-          <span>Save current instructions as</span>
-          <input type="text" id="presetName" placeholder="name this preset" />
-        </label>
-        <div class="settings-actions">
+        <div class="settings-toolbar">
+          <input type="text" id="presetName" placeholder="name this preset" aria-label="Save current instructions as" />
           <span class="saved-tag" id="presetSaved">saved ✓</span>
           <button class="btn" id="savePreset">Save preset</button>
         </div>
@@ -156,8 +165,9 @@
         <div class="hint">The core prompt that steers this chat. New chats start from your default file (config/modes/roleplay.txt).</div>
         <textarea id="promptEditor" placeholder="Write the system instructions…"></textarea>
         <div class="attachments" id="systemFilesTray" hidden></div>
-        <button class="btn" id="systemFileBtn" type="button" title="Attach .md/.txt — contents are added to this chat's system prompt">＋ Attach file</button>
-        <div class="settings-actions">
+        <div class="settings-toolbar">
+          <button class="btn" id="systemFileBtn" type="button" title="Attach .md/.txt — contents are added to this chat's system prompt">＋ Attach file</button>
+          <span class="spacer"></span>
           <span class="saved-tag" id="promptSaved">saved ✓</span>
           <button class="btn" id="savePrompt">Save system instructions</button>
         </div>
@@ -167,37 +177,48 @@
         <h2>Project instructions <em class="hint-inline">this chat</em></h2>
         <div class="hint">Extra context or rules sent with every message in this chat (optional).</div>
         <textarea id="projectEditor" placeholder="e.g. This is a noir detective story set in 1940s LA…"></textarea>
-        <label class="field">
-          <span>Project depth <em class="hint-inline">messages up from the bottom, landing on a user turn — 0 rides the newest message, where attention is sharpest</em></span>
-          <input type="number" id="projectDepthInput" min="0" max="12" step="1" value="0" />
-        </label>
-        <label class="field">
-          <span>Project fence tag <em class="hint-inline">this chat — rename the &lt;tag&gt; the instructions ride in, so your system instructions can reference it by name</em></span>
-          <input type="text" id="projectFenceInput" maxlength="40" placeholder="project_instructions" />
-        </label>
-        <label class="field">
-          <span>Lore fence tag <em class="hint-inline">global — how lorebook entries are labeled on the wire</em></span>
-          <input type="text" id="loreTagInput" maxlength="40" placeholder="lore" />
-        </label>
-        <label class="field">
-          <span>World budget <em class="hint-inline">global — total characters of lorebook content sent per turn; priority decides who fits (2000–65536, default 8000)</em></span>
-          <input type="number" id="loreBudgetInput" min="2000" max="65536" step="500" value="8000" />
-        </label>
+        <div class="field-grid-2">
+          <label class="field">
+            <span class="field-name">Project depth</span>
+            <span class="field-desc">messages up from the bottom, landing on a user turn — 0 rides the newest message, where attention is sharpest</span>
+            <input type="number" id="projectDepthInput" min="0" max="12" step="1" value="0" />
+          </label>
+          <label class="field">
+            <span class="field-name">Project fence tag <em class="hint-inline">this chat</em></span>
+            <span class="field-desc">rename the &lt;tag&gt; the instructions ride in, so your system instructions can reference it by name</span>
+            <input type="text" id="projectFenceInput" maxlength="40" placeholder="project_instructions" />
+          </label>
+          <label class="field">
+            <span class="field-name">Lore fence tag <em class="hint-inline">global</em></span>
+            <span class="field-desc">how lorebook entries are labeled on the wire</span>
+            <input type="text" id="loreTagInput" maxlength="40" placeholder="lore" />
+          </label>
+          <label class="field">
+            <span class="field-name">World budget <em class="hint-inline">global</em></span>
+            <span class="field-desc">total characters of lorebook content sent per turn; priority decides who fits (2000–65536, default 8000)</span>
+            <input type="number" id="loreBudgetInput" min="2000" max="65536" step="500" value="8000" />
+          </label>
+        </div>
         <label class="field checkbox">
           <input type="checkbox" id="cacheLoreInput" />
           <span>Cache-friendly lore — keep constant world entries in the system prompt and ride dynamic lore hits on the newest message, so the provider's prompt cache covers the whole conversation instead of being re-billed when lore shifts (big savings on long chats)</span>
         </label>
-        <label class="field">
-          <span>Card re-injection depth <em class="hint-inline">this chat, cast chats — where the recall copy lands (1–12 messages up from the bottom, on a user turn; 0 = off)</em></span>
-          <input type="number" id="cardReinjectInput" min="0" max="12" step="1" value="0" />
-        </label>
-        <label class="field">
-          <span>Re-inject at context size <em class="hint-inline">tokens — the recall fires once the conversation is this large (0 = off, never fires)</em></span>
-          <input type="number" id="cardReinjectAtInput" min="0" max="1000000" step="1000" value="0" />
-        </label>
+        <div class="field-grid-2">
+          <label class="field">
+            <span class="field-name">Card re-injection depth <em class="hint-inline">cast chats</em></span>
+            <span class="field-desc">where the recall copy lands (1–12 messages up from the bottom, on a user turn; 0 = off)</span>
+            <input type="number" id="cardReinjectInput" min="0" max="12" step="1" value="0" />
+          </label>
+          <label class="field">
+            <span class="field-name">Re-inject at context size</span>
+            <span class="field-desc">tokens — the recall fires once the conversation is this large (0 = off, never fires)</span>
+            <input type="number" id="cardReinjectAtInput" min="0" max="1000000" step="1000" value="0" />
+          </label>
+        </div>
         <div class="attachments" id="projectFilesTray" hidden></div>
-        <button class="btn" id="projectFileBtn" type="button" title="Attach .md/.txt — contents are added to this chat's project instructions">＋ Attach file</button>
-        <div class="settings-actions">
+        <div class="settings-toolbar">
+          <button class="btn" id="projectFileBtn" type="button" title="Attach .md/.txt — contents are added to this chat's project instructions">＋ Attach file</button>
+          <span class="spacer"></span>
           <span class="saved-tag" id="projectSaved">saved ✓</span>
           <button class="btn" id="saveProject">Save project instructions</button>
         </div>
@@ -209,84 +230,93 @@
         <h2>Generation <em class="hint-inline">this chat</em></h2>
         <div class="hint">How the model writes each reply. These follow the chat; saving also sets the default for new chats. GLM advises picking Creativity <em>or</em> Nucleus.</div>
         <label class="field">
-          <span>Model</span>
+          <span class="field-name">Model</span>
           <select id="modelInput"></select>
         </label>
         <label class="field" id="customModelField" hidden>
-          <span>Custom model ID <em class="hint-inline">for OpenRouter &amp; other providers</em></span>
+          <span class="field-name">Custom model ID <em class="hint-inline">for OpenRouter &amp; other providers</em></span>
           <input type="text" id="customModelInput" placeholder="e.g. anthropic/claude-sonnet-4.5" />
         </label>
+        <div class="field-grid-2">
+          <label class="field">
+            <span class="field-name">Creativity <em id="tempVal">0.80</em></span>
+            <div class="slider-row">
+              <input type="range" id="tempInput" min="0" max="1" step="0.01" value="0.8" />
+              <input type="number" id="tempNum" class="num" min="0" max="1" step="0.01" value="0.8" title="Type an exact value" />
+            </div>
+          </label>
+          <label class="field">
+            <span class="field-name">Nucleus sampling <em id="topPVal">0.95</em></span>
+            <div class="slider-row">
+              <input type="range" id="topPInput" min="0" max="1" step="0.01" value="0.95" />
+              <input type="number" id="topPNum" class="num" min="0" max="1" step="0.01" value="0.95" title="Type an exact value" />
+            </div>
+          </label>
+          <label class="field">
+            <span class="field-name">Max reply length <em id="maxVal">65536</em></span>
+            <div class="slider-row">
+              <input type="range" id="maxInput" min="0" max="700" step="5" value="700" />
+              <input type="number" id="maxNum" class="num" min="512" max="65536" step="256" value="65536" title="Type an exact value (512–65,536)" />
+            </div>
+          </label>
+          <label class="field">
+            <span class="field-name">Context window <em id="contextWindowVal">Off</em></span>
+            <span class="field-desc">cap sent history; 0 = all</span>
+            <div class="slider-row">
+              <input type="range" id="contextWindowInput" min="0" max="131072" step="1024" value="0" />
+              <input type="number" id="cwNum" class="num" min="0" max="1000000" step="1024" value="0" title="Type an exact value (0 = send all)" />
+            </div>
+          </label>
+        </div>
+        <div class="field-grid-2">
+          <label class="field">
+            <span class="field-name">Thinking effort</span>
+            <span class="field-desc">how hard it reasons</span>
+            <select id="effortInput">
+              <option value="max">Max — deepest (slowest)</option>
+              <option value="high">High — strong</option>
+              <option value="low">Low — light</option>
+              <option value="minimal">Minimal — skip thinking (fastest)</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-name">Preserved thinking depth</span>
+            <span class="field-desc">prior assistant turns that carry their reasoning — 0 = all (default); 1–2 keeps recent planning only and lets long chats read as pure story</span>
+            <input type="number" id="preservedThinkingDepthInput" min="0" max="99" step="1" value="0" />
+          </label>
+        </div>
+        <div class="field-grid-2 toggle-grid">
+          <label class="field checkbox">
+            <input type="checkbox" id="thinkingInput" />
+            <span>Thinking mode — reason before answering (slower; good for analysis)</span>
+          </label>
+          <label class="field checkbox">
+            <input type="checkbox" id="teachEditsInput" />
+            <span>Teach from your edits — show the model how you sculpted its replies, so it leans toward your voice (off = your edits stay private)</span>
+          </label>
+          <label class="field checkbox">
+            <input type="checkbox" id="preservedThinkingInput" checked />
+            <span>Preserved thinking — GLM keeps each reply's reasoning in context across turns (GLM-only; off saves tokens, but the model re-reasons from scratch)</span>
+          </label>
+          <label class="field checkbox">
+            <input type="checkbox" id="immersionInput" />
+            <span>Immersion grammar — teach the model the story's typographic registers: split worlds, pacing, whispers, gated text</span>
+          </label>
+          <label class="field checkbox">
+            <input type="checkbox" id="paneTeachInput" checked />
+            <span>Diegetic panes — teach the model the fence conventions: placards, notes, comms threads, diff records, readouts. Inline marks shape sentences; panes are objects on the page</span>
+          </label>
+          <label class="field checkbox">
+            <input type="checkbox" id="enableMacrosInput" />
+            <span>Prompt macros in regular chats — {{turn}} / {{roll}} / {{random}} / {{time}} / {{date}} substitute outside cast chats too (cast chats always have them; mind pasted template text)</span>
+          </label>
+          <label class="field checkbox">
+            <input type="checkbox" id="sendAttachmentsInput" checked />
+            <span>Send attachments — when off, only the newest message's files/images go to the model (older ones stay in the chat but out of context)</span>
+          </label>
+        </div>
         <label class="field">
-          <span>Creativity <em id="tempVal">0.80</em></span>
-          <div class="slider-row">
-            <input type="range" id="tempInput" min="0" max="1" step="0.01" value="0.8" />
-            <input type="number" id="tempNum" class="num" min="0" max="1" step="0.01" value="0.8" title="Type an exact value" />
-          </div>
-        </label>
-        <label class="field">
-          <span>Nucleus sampling <em id="topPVal">0.95</em></span>
-          <div class="slider-row">
-            <input type="range" id="topPInput" min="0" max="1" step="0.01" value="0.95" />
-            <input type="number" id="topPNum" class="num" min="0" max="1" step="0.01" value="0.95" title="Type an exact value" />
-          </div>
-        </label>
-        <label class="field">
-          <span>Max reply length <em id="maxVal">65536</em></span>
-          <div class="slider-row">
-            <input type="range" id="maxInput" min="0" max="700" step="5" value="700" />
-            <input type="number" id="maxNum" class="num" min="512" max="65536" step="256" value="65536" title="Type an exact value (512–65,536)" />
-          </div>
-        </label>
-        <label class="field">
-          <span>Context window <em class="hint-inline">cap sent history; 0 = all</em> <em id="contextWindowVal">Off</em></span>
-          <div class="slider-row">
-            <input type="range" id="contextWindowInput" min="0" max="131072" step="1024" value="0" />
-            <input type="number" id="cwNum" class="num" min="0" max="1000000" step="1024" value="0" title="Type an exact value (0 = send all)" />
-          </div>
-        </label>
-        <label class="field checkbox">
-          <input type="checkbox" id="thinkingInput" />
-          <span>Thinking mode — reason before answering (slower; good for analysis)</span>
-        </label>
-        <label class="field">
-          <span>Thinking effort <em class="hint-inline">how hard it reasons</em></span>
-          <select id="effortInput">
-            <option value="max">Max — deepest (slowest)</option>
-            <option value="high">High — strong</option>
-            <option value="low">Low — light</option>
-            <option value="minimal">Minimal — skip thinking (fastest)</option>
-          </select>
-        </label>
-        <label class="field checkbox">
-          <input type="checkbox" id="teachEditsInput" />
-          <span>Teach from your edits — show the model how you sculpted its replies, so it leans toward your voice (off = your edits stay private)</span>
-        </label>
-        <label class="field checkbox">
-          <input type="checkbox" id="preservedThinkingInput" checked />
-          <span>Preserved thinking — GLM keeps each reply's reasoning in context across turns (GLM-only; off saves tokens, but the model re-reasons from scratch)</span>
-        </label>
-        <label class="field">
-          <span>Preserved thinking depth <em class="hint-inline">prior assistant turns that carry their reasoning — 0 = all (default); 1–2 keeps recent planning only and lets long chats read as pure story</em></span>
-          <input type="number" id="preservedThinkingDepthInput" min="0" max="99" step="1" value="0" />
-        </label>
-        <label class="field checkbox">
-          <input type="checkbox" id="immersionInput" />
-          <span>Immersion grammar — teach the model the story's typographic registers: split worlds, pacing, whispers, gated text</span>
-        </label>
-        <label class="field checkbox">
-          <input type="checkbox" id="paneTeachInput" checked />
-          <span>Diegetic panes — teach the model the fence conventions: placards, notes, comms threads, diff records, readouts. Inline marks shape sentences; panes are objects on the page</span>
-        </label>
-        <label class="field checkbox">
-          <input type="checkbox" id="enableMacrosInput" />
-          <span>Prompt macros in regular chats — {{turn}} / {{roll}} / {{random}} / {{time}} / {{date}} substitute outside cast chats too (cast chats always have them; mind pasted template text)</span>
-        </label>
-        <label class="field checkbox">
-          <input type="checkbox" id="sendAttachmentsInput" checked />
-          <span>Send attachments — when off, only the newest message's files/images go to the model (older ones stay in the chat but out of context)</span>
-        </label>
-        <label class="field">
-          <span>Text flow speed <em id="streamVal">Instant</em></span>
+          <span class="field-name">Text flow speed <em id="streamVal">Instant</em></span>
           <input type="range" id="streamInput" min="0" max="100" step="1" value="100" />
         </label>
         <div class="settings-actions">
@@ -321,149 +351,181 @@
       <div class="settings-section">
         <h2>Appearance</h2>
         <div class="hint">Tune the reading size and how wide the chat column is. The app window also remembers its size now.</div>
-        <label class="field">
-          <span>Text size <em id="fontVal">1.00×</em></span>
-          <input type="range" id="fontInput" min="0.8" max="1.6" step="0.05" value="1" />
-        </label>
-        <label class="field">
-          <span>Chat width <em id="widthVal">880px</em></span>
-          <input type="range" id="widthInput" min="600" max="1500" step="20" value="880" />
-        </label>
-        <label class="field">
-          <span>Reading font <em class="hint-inline">the voice of the prose</em></span>
-          <select id="fontFamilyInput">
-            <option value="Literata" style="font-family:'Literata',serif">Literata — warm literary serif (default)</option>
-            <option value="Newsreader" style="font-family:'Newsreader',serif">Newsreader — quiet editorial serif</option>
-            <option value="Lora" style="font-family:'Lora',serif">Lora — rounder, softer serif</option>
-            <option value="Atkinson Hyperlegible" style="font-family:'Atkinson Hyperlegible',sans-serif">Atkinson Hyperlegible — built for screens</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Interface font <em class="hint-inline">the chrome around the story — buttons, menus, labels</em></span>
-          <select id="uiFontInput">
-            <option value="Literata">Literata — bookish, matches the prose (default)</option>
-            <option value="Atkinson">Atkinson — crisp instrument panel</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Reading layout <em class="hint-inline">how replies sit in the column</em></span>
-          <select id="chatLayoutInput">
-            <option value="folio">Folio — replies span the column like a book page</option>
-            <option value="bubbles">Bubbles — replies hug the left, chat-style</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Message glass <em class="hint-inline">the surface replies sit on — frosted takes blur the stars behind each message</em></span>
-          <select id="glassStyleInput">
-            <option value="gradient">Gradient — deep and solid, blur-free (default)</option>
-            <option value="frost">Frosted — the classic translucent pane (blurs the sky)</option>
-            <option value="tinted">Tinted frost — cooler, deeper smear</option>
-            <option value="smoked">Smoked — heavy tint, light blur</option>
-            <option value="shelf">Hairline shelf — barely-there, stars shine through</option>
-            <option value="vignette">Lantern — lit from above, no blur</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Response window <em class="hint-inline">the frame around a reply — void is deep and cheapest, glass follows Message glass</em></span>
-          <select id="responseWindowInput">
-            <option value="none">None — replies sit open on the sky (default)</option>
-            <option value="void">Deep void — a dark card set into the page</option>
-            <option value="soft">Soft — a faint wash behind the reply</option>
-            <option value="glass">Matches glass — the reply wears the Message glass surface</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Code panes <em class="hint-inline">fenced text inside replies — recessed sits sunken into the window</em></span>
-          <select id="codePaneStyleInput">
-            <option value="recessed">Recessed well — sunken, quiet depth (default)</option>
-            <option value="floating">Floating glass — wears the Message glass surface</option>
-            <option value="hairline">Hairline — near-transparent, one accent trace</option>
-            <option value="classic">Classic — the original toolbar block</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Line height <em id="lineHeightVal">1.65</em></span>
-          <input type="range" id="lineHeightInput" min="1.3" max="2.1" step="0.05" value="1.65" />
-        </label>
-        <label class="field">
-          <span>Prose measure <em class="hint-inline">caps line length for comfortable reading</em></span>
-          <select id="measureInput">
-            <option value="off">Off — prose fills the column</option>
-            <option value="75ch">~75 characters per line — bookish</option>
-            <option value="90ch">~90 characters per line — relaxed</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Dialogue voice <em class="hint-inline">how spoken lines stand apart in replies — nothing the model has to do</em></span>
-          <select id="dialogueStyleInput">
-            <option value="off">Off — dialogue matches narration</option>
-            <option value="chiaroscuro">Chiaroscuro — narration recedes, speech steps into the light</option>
-            <option value="glass">Glass — spoken lines on chiseled glass capsules</option>
-            <option value="editorial">Editorial — bookplate typography, tapered margin rule</option>
-            <option value="acoustic">Acoustic — warm solid speech over a hairline soundwave</option>
-            <option value="dramatis">Dramatis — narration turns italic editorial, speech stays upright</option>
-            <option value="noir">Noir — ink-and-amber: crisp speech, bracketed-feel quotes</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Vividness <em class="hint-inline">how strongly the dialogue voice stands out — Subtle keeps the prose calm</em></span>
-          <select id="vividnessInput">
-            <option value="subtle">Subtle — whisper-level separation</option>
-            <option value="balanced">Balanced — distinct but quiet (default)</option>
-            <option value="vivid">Vivid — the voice takes the stage</option>
-          </select>
-        </label>
-        <label class="field checkbox">
-          <input type="checkbox" id="speakerAccentInput" />
-          <span>Speaker-accented quotes — when a line opens with <em>Name: "…"</em>, tint that line's quote marks with the speaker's color</span>
-        </label>
-        <label class="field">
-          <span>Grammar style <em class="hint-inline">how the immersion grammar's registers look — whispers, impact lines, interludes</em></span>
-          <select id="grammarStyleInput">
-            <option value="literary">Literary — quiet, bookish (default)</option>
-            <option value="stage">Stage — expressive, a step louder</option>
-            <option value="kinetic">Kinetic — bold, cinematic</option>
-            <option value="ink">Monochrome — ink-only, no color accents</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Redaction style <em class="hint-inline">how ||gated text|| hides until hovered</em></span>
-          <select id="redactStyleInput">
-            <option value="bar">Classified bar — the classic hatch (default)</option>
-            <option value="blur">Frosted — blurred ink, sharpens on hover</option>
-            <option value="scramble">Static — animated noise, resolves on hover</option>
-          </select>
-        </label>
+
+        <div class="settings-subhead">Type &amp; Column</div>
+        <div class="field-grid-2">
+          <label class="field">
+            <span class="field-name">Text size <em id="fontVal">1.00×</em></span>
+            <input type="range" id="fontInput" min="0.8" max="1.6" step="0.05" value="1" />
+          </label>
+          <label class="field">
+            <span class="field-name">Chat width <em id="widthVal">880px</em></span>
+            <input type="range" id="widthInput" min="600" max="1500" step="20" value="880" />
+          </label>
+          <label class="field">
+            <span class="field-name">Reading font</span>
+            <span class="field-desc">the voice of the prose</span>
+            <select id="fontFamilyInput">
+              <option value="Literata" style="font-family:'Literata',serif">Literata — warm literary serif (default)</option>
+              <option value="Newsreader" style="font-family:'Newsreader',serif">Newsreader — quiet editorial serif</option>
+              <option value="Lora" style="font-family:'Lora',serif">Lora — rounder, softer serif</option>
+              <option value="Atkinson Hyperlegible" style="font-family:'Atkinson Hyperlegible',sans-serif">Atkinson Hyperlegible — built for screens</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-name">Interface font</span>
+            <span class="field-desc">the chrome around the story — buttons, menus, labels</span>
+            <select id="uiFontInput">
+              <option value="Literata">Literata — bookish, matches the prose (default)</option>
+              <option value="Atkinson">Atkinson — crisp instrument panel</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-name">Reading layout</span>
+            <span class="field-desc">how replies sit in the column</span>
+            <select id="chatLayoutInput">
+              <option value="folio">Folio — replies span the column like a book page</option>
+              <option value="bubbles">Bubbles — replies hug the left, chat-style</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-name">Prose measure</span>
+            <span class="field-desc">caps line length for comfortable reading</span>
+            <select id="measureInput">
+              <option value="off">Off — prose fills the column</option>
+              <option value="75ch">~75 characters per line — bookish</option>
+              <option value="90ch">~90 characters per line — relaxed</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-name">Line height <em id="lineHeightVal">1.65</em></span>
+            <input type="range" id="lineHeightInput" min="1.3" max="2.1" step="0.05" value="1.65" />
+          </label>
+        </div>
+
+        <div class="settings-subhead">Surfaces</div>
+        <div class="field-grid-2">
+          <label class="field">
+            <span class="field-name">Message glass</span>
+            <span class="field-desc">the surface replies sit on — frosted takes blur the stars behind each message</span>
+            <select id="glassStyleInput">
+              <option value="gradient">Gradient — deep and solid, blur-free (default)</option>
+              <option value="frost">Frosted — the classic translucent pane (blurs the sky)</option>
+              <option value="tinted">Tinted frost — cooler, deeper smear</option>
+              <option value="smoked">Smoked — heavy tint, light blur</option>
+              <option value="shelf">Hairline shelf — barely-there, stars shine through</option>
+              <option value="vignette">Lantern — lit from above, no blur</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-name">Response window</span>
+            <span class="field-desc">the frame around a reply — void is deep and cheapest, glass follows Message glass</span>
+            <select id="responseWindowInput">
+              <option value="none">None — replies sit open on the sky (default)</option>
+              <option value="void">Deep void — a dark card set into the page</option>
+              <option value="soft">Soft — a faint wash behind the reply</option>
+              <option value="glass">Matches glass — the reply wears the Message glass surface</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-name">Code panes</span>
+            <span class="field-desc">fenced text inside replies — recessed sits sunken into the window</span>
+            <select id="codePaneStyleInput">
+              <option value="recessed">Recessed well — sunken, quiet depth (default)</option>
+              <option value="floating">Floating glass — wears the Message glass surface</option>
+              <option value="hairline">Hairline — near-transparent, one accent trace</option>
+              <option value="classic">Classic — the original toolbar block</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="settings-subhead">Dialogue &amp; Immersion</div>
+        <div class="field-grid-2">
+          <label class="field">
+            <span class="field-name">Dialogue voice</span>
+            <span class="field-desc">how spoken lines stand apart in replies — nothing the model has to do</span>
+            <select id="dialogueStyleInput">
+              <option value="off">Off — dialogue matches narration</option>
+              <option value="chiaroscuro">Chiaroscuro — narration recedes, speech steps into the light</option>
+              <option value="glass">Glass — spoken lines on chiseled glass capsules</option>
+              <option value="editorial">Editorial — bookplate typography, tapered margin rule</option>
+              <option value="acoustic">Acoustic — warm solid speech over a hairline soundwave</option>
+              <option value="dramatis">Dramatis — narration turns italic editorial, speech stays upright</option>
+              <option value="noir">Noir — ink-and-amber: crisp speech, bracketed-feel quotes</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-name">Vividness</span>
+            <span class="field-desc">how strongly the dialogue voice stands out — Subtle keeps the prose calm</span>
+            <select id="vividnessInput">
+              <option value="subtle">Subtle — whisper-level separation</option>
+              <option value="balanced">Balanced — distinct but quiet (default)</option>
+              <option value="vivid">Vivid — the voice takes the stage</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-name">Grammar style</span>
+            <span class="field-desc">how the immersion grammar's registers look — whispers, impact lines, interludes</span>
+            <select id="grammarStyleInput">
+              <option value="literary">Literary — quiet, bookish (default)</option>
+              <option value="stage">Stage — expressive, a step louder</option>
+              <option value="kinetic">Kinetic — bold, cinematic</option>
+              <option value="ink">Monochrome — ink-only, no color accents</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-name">Redaction style</span>
+            <span class="field-desc">how ||gated text|| hides until hovered</span>
+            <select id="redactStyleInput">
+              <option value="bar">Classified bar — the classic hatch (default)</option>
+              <option value="blur">Frosted — blurred ink, sharpens on hover</option>
+              <option value="scramble">Static — animated noise, resolves on hover</option>
+            </select>
+          </label>
+        </div>
+        <div class="field-grid-2 toggle-grid">
+          <label class="field checkbox">
+            <input type="checkbox" id="speakerAccentInput" />
+            <span>Speaker-accented quotes — tint a line's quote marks with the speaker's color when it opens with <em>Name: "…"</em></span>
+          </label>
+          <label class="field checkbox">
+            <input type="checkbox" id="cadenceMarksInput" />
+            <span>Cadence marks — em-dashes and ellipses get breathing room and a faint tint</span>
+          </label>
+          <label class="field checkbox">
+            <input type="checkbox" id="streamInkInput" />
+            <span>Streaming ink — new words materialize as the reply flows in (needs a flow rate above Instant)</span>
+          </label>
+        </div>
         <div class="settings-section appearance-preview-wrap">
           <div id="appearancePreview" class="appearance-preview"></div>
         </div>
-        <label class="field checkbox">
-          <input type="checkbox" id="cadenceMarksInput" />
-          <span>Cadence marks — em-dashes and ellipses get breathing room and a faint tint</span>
-        </label>
-        <label class="field checkbox">
-          <input type="checkbox" id="streamInkInput" />
-          <span>Streaming ink — new words materialize as the reply flows in (needs a flow rate above Instant)</span>
-        </label>
-        <label class="field">
-          <span>Accent color <em class="hint-inline">recolors the stars' light</em></span>
-          <input type="color" id="accentInput" value="#9fb8ff" />
-        </label>
-        <label class="field">
-          <span>Star density <em id="starDensityVal">1.00×</em></span>
-          <input type="range" id="starDensityInput" min="20" max="250" step="5" value="100" />
-        </label>
-        <label class="field">
-          <span>Twinkle speed <em id="twinkleVal">1.00×</em></span>
-          <input type="range" id="twinkleInput" min="0" max="250" step="5" value="100" />
-        </label>
-        <label class="field checkbox">
-          <input type="checkbox" id="moodSkyInput" checked />
-          <span>Mood sky — the stars shift with the story's tone (calm, tense, sorrow, joy)</span>
-        </label>
+
+        <div class="settings-subhead">Sky &amp; Accent</div>
+        <div class="field-grid-2">
+          <div class="field">
+            <span class="field-name">Accent color <em class="hint-inline" id="accentHex">#9fb8ff</em></span>
+            <span class="field-desc">recolors the stars' light</span>
+            <div class="accent-row">
+              <input type="color" id="accentInput" value="#9fb8ff" />
+              <button class="btn ghost" id="resetAccent" type="button">Reset accent</button>
+            </div>
+          </div>
+          <label class="field checkbox">
+            <input type="checkbox" id="moodSkyInput" checked />
+            <span>Mood sky — the stars shift with the story's tone (calm, tense, sorrow, joy)</span>
+          </label>
+          <label class="field">
+            <span class="field-name">Star density <em id="starDensityVal">1.00×</em></span>
+            <input type="range" id="starDensityInput" min="20" max="250" step="5" value="100" />
+          </label>
+          <label class="field">
+            <span class="field-name">Twinkle speed <em id="twinkleVal">1.00×</em></span>
+            <input type="range" id="twinkleInput" min="0" max="250" step="5" value="100" />
+          </label>
+        </div>
         <div class="settings-actions">
           <span class="saved-tag" id="appearSaved">saved ✓</span>
-          <button class="btn ghost" id="resetAccent" type="button">Reset accent</button>
           <button class="btn" id="saveAppearance" type="button">Save appearance</button>
         </div>
       </div>
@@ -475,27 +537,29 @@
           <input type="checkbox" id="colorWordsInput" checked />
           <span>Colored text — color names wear their own hue in the prose</span>
         </label>
-        <label class="field">
-          <span>Glow intensity <em id="flareIntensityVal">50%</em></span>
-          <input type="range" id="flareIntensityInput" min="0" max="100" step="5" value="50" />
-        </label>
-        <label class="field">
-          <span>Glow reach <em id="flareRangeVal">140px</em></span>
-          <input type="range" id="flareRangeInput" min="50" max="300" step="10" value="140" />
-        </label>
-        <label class="field">
-          <span>Glow spread <em id="flareSizeVal">35%</em></span>
-          <input type="range" id="flareSizeInput" min="20" max="100" step="5" value="35" />
-        </label>
-        <label class="field">
-          <span>Glow blend</span>
-          <select id="flareBlendInput">
-            <option value="screen">Screen (default)</option>
-            <option value="soft-light">Soft light</option>
-            <option value="overlay">Overlay</option>
-            <option value="normal">Normal</option>
-          </select>
-        </label>
+        <div class="field-grid-2">
+          <label class="field">
+            <span class="field-name">Glow intensity <em id="flareIntensityVal">50%</em></span>
+            <input type="range" id="flareIntensityInput" min="0" max="100" step="5" value="50" />
+          </label>
+          <label class="field">
+            <span class="field-name">Glow reach <em id="flareRangeVal">140px</em></span>
+            <input type="range" id="flareRangeInput" min="50" max="300" step="10" value="140" />
+          </label>
+          <label class="field">
+            <span class="field-name">Glow spread <em id="flareSizeVal">35%</em></span>
+            <input type="range" id="flareSizeInput" min="20" max="100" step="5" value="35" />
+          </label>
+          <label class="field">
+            <span class="field-name">Glow blend</span>
+            <select id="flareBlendInput">
+              <option value="screen">Screen (default)</option>
+              <option value="soft-light">Soft light</option>
+              <option value="overlay">Overlay</option>
+              <option value="normal">Normal</option>
+            </select>
+          </label>
+        </div>
         <label class="field checkbox">
           <input type="checkbox" id="fxEventsInput" checked />
           <span>Cosmic events — stars, comets, planets &amp; supernovas in the word's color</span>
@@ -586,9 +650,12 @@
 
         </div>
       </div>
+        </div>
 
-      <div class="settings-actions">
-        <button class="btn ghost" id="closeSettings">Close</button>
+      <div class="panel-foot">
+        <div class="settings-actions">
+          <button class="btn ghost" id="closeSettings">Close</button>
+        </div>
       </div>
     </div>
   </div>
@@ -596,7 +663,11 @@
   <!-- Shortcuts overlay (?) -->
   <div class="settings-overlay" id="shortcutsOverlay">
     <div class="settings-panel" style="max-width:440px">
-      <h2 class="lead">⌨ Shortcuts</h2>
+      <div class="panel-head">
+        <h2 class="lead">⌨ Shortcuts</h2>
+        <button class="panel-close" id="shortcutsClose" type="button" title="Close" aria-label="Close shortcuts">×</button>
+      </div>
+      <div class="panel-body">
       <div class="settings-section">
         <div class="shortcut"><kbd>Enter</kbd><span>Send message</span></div>
         <div class="shortcut"><kbd>Shift</kbd> + <kbd>Enter</kbd><span>New line</span></div>
@@ -606,8 +677,11 @@
       <div class="settings-section">
         <div class="hint">Hover any message for <b>✎ Edit</b> · <b>↻ Retry</b> · <b>⑂ Fork</b> · <b>⎘ Copy</b>. Click <b>■</b> while writing to stop a reply.</div>
       </div>
-      <div class="settings-actions">
-        <button class="btn" id="closeShortcuts" type="button">Close</button>
+      </div>
+      <div class="panel-foot">
+        <div class="settings-actions">
+          <button class="btn" id="closeShortcuts" type="button">Close</button>
+        </div>
       </div>
     </div>
   </div>
@@ -615,13 +689,20 @@
   <!-- Bookmarks overlay (📑) -->
   <div class="settings-overlay" id="bookmarksOverlay">
     <div class="settings-panel" style="max-width:560px">
-      <h2 class="lead">📑 Bookmarks <em class="hint-inline" id="bookmarksCount"></em></h2>
+      <div class="panel-head">
+        <h2 class="lead">📑 Bookmarks <em class="hint-inline" id="bookmarksCount"></em></h2>
+        <button class="panel-close" id="bookmarksClose" type="button" title="Close" aria-label="Close bookmarks">×</button>
+      </div>
+      <div class="panel-body">
       <div class="hint">Passages you've starred across all chats. Click one to jump to it; × to remove.</div>
       <div class="settings-section">
         <div class="bookmark-list" id="bookmarksList"></div>
       </div>
-      <div class="settings-actions">
-        <button class="btn ghost" id="closeBookmarks" type="button">Close</button>
+      </div>
+      <div class="panel-foot">
+        <div class="settings-actions">
+          <button class="btn ghost" id="closeBookmarks" type="button">Close</button>
+        </div>
       </div>
     </div>
   </div>
@@ -641,11 +722,18 @@
   <!-- What was sent — the exact last request (click the ◐ meter) -->
   <div class="settings-overlay" id="requestOverlay">
     <div class="settings-panel request-panel">
-      <h2 class="lead">◐ What was sent</h2>
+      <div class="panel-head">
+        <h2 class="lead">◐ What was sent</h2>
+        <button class="panel-close" id="requestClose" type="button" title="Close" aria-label="Close request inspector">×</button>
+      </div>
+      <div class="panel-body">
       <div class="hint" id="requestSummary"></div>
       <div class="request-body" id="requestBody"></div>
-      <div class="settings-actions">
-        <button class="btn ghost" id="closeRequest" type="button">Close</button>
+      </div>
+      <div class="panel-foot">
+        <div class="settings-actions">
+          <button class="btn ghost" id="closeRequest" type="button">Close</button>
+        </div>
       </div>
     </div>
   </div>
@@ -653,21 +741,27 @@
   <!-- Lorebook overlay (❖) -->
   <div class="settings-overlay" id="lorebookOverlay">
     <div class="settings-panel" style="max-width:660px">
-      <button class="panel-close" id="lorebookClose" type="button" title="Close" aria-label="Close lorebook">×</button>
-      <h2 class="lead">❖ Lorebook</h2>
-      <div class="hint">A collection of titled lorebooks. Tick the ones you want active in <em>this</em> chat (off by default in new chats). Click a name to edit its entries.</div>
-      <div class="settings-section">
-        <h2>Lorebooks</h2>
-        <div class="lorebook-list" id="lorebookList"></div>
-        <div class="settings-actions" style="justify-content:flex-start">
-          <button class="btn" id="lorebookNew" type="button">＋ New lorebook</button>
+      <div class="panel-head">
+        <h2 class="lead">❖ Lorebook</h2>
+        <button class="panel-close" id="lorebookClose" type="button" title="Close" aria-label="Close lorebook">×</button>
+      </div>
+      <div class="panel-body">
+        <div class="hint">A collection of titled lorebooks. Tick the ones you want active in <em>this</em> chat (off by default in new chats). Click a name to edit its entries.</div>
+        <div class="settings-section">
+          <div class="lore-head-row">
+            <h2>Lorebooks</h2>
+            <button class="btn" id="lorebookNew" type="button">＋ New lorebook</button>
+          </div>
+          <div class="lorebook-list" id="lorebookList"></div>
+        </div>
+        <div class="settings-section">
+          <div class="lorebook-editor" id="lorebookEditor"></div>
         </div>
       </div>
-      <div class="settings-section">
-        <div class="lorebook-editor" id="lorebookEditor"></div>
-      </div>
-      <div class="settings-actions">
-        <button class="btn ghost" id="closeLorebook" type="button">Close</button>
+      <div class="panel-foot">
+        <div class="settings-actions">
+          <button class="btn ghost" id="closeLorebook">Close</button>
+        </div>
       </div>
     </div>
   </div>

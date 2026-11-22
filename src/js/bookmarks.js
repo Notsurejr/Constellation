@@ -116,6 +116,7 @@ Constellation.bookmarks = (function () {
   function init() {
     const btn = $('bookmarksBtn'); if (btn) btn.addEventListener('click', open);
     const closeBtn = $('closeBookmarks'); if (closeBtn) closeBtn.addEventListener('click', close);
+    const closeX = $('bookmarksClose'); if (closeX) closeX.addEventListener('click', close);   // header ×, same close
     const o = overlay();
     if (o) o.addEventListener('click', (e) => { if (e.target === o) close(); });   // click the backdrop to close
   }

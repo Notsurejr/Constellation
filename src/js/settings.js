@@ -837,7 +837,10 @@ Constellation.settings = (function () {
       $('widthVal').textContent = $('widthInput').value + 'px';
       applyAppearanceVars(Number($('fontInput').value), Number($('widthInput').value));   // live preview
     });
-    $('accentInput').addEventListener('input', () => { applyAccent($('accentInput').value); });
+    $('accentInput').addEventListener('input', () => {
+      applyAccent($('accentInput').value);
+      const hexEl = $('accentHex'); if (hexEl) hexEl.textContent = $('accentInput').value;   // live hex readout
+    });
     $('starDensityInput').addEventListener('input', () => {
       const v = Number($('starDensityInput').value) / 100;
       $('starDensityVal').textContent = v.toFixed(2) + '×';

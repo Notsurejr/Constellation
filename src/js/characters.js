@@ -231,7 +231,21 @@ Constellation.cast = (function () {
       return;
     }
 
+    // Personas collapse behind a one-line bar — the Character Gallery leads the panel.
+    // Expanding reveals the exact same persona editor as before (ids/controls unchanged).
+    const activePersona = personas.find((p) => p.default) || personas[0];
+    const pbar = el('div', 'cast-persona-bar');
+    pbar.appendChild(el('span', 'cast-persona-bar-name', 'Persona: ' + (activePersona ? activePersona.name : 'You')));
+    const ptoggle = el('button', 'btn ghost cast-persona-toggle', 'Edit personas ▾');
+    pbar.appendChild(ptoggle);
+    host.appendChild(pbar);
     const pwrap = el('div', 'cast-personas');
+    pwrap.style.display = 'none';
+    ptoggle.addEventListener('click', () => {
+      const opening = pwrap.style.display === 'none';
+      pwrap.style.display = opening ? '' : 'none';
+      ptoggle.textContent = opening ? 'Edit personas ▴' : 'Edit personas ▾';
+    });
     host.appendChild(pwrap);
     renderPersonas(pwrap);
 

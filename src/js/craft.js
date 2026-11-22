@@ -102,6 +102,7 @@ Constellation.craft = (function () {
   function init() {
     $('craftBtn').addEventListener('click', open);
     $('closeCraft').addEventListener('click', close);
+    const closeX = $('craftClose'); if (closeX) closeX.addEventListener('click', close);   // header ×, same close
     $('craftPull').addEventListener('click', pullFromChat);
     $('craftAnalyze').addEventListener('click', analyze);
     $('craftOverlay').addEventListener('click', (e) => { if (e.target === $('craftOverlay')) close(); });

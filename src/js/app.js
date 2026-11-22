@@ -177,6 +177,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (scBtn) scBtn.addEventListener('click', toggleShortcuts);
   const scClose = document.getElementById('closeShortcuts');
   if (scClose) scClose.addEventListener('click', () => sc && sc.classList.remove('open'));
+  const scX = document.getElementById('shortcutsClose');
+  if (scX) scX.addEventListener('click', () => sc && sc.classList.remove('open'));   // header ×, same close
   document.addEventListener('keydown', (e) => {
     if (e.key === '?' && !/input|textarea/i.test(String(e.target.tagName || ''))) { e.preventDefault(); toggleShortcuts(); }
   });

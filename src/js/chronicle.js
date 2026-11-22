@@ -303,8 +303,16 @@ Constellation.chronicle = (function () {
 
   function disarmRebuild() { rebuildArmed = false; if (rebuildBtn) { rebuildBtn.textContent = '↻ Rebuild'; rebuildBtn.classList.remove('warn'); } }
   function toggle() { panel.classList.contains('open') ? close() : open(); }
-  function open() { ensureDom(); fillModelSelect(); panel.classList.add('open'); render(); }
-  function close() { if (panel) panel.classList.remove('open'); }
+  function open() {
+    ensureDom(); fillModelSelect();
+    panel.classList.add('open');
+    document.body.classList.add('chronicle-open');   // side-by-side reading: the story re-centers beside the panel
+    render();
+  }
+  function close() {
+    if (panel) panel.classList.remove('open');
+    document.body.classList.remove('chronicle-open');
+  }
 
   function persist() {
     if (!chatId) return;
