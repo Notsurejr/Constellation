@@ -1089,11 +1089,18 @@ input[type="checkbox"]:focus-visible { outline: 1px solid var(--accent-dim); out
   width: 36px; height: 36px; flex: none;
   border-radius: 8px;
   border: 1px solid var(--panel-border);
-  object-fit: cover;
   display: inline-flex; align-items: center; justify-content: center;
   overflow: hidden;
   font-size: 15px;
   background: rgba(255, 255, 255, 0.04);
+}
+/* The avatar img must be sized to the box itself — object-fit on the wrapper span does
+   nothing (it only applies to replaced elements), and an unsized SVG renders at its
+   natural size, cropping into a zoomed-in patch of the art. */
+.session-char img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .session-item.char-chat { gap: 10px; }
 .session-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2355,14 +2362,8 @@ input.num::-webkit-outer-spin-button, input.num::-webkit-inner-spin-button { opa
 .cast-preview:focus { border-color: var(--accent-dim); box-shadow: var(--glow); }
 .cast-start-bar { display: flex; justify-content: flex-end; gap: 10px; }
 
-/* Sidebar character-chat badges */
-.session-title .session-char {
-  display: inline-flex; width: 18px; height: 18px; border-radius: 6px; overflow: hidden;
-  align-items: center; justify-content: center; margin-right: 6px; vertical-align: -4px;
-  font-size: 11px; color: var(--accent-dim); border: 1px solid var(--panel-border);
-  background: rgba(255,255,255,0.04);
-}
-.session-title .session-char img { width: 100%; height: 100%; object-fit: cover; }
+/* (The old 18px inline character badge inside .session-title is superseded by the
+   36×36 .session-char portrait beside .session-main — its rules are gone.) */
 .session-item.char-chat .session-title { color: var(--accent-dim); }
 
 /* ============================================================
