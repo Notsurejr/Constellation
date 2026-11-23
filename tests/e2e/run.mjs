@@ -754,6 +754,84 @@ try {
     assert.equal(hl, true, 'drag-over highlight class');
   });
 
+  // ---------------- Suite J: overlay panels scroll and keep their footer ----------------
+  current = { name: 'J overlay panels', failures: 0 };
+  console.log('\n== J. overlay panels scroll + keep their footer ==');
+  // Regression guard for v0.12.8/0.12.9, which shipped a clipped, unscrollable Lorebook,
+  // Bookmarks and Craft: the head/body/foot structure only worked on Settings because the
+  // column layout was scoped to it. DOM clicks pass even when content is clipped, so every
+  // check here is GEOMETRY or a REAL input event (wheel + click through the CDP Input
+  // domain). The tall spacer is added in-DOM only — nothing is written to disk.
+  const PANEL_CASES = [
+    ['Settings', 'settingsOverlay', `document.getElementById('brandBtn').click()`, 'closeSettings'],
+    ['Lorebook', 'lorebookOverlay', `document.getElementById('lorebookBtn').click()`, 'closeLorebook'],
+    ['Bookmarks', 'bookmarksOverlay', `document.getElementById('bookmarksBtn').click()`, 'closeBookmarks'],
+    ['Craft', 'craftOverlay', `document.getElementById('craftBtn').click()`, 'closeCraft'],
+    ['Shortcuts', 'shortcutsOverlay', `document.getElementById('shortcutsBtn').click()`, 'closeShortcuts'],
+    ['Request inspector', 'requestOverlay', `document.getElementById('ctxMeter').click()`, 'closeRequest'],
+    ['Sky map', 'storyMapOverlay', `window.Constellation.storySky.openMap()`, 'closeStoryMap'],
+  ];
+  for (const [label, ovId, openExpr, closeId] of PANEL_CASES) {
+    await t(`${label}: overflowing body scrolls under a real wheel; footer Close stays on screen and closes on a real click`, async () => {
+      await app.ev(`document.querySelectorAll('.settings-overlay').forEach(function (o) { o.classList.remove('open'); })`);   // clean slate (some openers toggle)
+      await sleep(250);
+      await app.ev(openExpr, true);
+      await sleep(500);
+      assert.equal(await app.ev(`document.getElementById('${ovId}').classList.contains('open')`), true, 'overlay opened');
+      await app.ev(`(function () {   // tall content, in-DOM only
+        const body = document.getElementById('${ovId}').querySelector('.panel-body');
+        const s = document.createElement('div'); s.id = 'e2e-spacer'; s.style.height = '1500px';
+        const m = document.createElement('div'); m.id = 'e2e-marker'; m.textContent = 'end of content';
+        body.appendChild(s); body.appendChild(m);
+        body.scrollTop = 0;
+      })()`);
+      await sleep(200);
+      const geo = await app.ev(`(function () {
+        const panel = document.getElementById('${ovId}').querySelector('.settings-panel');
+        const body = panel.querySelector('.panel-body');
+        const pr = panel.getBoundingClientRect(), fr = panel.querySelector('.panel-foot').getBoundingClientRect();
+        const mr = document.getElementById('${ovId}').querySelector('#e2e-marker').getBoundingClientRect();
+        return {
+          vh: innerHeight, panelTop: pr.top, panelBottom: pr.bottom,
+          bodyClientH: body.clientHeight, bodyScrollH: body.scrollHeight,
+          footInside: fr.bottom <= pr.bottom + 1 && fr.top >= pr.top - 1,
+          markerOnScreen: mr.bottom <= pr.bottom + 1 && mr.top >= pr.top - 1
+        };
+      })()`);
+      assert.ok(geo.bodyScrollH > geo.bodyClientH + 400, 'the body is the scroll region (content overflows it): ' + JSON.stringify(geo));
+      assert.ok(geo.panelTop >= -1 && geo.panelBottom <= geo.vh + 1, 'panel fits the viewport: ' + JSON.stringify(geo));
+      assert.equal(geo.footInside, true, 'footer inside the panel while content overflows: ' + JSON.stringify(geo));
+      assert.equal(geo.markerOnScreen, false, 'sanity: the end of the content starts below the fold');
+      const c = await app.ev(`(function () { const r = document.getElementById('${ovId}').querySelector('.settings-panel').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`);
+      await app.raise();
+      await app.call('Input.dispatchMouseEvent', { type: 'mouseWheel', x: c.x, y: c.y, deltaX: 0, deltaY: 500 });   // REAL wheel event
+      await sleep(350);
+      const afterWheel = await app.ev(`document.getElementById('${ovId}').querySelector('.panel-body').scrollTop`);
+      assert.ok(afterWheel > 100, 'a real wheel event scrolls the body: scrollTop ' + afterWheel);
+      await app.ev(`(function () { const b = document.getElementById('${ovId}').querySelector('.panel-body'); b.scrollTop = b.scrollHeight; })()`);
+      await sleep(250);
+      const end = await app.ev(`(function () {
+        const ov = document.getElementById('${ovId}');
+        const pr = ov.querySelector('.settings-panel').getBoundingClientRect();
+        const mr = ov.querySelector('#e2e-marker').getBoundingClientRect();
+        const fr = ov.querySelector('.panel-foot').getBoundingClientRect();
+        return { markerOnScreen: mr.bottom <= pr.bottom + 1 && mr.top >= pr.top - 1, footInside: fr.bottom <= pr.bottom + 1 && fr.top >= pr.top - 1 };
+      })()`);
+      assert.equal(end.markerOnScreen, true, 'the end of the content is reachable');
+      assert.equal(end.footInside, true, 'footer still inside the panel at the end');
+      await app.ev(`(function () { const s = document.getElementById('e2e-spacer'); if (s) s.remove(); const m = document.getElementById('e2e-marker'); if (m) m.remove(); })()`);
+      await sleep(150);
+      // a REAL click on the footer Close — the user-visible symptom was this button being clipped away
+      const bc = await app.ev(`(function () { const b = document.getElementById('${closeId}'); const r = b.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), w: Math.round(r.width), h: Math.round(r.height) }; })()`);
+      assert.ok(bc.w > 10 && bc.h > 10, 'footer Close has a real box: ' + JSON.stringify(bc));
+      await app.call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: bc.x, y: bc.y });
+      await app.call('Input.dispatchMouseEvent', { type: 'mousePressed', x: bc.x, y: bc.y, button: 'left', clickCount: 1 });
+      await app.call('Input.dispatchMouseEvent', { type: 'mouseReleased', x: bc.x, y: bc.y, button: 'left', clickCount: 1 });
+      await sleep(350);
+      assert.equal(await app.ev(`!document.getElementById('${ovId}').classList.contains('open')`), true, 'footer Close closes the panel on a real click');
+    });
+  }
+
   // ---------------- error budget ----------------
   current = { name: 'D global error budget', failures: 0 };
 const thrownAll = app.events.filter((e) => e.method === 'Runtime.exceptionThrown');

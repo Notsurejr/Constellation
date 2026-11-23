@@ -710,11 +710,18 @@
   <!-- Sky map — every chat is a constellation (Story Constellations) -->
   <div class="settings-overlay" id="storyMapOverlay">
     <div class="settings-panel story-map-panel">
-      <h2 class="lead">✦ Sky map</h2>
-      <div class="hint">Every chat is a constellation; every ★ you bookmark is a star in it. Bright stars are bookmarked moments — click a constellation to open that story.</div>
-      <div class="story-map" id="storyMap"></div>
-      <div class="settings-actions">
-        <button class="btn ghost" id="closeStoryMap" type="button">Close</button>
+      <div class="panel-head">
+        <h2 class="lead">✦ Sky map</h2>
+        <button class="panel-close" id="storyMapClose" type="button" title="Close" aria-label="Close sky map">×</button>
+      </div>
+      <div class="panel-body">
+        <div class="hint">Every chat is a constellation; every ★ you bookmark is a star in it. Bright stars are bookmarked moments — click a constellation to open that story.</div>
+        <div class="story-map" id="storyMap"></div>
+      </div>
+      <div class="panel-foot">
+        <div class="settings-actions">
+          <button class="btn ghost" id="closeStoryMap" type="button">Close</button>
+        </div>
       </div>
     </div>
   </div>

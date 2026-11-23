@@ -165,6 +165,8 @@ Constellation.storySky = (function () {
   (function () {   // overlay close wiring (scripts load after the DOM)
     var c = document.getElementById('closeStoryMap');
     if (c) c.addEventListener('click', closeMap);
+    var cx = document.getElementById('storyMapClose');
+    if (cx) cx.addEventListener('click', closeMap);   // header ×, same close
     var o = document.getElementById('storyMapOverlay');
     if (o) o.addEventListener('click', function (e) { if (e.target === o) closeMap(); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeMap(); });

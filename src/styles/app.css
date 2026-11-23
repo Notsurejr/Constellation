@@ -799,7 +799,11 @@ body.rw-glass .msg .body .codeblock.wide {
 .field-grid-2.toggle-grid .field.checkbox > span { line-height: 1.45; }
 
 /* ---- Pass 3: unified sticky header/body/footer for the settings-overlay family ---- */
-.settings-panel { padding: 0; overflow: hidden; }
+/* EVERY panel on this class is a flex column: head and foot never shrink, the body is
+   the one scroll region. Without this the body grows to its content and the panel's
+   overflow:hidden clips whatever passes max-height with no way to scroll to it — which
+   is exactly what shipped in v0.12.8/0.12.9 (the column layout existed on Settings only). */
+.settings-panel { padding: 0; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
 .settings-panel .panel-head {
   flex: none;
   display: flex; align-items: center; gap: 10px;
@@ -808,7 +812,7 @@ body.rw-glass .msg .body .codeblock.wide {
 }
 .settings-panel .panel-head .lead { margin: 0; }
 .settings-panel .panel-head .panel-close { margin-left: auto; }
-.settings-panel .panel-body { flex: 1 1 auto; overflow-y: auto; padding: 16px 22px 20px; }
+.settings-panel .panel-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 16px 22px 20px; }
 .settings-panel .panel-foot {
   flex: none;
   border-top: 1px solid var(--panel-border);
