@@ -246,6 +246,8 @@ Constellation.md = (function () {
     for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
     return h % 360;
   };
+  // The speaker's hue, strong enough to notice on a small mark (it used to be a 42%-pale tint).
+  const speakerColor = (name) => 'hsl(' + speakerHue(name) + ' 62% 72%)';
 
   function blockTextNodes(block) {
     const doc = block.ownerDocument || document;
@@ -269,7 +271,7 @@ Constellation.md = (function () {
     const qAt = (node) => {
       const w = doc.createElement('span'); w.className = 'dlg';
       const s = doc.createElement('span'); s.className = 'q';
-      if (seg.speaker && dlgCfg.speakers) s.style.color = 'hsl(' + speakerHue(seg.speaker) + ' 42% 74%)';
+      if (seg.speaker && dlgCfg.speakers) s.style.color = speakerColor(seg.speaker);
       node.parentNode.replaceChild(w, node); w.appendChild(s); s.appendChild(node);
       return w;
     };
@@ -287,7 +289,7 @@ Constellation.md = (function () {
       const openM = seg.node.splitText(seg.mstart);
       const q = (node) => {
         const s = doc.createElement('span'); s.className = 'q';
-        if (seg.speaker && dlgCfg.speakers) s.style.color = 'hsl(' + speakerHue(seg.speaker) + ' 42% 74%)';
+        if (seg.speaker && dlgCfg.speakers) s.style.color = speakerColor(seg.speaker);
         s.appendChild(node); return s;
       };
       span.appendChild(q(openM)); span.appendChild(content);
@@ -388,7 +390,7 @@ Constellation.md = (function () {
         const idx0 = texts.indexOf(s0.node);
         const prefix = texts.slice(0, idx0 + 1).map((x, xi) => (xi === idx0 ? x.textContent.slice(0, s0.mstart) : x.textContent)).join('');
         const nm = prefix.match(/^([A-Za-z][A-Za-z0-9_' \u2019-]{0,23}):\s*$/);
-        if (nm) { const speaker = nm[1].trim(); for (const s of segs) s.speaker = speaker; }
+        if (nm) { const speaker = nm[1].trim(); const nameLen = prefix.indexOf(':') + 1; for (const s of segs) { s.speaker = speaker; s.nameLen = nameLen; } }
       }
       // Streaming: an open quote wraps to the end of its block so the voice is live from
       // the first spoken word, then settles when the closing quote arrives.
@@ -402,6 +404,18 @@ Constellation.md = (function () {
       // Phase 2 — wrap (reverse order keeps indices stable).
       for (let s = segs.length - 1; s >= 0; s--) {
         try { wrapSegment(doc, segs[s], block); } catch (e) { /* never break rendering for a quote */ }
+      }
+      // The speaker's name carries the hue too — a tint on two tiny quote marks is easy to miss.
+      const nm0 = segs[0].nameLen;
+      if (nm0 && texts[0] && texts[0].parentNode && texts[0].textContent.length >= nm0) {
+        try {
+          texts[0].splitText(nm0);
+          const tag = doc.createElement('span');
+          tag.className = 'dlg-speaker';
+          tag.style.color = speakerColor(segs[0].speaker);
+          texts[0].parentNode.replaceChild(tag, texts[0]);
+          tag.appendChild(texts[0]);
+        } catch (e) { /* cosmetic — never break rendering for a name */ }
       }
       const lastSeg = segs[segs.length - 1];
       shape.push({ el: block, has: true, endsDash: !!lastSeg.endsDash, firstShort: !!segs[0].short && segs[0].node === texts[0] });
@@ -509,7 +523,13 @@ Constellation.md = (function () {
       } catch (e) { console.warn('[constellation]', e && e.message || e); }
     }
     sanitizeFragment(tpl.content);
-    return tpl.innerHTML;
+    // Smart quotes, display only: straight marks in prose become curly. Code and panes are left
+    // alone and the stored text never changes (Copy, Edit and exports read the raw source).
+    // The Cast detail view passes { quotes: false }: it shows a card exactly as the model receives it.
+    const out = tpl.innerHTML;
+    const eng = window.Constellation && window.Constellation.engines;
+    if ((opts && opts.quotes === false) || !eng || !eng.smartQuotes) return out;
+    try { return eng.smartQuotes(out); } catch (e) { return out; }
   }
   return { render, escape: escapeHtml, setDialogue };
 })();

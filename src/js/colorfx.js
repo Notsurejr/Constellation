@@ -1,78 +1,41 @@
-// Color FX: tags color words in rendered replies and drives ambient flares + celestial events.
-// Single color → proximity-driven weighted blend + a cosmic event (supernova/comet/planet/star).
+// Color FX: tags color words in rendered replies and drives the ambient glow + celestial events.
+// The glow is ONE soft light parked on the color word on screen, so it follows the reading.
+// Single color → proximity-weighted brightness + a cosmic event (supernova/comet/planet/star).
 // Multiple colors on the same line → left-to-right queue cascade, each color gets its own event.
 var Constellation = window.Constellation || (window.Constellation = {});
 
 Constellation.colorfx = (function () {
-  const RAW = 'red:f00,crimson:dc143c,scarlet:ff2400,vermilion:e34234,rose:ff007f,pink:ffc0cb,coral:ff7f50,salmon:fa8072,magenta:ff00ff,fuchsia:ff00ff,maroon:800000,burgundy:800020,wine:722f37,orange:ffa500,amber:ffbf00,gold:ffd700,yellow:ffff00,ivory:fffff0,cream:fffdd0,lemon:fff44f,goldenrod:daa520,olive:808000,lime:bfff00,chartreuse:7fff00,green:008000,emerald:50c878,jade:00a86b,mint:98ff98,sage:9caf88,forest:228b22,teal:008080,turquoise:40e0d0,aqua:00ffff,cyan:00ffff,azure:007fff,sky:87ceeb,blue:0000ff,navy:000080,royal:4169e1,sapphire:0f52ba,cobalt:0047ab,cerulean:2a52be,indigo:4b0082,purple:800080,violet:ee82ee,lavender:e6e6fa,lilac:c8a2c8,plum:8e4585,mauve:e0b0ff,orchid:da70d6,white:ffffff,snow:fffafa,pearl:eae0c8,silver:c0c0c0,gray:808080,grey:808080,slate:708090,charcoal:36454f,black:000000,ebony:2d231e,obsidian:0b0b0b,onyx:353839,brown:a52a2a,chocolate:d2691e,bronze:cd7f32,tan:d2b48c,beige:f5f5dc,khaki:f0e68c,sepia:704214,rust:b7410e,copper:b87333,sand:c2b280,taupe:483c32,peach:ffe5b4,apricot:ffb16d,cherry:de3163,ruby:e0115f,berry:990f4d,currant:841138,mahogany:b5394c,chestnut:954140,moss:8a9a5b,fern:4f7942,jungle:29ab87,pistachio:93c572,seafoam:80d8c0,celadon:ace1af,verdigris:43b3ae,amethyst:9966cc,garnet:733635,peridot:9dc183,citrine:e8c547,topaz:ffc87c,aquamarine:7fffd4,lapis:26619c,opal:a8c3bc,midnight:191970,dawn:f6d8ae,dusk:4e5481,twilight:5b6b8c,storm:4f666a,fog:c5c5c0,periwinkle:ccccff,denim:1560bd,powder:b0e0e6,brass:b5a642,pewter:8e9089,ochre:cc7722,umber:635147,sienna:a0522d,terracotta:e27b58,caramel:af6f4c,cocoa:463432,espresso:4b3621,wheat:f5deb3,linen:faf0e6,mustard:ffdb58,saffron:f4c430,marigold:eaa221,tangerine:f28500,persimmon:ec5800,pumpkin:ff7518,flax:eedc82,straw:e4d96f,peacock:2a728a';
-  const MAP = {};
-  for (const pair of RAW.split(',')) { const [n, h] = pair.split(':'); if (n && h) MAP[n.trim()] = '#' + h.trim(); }
-  // The expanded bank — pigments, paints, CSS names, and celestial shades. Deliberately skips
-  // ambiguous everyday words ("ash" is a character's name, "ice"/"mud" are too ordinary) so
-  // ordinary prose doesn't sprout tints everywhere.
-  const RAW_MORE = 'carmine:960018,cerise:d2489a,amaranth:e52b50,raspberry:e30b5c,oxblood:4a0000,firebrick:b22222,indianred:cd5c5c,rosybrown:bc8f8f,darkred:8b0000,blush:de5d83,rosewood:65000b,sangria:92000a,cardinal:c41e3a,bittersweet:fd7c6c,watermelon:fc6c85,flamingo:fc8eac,bubblegum:ffc1cc,hotpink:ff69b4,lightpink:ffb6c1,dustyrose:c9a9a6,rosegold:b76e79,orangered:ff4500,tomato:ff6347,darkorange:ff8c00,carrot:ed9121,butterscotch:ffb570,lemonchiffon:fffacd,canary:ffef00,banana:ffe135,pear:d1e231,limegreen:32cd32,olivedrab:6b8e23,seagreen:2e8b57,springgreen:00ff7f,malachite:0bda51,viridian:40826d,shamrock:009e60,pine:01796f,juniper:4a6b54,mintcream:f5fffa,honeydew:f0fff0,lagoon:0f8b8d,skyblue:87ceeb,deepskyblue:00bfff,dodgerblue:1e90ff,cornflower:6495ed,ultramarine:3f00ff,steelblue:4682b0,cadetblue:5f9ea0,babyblue:89cff0,midnightblue:191970,blueviolet:8a2be2,darkviolet:9400d3,darkorchid:9932cc,mediumorchid:ba55d3,thistle:d8bfd8,rebeccapurple:663399,puce:cc8899,wisteria:c9a0dc,heliotrope:df73ff,grape:6f2da8,eggplant:614051,aubergine:514099,mulberry:c54b8c,boysenberry:873260,marsala:95525b,walnut:5c4033,cinnamon:c4652c,nutmeg:8a5a44,coffee:6f4e37,mocha:967969,toffee:94683c,fawn:e5aa70,russet:80461b,auburn:8b4c39,graphite:414a4c,dimgray:696969,lightslategray:778899,slategray:708090,darkslategray:2f4f4f,gunmetal:2a3439,platinum:e5e4e2,ghostwhite:f8f8ff,aliceblue:f0f8ff,mistyrose:ffe4e1,seashell:fff5ee,bistre:3d2b1f,smalt:003399,cinnabar:e63e31,ocher:cc7722,quartz:e8e3df,moonstone:c7e1e3,sunset:fd5e53,sunrise:fcd39e,ember:e25822,magma:ff6a2b,eclipse:341c3a,aurora:3ee6a8';
-  for (const pair of RAW_MORE.split(',')) { const [n, h] = pair.split(':'); if (n && h) MAP[n.trim()] = '#' + h.trim(); }
-  const NAMES = Object.keys(MAP).sort((a, b) => b.length - a.length);
-  // Compiled ONCE. This ~200-alternative pattern used to be rebuilt for EVERY text node
-  // scanned — measured at ~180ms of a ~350ms load on a 100-turn chat (over half the render).
-  const NAME_ALT = NAMES.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-  const COLORWORD_RE = new RegExp('\\b(' + NAME_ALT + ')\\b|#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})\\b', 'gi');
+  // The color bank, its everyday-word rule and the display tints are pure data + math in
+  // Constellation.engines.colors (unit-tested there). colorfx does the DOM tagging.
+  const COLOR = (window.Constellation.engines && window.Constellation.engines.colors) || null;
+  const COLORWORD_RE = COLOR ? COLOR.pattern() : /(?!)/g;
 
-  let params = { intensity: 0.5, range: 140, size: 35, blend: 'screen', events: true, fxSize: 1, colorWords: true };
+  // How fast the glow falls off from its center. This replaces the old "blend" choices, which
+  // did nothing on the true-black sky: soft-light and overlay emit no light over black, and
+  // screen and normal are identical there (measured: 0.218 / 0.218 / 0 / 0 margin luminance).
+  const FALLOFF = { soft: ['52%', '82%'], even: ['42%', '70%'], tight: ['30%', '56%'] };
+  let params = { intensity: 0.5, range: 140, size: 35, falloff: 'soft', events: true, fxSize: 1, colorWords: true };
   function setParams(p) {
     if (!p) return;
     if (p.intensity != null) params.intensity = p.intensity;
     if (p.range != null) params.range = p.range;
     if (p.size != null) params.size = p.size;
-    if (p.blend != null) params.blend = p.blend;
+    if (p.falloff != null) params.falloff = p.falloff;
     if (p.events != null) params.events = !!p.events;
     if (p.fxSize != null) params.fxSize = p.fxSize;
     if (p.colorWords != null) params.colorWords = !!p.colorWords;
-    const f = ensureFlare();
-    f.style.setProperty('--flare-size', params.size + '%');
-    f.style.mixBlendMode = params.blend;
+    applyFlareShape(ensureFlare());
   }
 
-  function hexToRgb(hex) {
-    hex = String(hex || '').replace('#', '');
-    if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
-    if (hex.length < 6) return null;
-    return { r: parseInt(hex.slice(0, 2), 16), g: parseInt(hex.slice(2, 4), 16), b: parseInt(hex.slice(4, 6), 16) };
-  }
-
-  // Dark hues (onyx, obsidian, black…) are near-invisible as tinted text or as a glow on the
-  // true-black sky. Keep the hue, lift the lightness to a readable floor, and return a css color.
-  function readableTint(hex) {
-    const c = hexToRgb(hex);
-    if (!c) return null;
-    const rn = c.r / 255, gn = c.g / 255, bn = c.b / 255;
-    const mx = Math.max(rn, gn, bn), mn = Math.min(rn, gn, bn);
-    let l = (mx + mn) / 2;
-    if (l >= 0.45) return 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')';
-    const d = mx - mn;
-    const denom = 1 - Math.abs(2 * l - 1);
-    const s = d === 0 || denom === 0 ? 0 : d / denom;
-    let h = 0;
-    if (d !== 0) {
-      if (mx === rn) h = ((gn - bn) / d) % 6;
-      else if (mx === gn) h = (bn - rn) / d + 2;
-      else h = (rn - gn) / d + 4;
-      h *= 60; if (h < 0) h += 360;
-    }
-    l = 0.45;
-    const q = l * (1 + s), p = 2 * l - q;
-    const hue = function (t) {
-      if (t < 0) t += 1; if (t > 1) t -= 1;
-      if (t < 1 / 6) return p + (q - p) * 6 * t;
-      if (t < 1 / 2) return q;
-      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-      return p;
-    };
-    return 'rgb(' + Math.round(hue(h / 360 + 1 / 3) * 255) + ',' + Math.round(hue(h / 360) * 255) + ',' + Math.round(hue(h / 360 - 1 / 3) * 255) + ')';
-  }
+  // Color words wear the soft ink tint; the glow throws the pastel of the same hue; the
+  // celestial events keep the old dark-hue floor so they stay luminous.
+  function inkColor(hex) { return (COLOR && COLOR.inkTint(hex)) || hex; }
+  function glowColor(hex) { return (COLOR && COLOR.glowTint(hex)) || hex; }
+  function eventColor(hex) { return (COLOR && COLOR.eventTint(hex)) || hex; }
+  function rgbOf(hex) { return COLOR ? COLOR.hexToRgb(hex) : null; }
 
   function tagColors(body) {
-    if (!body) return;
+    if (!body || !COLOR) return;
     const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT, null);
     const nodes = [];
     while (walker.nextNode()) {
@@ -88,13 +51,17 @@ Constellation.colorfx = (function () {
       COLORWORD_RE.lastIndex = 0;
       while ((m = COLORWORD_RE.exec(text)) !== null) {
         const word = m[0];
-        const color = word.startsWith('#') ? word : MAP[word.toLowerCase()];
+        const literal = word.startsWith('#');
+        const color = literal ? word : COLOR.bank[word.toLowerCase()];
         if (!color) continue;
+        // A bank word is only a color HERE when it reads as one: a capitalized name
+        // mid-sentence ("Amber said") and a thing-word with no color cue ("the fog") are left alone.
+        if (!literal && !COLOR.isColorHere(word, text.slice(Math.max(0, m.index - 48), m.index), text.slice(m.index + word.length, m.index + word.length + 24))) continue;
         if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
         const span = document.createElement('span');
         span.className = 'colorword';
         span.dataset.color = color;
-        if (params.colorWords) span.style.color = readableTint(color);   // the word wears its color — dark hues lifted to stay legible
+        if (params.colorWords) span.style.color = inkColor(color);   // the word wears its color as a soft tinted ink
         span.textContent = word;
         frag.appendChild(span);
         last = m.index + word.length;
@@ -105,19 +72,44 @@ Constellation.colorfx = (function () {
     }
   }
 
-  // --- The ambient flare (side-margin glow) ---
+  // --- The ambient glow: one soft light that sits on the color word on screen ---
   let flare = null;
+  // The sky layers are siblings that paint in DOM order above the starfield:
+  // mood wash → celestial events → glow.
+  function skyAnchor() {
+    const wash = document.getElementById('moodWash');
+    if (wash && wash.parentNode) return wash;
+    const canvas = document.getElementById('starfield');
+    return (canvas && canvas.parentNode) ? canvas : null;
+  }
+  function intoSky(el) {
+    const a = skyAnchor();
+    if (a) a.parentNode.insertBefore(el, a.nextSibling); else document.body.appendChild(el);
+  }
+  function applyFlareShape(f) {
+    // Spread (percent) → diameter of the light: 35% is a ~1120px pool, a 560px radius.
+    f.style.setProperty('--flare-d', Math.round(Math.min(2200, Math.max(420, params.size * 32))) + 'px');
+    const fo = FALLOFF[params.falloff] || FALLOFF.soft;
+    f.style.setProperty('--flare-mid', fo[0]);
+    f.style.setProperty('--flare-end', fo[1]);
+  }
   function ensureFlare() {
     if (flare) return flare;
     flare = document.createElement('div');
     flare.id = 'colorFlare';
-    flare.style.setProperty('--flare-size', params.size + '%');
-    flare.style.mixBlendMode = params.blend;
-    const canvas = document.getElementById('starfield');
-    if (canvas && canvas.parentNode) canvas.parentNode.insertBefore(flare, canvas.nextSibling);
-    else document.body.appendChild(flare);
+    applyFlareShape(flare);
+    intoSky(flare);
     return flare;
   }
+  // Park the light on a point (the center of the word that caused it) with its color and level.
+  function lightAt(x, y, color, level) {
+    const f = ensureFlare();
+    f.style.setProperty('--flare-x', Math.round(Math.max(0, Math.min(window.innerWidth, x))) + 'px');
+    f.style.setProperty('--flare-y', Math.round(Math.max(0, Math.min(window.innerHeight, y))) + 'px');
+    f.style.setProperty('--flare-color', color);
+    f.style.opacity = String(Math.max(0, Math.min(1, level)));
+  }
+  function centerOf(el) { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }
 
   // --- Celestial events: weighted archetype pool ---
   // The old ray-burst dominated and everything read as the same "pinwheel"; now soft nebulae,
@@ -137,7 +129,7 @@ Constellation.colorfx = (function () {
     if (type === 'fx-nebula' && document.querySelector('.fx-nebula')) type = 'fx-ring';   // one nebula at a time — two overlapping 55vmin washes overloads compositing
     const el = document.createElement('div');
     el.className = type;
-    el.style.setProperty('--fx-color', readableTint(color) || color);
+    el.style.setProperty('--fx-color', ((type === 'fx-nebula' ? glowColor(color) : eventColor(color)) || color));
     const dx = Math.round(Math.random() * 240 - 120);
     const dy = Math.round(Math.random() * 180 - 90);
     el.style.setProperty('--fx-dx', dx + 'px');
@@ -174,9 +166,7 @@ Constellation.colorfx = (function () {
       el.style.left = Math.round(x) + 'px';
       el.style.top = (10 + Math.random() * 80) + '%';
     }
-    const canvas = document.getElementById('starfield');
-    if (canvas && canvas.parentNode) canvas.parentNode.insertBefore(el, canvas.nextSibling);
-    else document.body.appendChild(el);
+    intoSky(el);
     activeFx++; lastSpawnAt = now;
     const gone = function () { if (!el.parentNode) return; el.remove(); activeFx = Math.max(0, activeFx - 1); };
     el.addEventListener('animationend', gone);
@@ -187,15 +177,15 @@ Constellation.colorfx = (function () {
   let queueColors = null, queueIdx = 0, queueTimer = null;
   const QUEUE_MS = 1500;
   function clearQueue() { if (queueTimer) { clearTimeout(queueTimer); queueTimer = null; } queueColors = null; queueIdx = 0; }
-  function startQueue(hexes) { clearQueue(); queueColors = hexes; queueIdx = 0; playQueueItem(); }
+  function startQueue(items) { clearQueue(); queueColors = items; queueIdx = 0; playQueueItem(); }
   function playQueueItem() {
     if (!queueColors || queueIdx >= queueColors.length) { clearQueue(); ensureFlare().style.opacity = '0'; return; }
-    const f = ensureFlare();
-    const rgb = hexToRgb(queueColors[queueIdx]);
-    if (rgb) {
-      f.style.setProperty('--flare-color', 'rgb(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ')');
-      f.style.opacity = String(params.intensity);
-      spawnEffect(queueColors[queueIdx]);   // each queued color fires its own celestial event
+    const item = queueColors[queueIdx];
+    if (item && item.el) {
+      // The light hops to each word in reading order — a line of colors reads left to right.
+      const c = centerOf(item.el);
+      lightAt(c.x, c.y, glowColor(item.hex), params.intensity);
+      spawnEffect(item.hex);   // each queued color fires its own celestial event
     }
     queueIdx++;
     queueTimer = setTimeout(playQueueItem, QUEUE_MS);
@@ -256,7 +246,7 @@ Constellation.colorfx = (function () {
       const wc = r.top + r.height / 2;
       const dist = Math.abs(wc - centerY);
       if (dist >= params.range) continue;
-      const rgb = hexToRgb(w.dataset.color);
+      const rgb = rgbOf(w.dataset.color);
       if (!rgb) continue;
       nearby.push({ el: w, hex: w.dataset.color, rgb: rgb, dist: dist, prox: 1 - dist / params.range, x: r.left + r.width / 2, y: wc });
     }
@@ -282,7 +272,7 @@ Constellation.colorfx = (function () {
     if (best.length > 1) {
       // Multi-color line → queue cascade.
       const hexes = best.map(function (w) { return w.hex; });
-      if (!queueColors || queueColors.join(',') !== hexes.join(',')) startQueue(hexes);
+      if (!queueColors || queueColors.map(function (q) { return q.hex; }).join(',') !== hexes.join(',')) startQueue(best.map(function (w) { return { hex: w.hex, el: w.el }; }));
     } else {
       // Single color → proximity-driven weighted blend.
       clearQueue();
@@ -297,8 +287,10 @@ Constellation.colorfx = (function () {
         const key = nearby[0].el + '|' + Math.round(nearby[0].y / 16);
         if (key !== lastFlareKey) {
           lastFlareKey = key;
-          f.style.setProperty('--flare-color', 'rgb(' + Math.round(tr / tw) + ',' + Math.round(tg / tw) + ',' + Math.round(tb / tw) + ')');
-          f.style.opacity = String(maxP * params.intensity);
+          // The light sits on the nearest color word, in the pastel of the weighted blend.
+          const anchor = centerOf(maxEl || nearby[0].el);
+          const tint = COLOR ? COLOR.glowTintRgb({ r: Math.round(tr / tw), g: Math.round(tg / tw), b: Math.round(tb / tw) }) : null;
+          lightAt(anchor.x, anchor.y, tint || '#ffffff', maxP * params.intensity);
         }
         // Fire a celestial event when a color word is very close to the scan line — once per
         // pass AND never twice for the same word inside the cooldown window.
@@ -318,7 +310,7 @@ Constellation.colorfx = (function () {
   function retint(messagesEl) {
     if (!messagesEl) return;
     for (const w of messagesEl.querySelectorAll('.colorword')) {
-      w.style.color = params.colorWords ? (readableTint(w.dataset.color) || '') : '';
+      w.style.color = params.colorWords ? (inkColor(w.dataset.color) || '') : '';
     }
   }
 

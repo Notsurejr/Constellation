@@ -527,6 +527,7 @@ Constellation.settings = (function () {
       root.removeProperty('--accent-dim');
       root.removeProperty('--user-bubble');
       root.removeProperty('--glow');
+      if (window.Constellation.starfield) window.Constellation.starfield.setAccent(null);
       return;
     }
     const r = parseInt(m[1].slice(0, 2), 16);
@@ -536,6 +537,7 @@ Constellation.settings = (function () {
     root.setProperty('--accent-dim', `rgba(${r}, ${g}, ${b}, 0.5)`);
     root.setProperty('--user-bubble', `rgba(${r}, ${g}, ${b}, 0.16)`);
     root.setProperty('--glow', `0 0 18px rgba(${r}, ${g}, ${b}, 0.25)`);
+    if (window.Constellation.starfield) window.Constellation.starfield.setAccent(hex);   // the sky takes a whisper of the accent
   }
 
   async function saveAppearance() {
@@ -578,7 +580,7 @@ Constellation.settings = (function () {
       intensity: Number($('flareIntensityInput').value) / 100,
       range: parseInt($('flareRangeInput').value, 10),
       size: parseInt($('flareSizeInput').value, 10),
-      blend: $('flareBlendInput').value,
+      falloff: $('flareBlendInput').value,
       events: $('fxEventsInput').checked,
       fxSize: Number($('fxSizeInput').value) / 100,
       colorWords: $('colorWordsInput') ? $('colorWordsInput').checked : true,

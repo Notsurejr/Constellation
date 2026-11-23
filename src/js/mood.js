@@ -14,11 +14,13 @@ Constellation.mood = (function () {
   for (const k in LEX) RE[k] = new RegExp('\\b(' + LEX[k] + ')\\b', 'gi');
   function count(re, s) { let n = 0; re.lastIndex = 0; let m; while ((m = re.exec(s))) n++; return n; }
 
+  // `wash` = opacity (%) of the faint horizon glow in the mood's color — the part of the
+  // weather a reader can actually notice; the star tint alone was invisible at normal size.
   const TONES = {
-    tense:   { tint: [255, 118, 108], amt: 0.34, twinkle: 2.0, dim: 1.0 },
-    sorrow:  { tint: [148, 164, 205], amt: 0.40, twinkle: 0.45, dim: 0.55 },
-    joy:     { tint: [255, 224, 158], amt: 0.30, twinkle: 1.25, dim: 1.10 },
-    calm:    { tint: [168, 198, 255], amt: 0.22, twinkle: 0.80, dim: 0.90 },
+    tense:   { tint: [255, 118, 108], amt: 0.34, twinkle: 2.0, dim: 1.0, wash: 15 },
+    sorrow:  { tint: [148, 164, 205], amt: 0.40, twinkle: 0.45, dim: 0.55, wash: 11 },
+    joy:     { tint: [255, 224, 158], amt: 0.30, twinkle: 1.25, dim: 1.10, wash: 12 },
+    calm:    { tint: [168, 198, 255], amt: 0.22, twinkle: 0.80, dim: 0.90, wash: 7 },
     neutral: { tint: [255, 255, 255], amt: 0,    twinkle: 1.0,  dim: 1.0 }
   };
 

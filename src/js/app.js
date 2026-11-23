@@ -135,9 +135,10 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (window.Constellation && window.Constellation.starfield) {
       window.Constellation.starfield.setDensity(cfg.starDensity != null ? cfg.starDensity : 1);
       window.Constellation.starfield.setTwinkle(cfg.twinkleSpeed != null ? cfg.twinkleSpeed : 1);
+      window.Constellation.starfield.setAccent(am ? cfg.accent : null);   // the sky takes a whisper of the accent
     }
     if (window.Constellation && window.Constellation.colorfx) {
-      window.Constellation.colorfx.setParams({ intensity: cfg.flareIntensity != null ? cfg.flareIntensity : 0.5, range: cfg.flareRange || 140, size: cfg.flareSize || 35, blend: cfg.flareBlend || 'screen', events: cfg.fxEvents !== false, fxSize: cfg.fxSize != null ? cfg.fxSize : 1, colorWords: cfg.colorWords !== false });
+      window.Constellation.colorfx.setParams({ intensity: cfg.flareIntensity != null ? cfg.flareIntensity : 0.5, range: cfg.flareRange || 140, size: cfg.flareSize || 35, falloff: cfg.flareBlend || 'soft', events: cfg.fxEvents !== false, fxSize: cfg.fxSize != null ? cfg.fxSize : 1, colorWords: cfg.colorWords !== false });
     }
     if (window.Constellation.mood) window.Constellation.mood.setEnabled(cfg.moodSky !== false);
   } catch (e) { console.warn('[constellation]', e && e.message || e); }

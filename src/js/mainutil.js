@@ -57,7 +57,10 @@ const SETTINGS_SPEC = [
   ['flare_intensity', 'flareIntensity', 'clampedFloat', 0.5, 0, 1],
   ['flare_range', 'flareRange', 'clampedInt', 140, 50, 400],
   ['flare_size', 'flareSize', 'clampedInt', 35, 20, 100],
-  ['flare_blend', 'flareBlend', 'enum', 'screen', ['screen', 'soft-light', 'overlay', 'normal']],
+  // Key keeps its old name (flare_blend) so existing settings files load; its old values
+  // (screen / normal / soft-light / overlay) fall back to the default — soft-light and overlay
+  // emitted no light over the black sky, and screen and normal were identical there.
+  ['flare_blend', 'flareBlend', 'enum', 'soft', ['soft', 'even', 'tight']],
   ['fx_events', 'fxEvents', 'onoff', true],
   ['fx_size', 'fxSize', 'clampedFloat', 1, 0.4, 2.5],
   ['color_words', 'colorWords', 'onoff', true],

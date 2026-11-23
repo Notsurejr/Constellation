@@ -340,6 +340,175 @@
     return rules;
   }
 
+  // ---------- Color words: the bank, the names that are really things, and the display tints ----------
+  // Pure data + math so the unit suite can exercise them; colorfx.js does the DOM tagging.
+  // A name in COLOR_EVERYDAY is a THING first — weather, a time of day, food, a plant, a gem
+  // that is also a given name — so it only counts as a color inside an explicit colour
+  // construction: "fog-grey", "a rose tint", "royal blue", "shades of wine".
+  const COLOR_RAW = 'red:f00,crimson:dc143c,scarlet:ff2400,vermilion:e34234,rose:ff007f,pink:ffc0cb,coral:ff7f50,salmon:fa8072,magenta:ff00ff,fuchsia:ff00ff,maroon:800000,burgundy:800020,wine:722f37,orange:ffa500,amber:ffbf00,gold:ffd700,yellow:ffff00,ivory:fffff0,cream:fffdd0,lemon:fff44f,goldenrod:daa520,olive:808000,lime:bfff00,chartreuse:7fff00,green:008000,emerald:50c878,jade:00a86b,mint:98ff98,sage:9caf88,forest:228b22,teal:008080,turquoise:40e0d0,aqua:00ffff,cyan:00ffff,azure:007fff,sky:87ceeb,blue:0000ff,navy:000080,royal:4169e1,sapphire:0f52ba,cobalt:0047ab,cerulean:2a52be,indigo:4b0082,purple:800080,violet:ee82ee,lavender:e6e6fa,lilac:c8a2c8,plum:8e4585,mauve:e0b0ff,orchid:da70d6,white:ffffff,snow:fffafa,pearl:eae0c8,silver:c0c0c0,gray:808080,grey:808080,slate:708090,charcoal:36454f,black:000000,ebony:2d231e,obsidian:0b0b0b,onyx:353839,brown:a52a2a,chocolate:d2691e,bronze:cd7f32,tan:d2b48c,beige:f5f5dc,khaki:f0e68c,sepia:704214,rust:b7410e,copper:b87333,sand:c2b280,taupe:483c32,peach:ffe5b4,apricot:ffb16d,cherry:de3163,ruby:e0115f,berry:990f4d,currant:841138,mahogany:b5394c,chestnut:954140,moss:8a9a5b,fern:4f7942,jungle:29ab87,pistachio:93c572,seafoam:80d8c0,celadon:ace1af,verdigris:43b3ae,amethyst:9966cc,garnet:733635,peridot:9dc183,citrine:e8c547,topaz:ffc87c,aquamarine:7fffd4,lapis:26619c,opal:a8c3bc,midnight:191970,dawn:f6d8ae,dusk:4e5481,twilight:5b6b8c,storm:4f666a,fog:c5c5c0,periwinkle:ccccff,denim:1560bd,powder:b0e0e6,brass:b5a642,pewter:8e9089,ochre:cc7722,umber:635147,sienna:a0522d,terracotta:e27b58,caramel:af6f4c,cocoa:463432,espresso:4b3621,wheat:f5deb3,linen:faf0e6,mustard:ffdb58,saffron:f4c430,marigold:eaa221,tangerine:f28500,persimmon:ec5800,pumpkin:ff7518,flax:eedc82,straw:e4d96f,peacock:2a728a';
+  const COLOR_RAW_MORE = 'carmine:960018,cerise:d2489a,amaranth:e52b50,raspberry:e30b5c,oxblood:4a0000,firebrick:b22222,indianred:cd5c5c,rosybrown:bc8f8f,darkred:8b0000,blush:de5d83,rosewood:65000b,sangria:92000a,cardinal:c41e3a,bittersweet:fd7c6c,watermelon:fc6c85,flamingo:fc8eac,bubblegum:ffc1cc,hotpink:ff69b4,lightpink:ffb6c1,dustyrose:c9a9a6,rosegold:b76e79,orangered:ff4500,tomato:ff6347,darkorange:ff8c00,carrot:ed9121,butterscotch:ffb570,lemonchiffon:fffacd,canary:ffef00,banana:ffe135,pear:d1e231,limegreen:32cd32,olivedrab:6b8e23,seagreen:2e8b57,springgreen:00ff7f,malachite:0bda51,viridian:40826d,shamrock:009e60,pine:01796f,juniper:4a6b54,mintcream:f5fffa,honeydew:f0fff0,lagoon:0f8b8d,skyblue:87ceeb,deepskyblue:00bfff,dodgerblue:1e90ff,cornflower:6495ed,ultramarine:3f00ff,steelblue:4682b0,cadetblue:5f9ea0,babyblue:89cff0,midnightblue:191970,blueviolet:8a2be2,darkviolet:9400d3,darkorchid:9932cc,mediumorchid:ba55d3,thistle:d8bfd8,rebeccapurple:663399,puce:cc8899,wisteria:c9a0dc,heliotrope:df73ff,grape:6f2da8,eggplant:614051,aubergine:514099,mulberry:c54b8c,boysenberry:873260,marsala:95525b,walnut:5c4033,cinnamon:c4652c,nutmeg:8a5a44,coffee:6f4e37,mocha:967969,toffee:94683c,fawn:e5aa70,russet:80461b,auburn:8b4c39,graphite:414a4c,dimgray:696969,lightslategray:778899,slategray:708090,darkslategray:2f4f4f,gunmetal:2a3439,platinum:e5e4e2,ghostwhite:f8f8ff,aliceblue:f0f8ff,mistyrose:ffe4e1,seashell:fff5ee,bistre:3d2b1f,smalt:003399,cinnabar:e63e31,ocher:cc7722,quartz:e8e3df,moonstone:c7e1e3,sunset:fd5e53,sunrise:fcd39e,ember:e25822,magma:ff6a2b,eclipse:341c3a,aurora:3ee6a8';
+  const COLOR_BANK = {};
+  for (const pair of (COLOR_RAW + ',' + COLOR_RAW_MORE).split(',')) { const kv = pair.split(':'); if (kv[0] && kv[1]) COLOR_BANK[kv[0].trim()] = '#' + kv[1].trim(); }
+  const COLOR_NAMES = Object.keys(COLOR_BANK).sort((a, b) => b.length - a.length);
+  const COLOR_EVERYDAY = ('sky tan fog rose wine lime jade mint sage plum snow rust sand ruby moss fern opal dawn dusk pear pine fawn coral olive lemon royal pearl peach berry storm denim cocoa wheat linen straw blush grape mocha ember magma salmon cherry jungle powder sienna tomato carrot canary banana lagoon walnut nutmeg coffee toffee quartz sunset aurora apricot currant caramel mustard pumpkin peacock sangria juniper thistle marsala sunrise eclipse charcoal midnight twilight espresso marigold cardinal flamingo shamrock honeydew wisteria eggplant mulberry cinnamon seashell chocolate pistachio tangerine persimmon raspberry watermelon butterscotch').split(' ');
+  const COLOR_EVERYDAY_SET = {};
+  for (const n of COLOR_EVERYDAY) COLOR_EVERYDAY_SET[n] = true;
+  // A capitalized color word that opens a sentence is a NAME when a verb or a possessive follows
+  // ("Amber said", "Rose's hand") — roleplay casts are full of color-named characters.
+  const COLOR_NAME_AFTER = /^(?:'s\b|said|says|asked|asks|replied|answers?|answered|turned|turns|shook|shakes|nodded|nods|smiled|smiles|laughed|laughs|sighed|sighs|whispered|whispers|muttered|mutters|looked|looks|glanced|glances|stared|stares|stood|stands|sat|sits|walked|walks|ran|runs|reached|reaches|took|takes|held|holds|gave|gives|was|is|had|has|did|does|felt|feels|knew|knows|thought|thinks|wanted|wants|watched|watches|leaned|leans|paused|pauses|closed|closes|opened|opens|pressed|presses|wrapped|wraps|folded|folds|let|lets|went|goes|came|comes|began|begins|stopped|stops|kept|keeps|would|could|will|cannot|cant)\b/i;
+  const COLOR_BASE_AFTER = /^(?:reds?|pinks?|roses?|oranges?|yellows?|golds?|golden|greens?|blues?|purples?|violets?|browns?|greys?|grays?|whites?|blacks?|dark|light|deep|pale|bright)\b/i;
+  const COLOR_CUE_AFTER = /^(?:colou?rs?|colou?red|colou?ring|tints?|tinted|hues?|shades?|shaded|tones?|toned|dyed|stained|wash(es)?|glow(s|ing)?)\b/i;
+  const COLOR_CUE_BEFORE = /(?:\bshades?\s+of|\btinges?\s+of|\btinged\s+with|\bwashed\s+with)\s*$/i;
+  // Does this occurrence of a bank word read as a color here? `prev` is the text before it in
+  // the same text node, `next` the text after it.
+  function isColorHere(word, prev, next) {
+    const w = String(word || '');
+    const p = String(prev || ''), nx = String(next || '');
+    const after = nx.replace(/^[\s-]+/, '');
+    const sentenceStart = !p.trim() || /(?:[.!?\u2026][“\u201D\u2019)]?|[\u2014\u2013]|\n)\s*$/.test(p);
+    if (/^[A-Z]/.test(w)) {
+      if (!sentenceStart) return false;                         // a name mid-sentence (Amber turned)
+      if (COLOR_NAME_AFTER.test(after)) return false;           // a name opening the sentence (Amber said)
+    }
+    if (!COLOR_EVERYDAY_SET[w.toLowerCase()]) return true;       // ordinary color name
+    if ((/^-/.test(nx) || /^\s/.test(nx)) && COLOR_BASE_AFTER.test(after)) return true;   // fog-grey · royal blue
+    if (/^\s/.test(nx) && COLOR_CUE_AFTER.test(after)) return true;                        // a rose tint
+    if (COLOR_CUE_BEFORE.test(p)) return true;                                             // shades of wine
+    return false;
+  }
+  let _colorPattern = null;
+  // Compiled ONCE. This ~200-alternative pattern used to be rebuilt for EVERY text node
+  // scanned — measured at ~180ms of a ~350ms load on a 100-turn chat (over half the render).
+  function colorPattern() {
+    if (!_colorPattern) {
+      const alt = COLOR_NAMES.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+      _colorPattern = new RegExp('\\b(' + alt + ')\\b|#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})\\b', 'gi');
+    }
+    return _colorPattern;
+  }
+
+  function hexToRgb(hex) {
+    hex = String(hex || '').replace('#', '');
+    if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+    if (hex.length < 6) return null;
+    return { r: parseInt(hex.slice(0, 2), 16), g: parseInt(hex.slice(2, 4), 16), b: parseInt(hex.slice(4, 6), 16) };
+  }
+  function rgbToHsl(r, g, b) {
+    const rn = r / 255, gn = g / 255, bn = b / 255;
+    const mx = Math.max(rn, gn, bn), mn = Math.min(rn, gn, bn);
+    let h = 0, s = 0; const l = (mx + mn) / 2; const d = mx - mn;
+    if (d !== 0) {
+      s = d / (1 - Math.abs(2 * l - 1));
+      if (mx === rn) h = ((gn - bn) / d) % 6; else if (mx === gn) h = (bn - rn) / d + 2; else h = (rn - gn) / d + 4;
+      h *= 60; if (h < 0) h += 360;
+    }
+    return [h, s, l];
+  }
+  function hslToRgb(h, s, l) {
+    const q = l * (1 + s), p = 2 * l - q;
+    const hue = function (t) {
+      if (t < 0) t += 1; if (t > 1) t -= 1;
+      if (t < 1 / 6) return p + (q - p) * 6 * t;
+      if (t < 1 / 2) return q;
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+      return p;
+    };
+    return { r: Math.round(hue(h / 360 + 1 / 3) * 255), g: Math.round(hue(h / 360) * 255), b: Math.round(hue(h / 360 - 1 / 3) * 255) };
+  }
+  function relLum(c) {
+    const f = function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+  }
+  function contrastRatio(a, b) { const la = relLum(a), lb = relLum(b); return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05); }
+  // The darkest message surface a color word sits on.
+  const INK_BG = { r: 8, g: 9, b: 17 };
+  // Display ink for a color word: keep the hue, soften the saturation, and hold the word in
+  // a soft lightness band so it reads as tinted ink — never a highlighter, and never below
+  // 4.5:1 against the message. Near-white words are already ink; dark words stay the darkest
+  // of the family, lifted just enough to read.
+  function inkTint(hex) {
+    const c = hexToRgb(hex); if (!c) return null;
+    const hsl = rgbToHsl(c.r, c.g, c.b);
+    if (hsl[2] >= 0.9) return 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')';
+    const s = Math.min(0.72, hsl[1] * 0.6);
+    let l = hsl[2] < 0.45 ? 0.45 : Math.max(0.6, Math.min(0.76, hsl[2]));
+    let rgb = hslToRgb(hsl[0], s, l);
+    for (let i = 0; i < 24 && contrastRatio(rgb, INK_BG) < 4.6; i++) { l = Math.min(0.86, l + 0.02); rgb = hslToRgb(hsl[0], s, l); }
+    return 'rgb(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ')';
+  }
+  // The light a color throws into the sky: the same hue pulled toward white, so a low-opacity
+  // wash reads as light instead of mud (raw amber at 40% is brown).
+  function glowTintRgb(c) {
+    if (!c) return null;
+    const m = function (v) { return Math.round(v + (255 - v) * 0.42); };
+    return 'rgb(' + m(c.r) + ',' + m(c.g) + ',' + m(c.b) + ')';
+  }
+  function glowTint(hex) { return glowTintRgb(hexToRgb(hex)); }
+  // Keep the old dark-hue floor for the celestial events (they should stay luminous, not soft).
+  function eventTint(hex) {
+    const c = hexToRgb(hex); if (!c) return null;
+    const hsl = rgbToHsl(c.r, c.g, c.b);
+    if (hsl[2] >= 0.45) return 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')';
+    const rgb = hslToRgb(hsl[0], hsl[1], 0.45);
+    return 'rgb(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ')';
+  }
+
+  // ---------- Smart quotes (display only) ----------
+  // Rendered HTML in, rendered HTML out: straight " and ' in prose become curly marks, chosen
+  // from context (a quote after whitespace or an opener opens; otherwise it closes; an
+  // apostrophe opens only before a letter). Code, panes and attributes are never touched, and
+  // the stored text is unchanged — Copy, Edit and exports still read the raw source.
+  const SQ_BLOCK = { p: 1, li: 1, h1: 1, h2: 1, h3: 1, h4: 1, h5: 1, h6: 1, td: 1, th: 1, blockquote: 1, div: 1, ul: 1, ol: 1, table: 1, tr: 1, pre: 1, hr: 1 };
+  const SQ_SKIP_TAG = /^(?:pre|code|kbd|samp|textarea)$/;
+  const SQ_OPENER = /[\s([{<—–…«'"\u2018“-]$/;
+  // Dropped-letter words ('til, 'em, 'cause) take an apostrophe, never an opener.
+  const SQ_DROPPED = /^(?:em|til|cause|cept|course|round|bout|n)(?![A-Za-z])/;
+
+  function smartQuotes(html) {
+    const src = String(html == null ? '' : html);
+    if (!/["']/.test(src)) return src;
+    let out = '', prev = '', i = 0;
+    const skip = [];   // tag names of open code/pane elements — text inside them is left alone
+    const convert = function (text) {
+      if (skip.length) return text;
+      let s = '';
+      for (let k = 0; k < text.length; k++) {
+        const ch = text[k];
+        if (ch !== '"' && ch !== "'") { s += ch; prev = ch; continue; }
+        const startsBlock = prev === '';
+        const afterOpener = startsBlock || SQ_OPENER.test(prev);
+        if (ch === '"') s += afterOpener ? '“' : '”';
+        else {
+          const next = text[k + 1] || '';
+          // Dropped-letter words (‘til, ‘em, ‘cause) and rock ‘n’ roll take an apostrophe, not an opener.
+          const dropped = SQ_DROPPED.test(text.slice(k + 1, k + 8));
+          const closesTiny = text[k + 2] === "'";
+          s += (afterOpener && !dropped && !closesTiny && /[A-Za-z]/.test(next)) ? '\u2018' : '\u2019';
+        }
+        prev = ch;
+      }
+      return s;
+    };
+    while (i < src.length) {
+      const lt = src.indexOf('<', i);
+      if (lt === -1) { out += convert(src.slice(i)); break; }
+      if (lt > i) out += convert(src.slice(i, lt));
+      const gt = src.indexOf('>', lt);
+      if (gt === -1) { out += src.slice(lt); break; }
+      const tag = src.slice(lt + 1, gt);
+      i = gt + 1;
+      out += '<' + tag + '>';
+      const isClose = tag.charAt(0) === '/';
+      const selfClose = /\/\s*$/.test(tag);
+      const name = (isClose ? tag.slice(1) : tag).replace(/[\s/].*$/, '').toLowerCase();
+      if (skip.length) { if (isClose && skip[skip.length - 1] === name) skip.pop(); else if (!isClose && !selfClose && SQ_SKIP_TAG.test(name)) skip.push(name); continue; }
+      if (name === 'br') { prev = ' '; continue; }
+      if (SQ_BLOCK[name]) prev = '';
+      if (!isClose && !selfClose && (SQ_SKIP_TAG.test(name) || /(?:^|\s)codeblock(?:\s|$)/.test((tag.match(/class="([^"]*)"/) || [])[1] || ''))) skip.push(name);
+    }
+    return out;
+  }
+
   // ---------- Phrase bans ----------
   // Rules are `find = replace` lines (or `find =` to delete); matched at word boundaries, case-insensitive.
   function parsePhraseBans(text) {
@@ -368,5 +537,7 @@
     lore: { LORE_STOP, loreTokenize, loreLabel, loreSource, chunkText, bm25Scores, cosineSim, buildLoreContext, extractPickups, classifyKeys },
     bans: { parse: parsePhraseBans, apply: applyPhraseBans },
     displayFilters: { parse: parseDisplayFilters },
+    colors: { bank: COLOR_BANK, names: COLOR_NAMES, everyday: COLOR_EVERYDAY, pattern: colorPattern, isColorHere, hexToRgb, inkTint, glowTint, glowTintRgb, eventTint, contrastRatio },
+    smartQuotes,
   };
 });

@@ -26,6 +26,20 @@ html, body {
   display: block;
 }
 
+/* Mood-weather horizon wash: a registered color + alpha, so the browser itself eases the
+   weather over ~12s (starfield.js sets both; a snap drops the transition for one frame). */
+@property --mood-color { syntax: '<color>'; inherits: false; initial-value: #ffffff; }
+@property --mood-alpha { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+#moodWash {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background: radial-gradient(130% 80% at 50% -14%,
+    color-mix(in srgb, var(--mood-color) var(--mood-alpha), transparent) 0%,
+    color-mix(in srgb, var(--mood-color) calc(var(--mood-alpha) * 0.35), transparent) 46%,
+    transparent 72%);
+  transition: --mood-color 12s linear, --mood-alpha 12s linear;
+}
+@media (prefers-reduced-motion: reduce) { #moodWash { transition: none; } }
+
 .app {
   position: relative;
   z-index: 1;
@@ -124,7 +138,6 @@ html, body {
   border-radius: 8px;   /* sharper chat boxes (user call; --radius stays for the rest of the chrome) */
   background: var(--glass-bg);
   border: 1px solid var(--glass-border, var(--panel-border));
-  border-top-color: var(--glass-btop, var(--panel-border));
   box-shadow: var(--glass-shadow, none);
   -webkit-backdrop-filter: var(--glass-backdrop, none);
   backdrop-filter: var(--glass-backdrop, none);
@@ -139,11 +152,20 @@ html, body {
   margin-right: 0;
   background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 20%, transparent) 0%, color-mix(in srgb, var(--accent) 8%, rgba(7,9,17,0.55)) 100%);
   border-color: var(--accent-25);
-  border-top-color: color-mix(in srgb, color-mix(in srgb, var(--accent) 70%, white) 30%, transparent);
+}
+.msg.user::before {
+  background: linear-gradient(90deg, transparent 0%, color-mix(in srgb, color-mix(in srgb, var(--accent) 70%, white) 30%, transparent) 28%, color-mix(in srgb, color-mix(in srgb, var(--accent) 70%, white) 45%, transparent) 50%, color-mix(in srgb, color-mix(in srgb, var(--accent) 70%, white) 30%, transparent) 72%, transparent 100%);
 }
 .msg.assistant {
   margin-right: auto;
   margin-left: 0;
+}
+/* One light source. Every layer catches the light along its top edge with the same tapered
+   line (bright in the middle, gone before the corners): card, response window, pane. The
+   card used to carry it as a brighter border-top, which met the side borders at a seam. */
+.msg::before {
+  content: ''; position: absolute; top: -1px; left: 7%; right: 7%; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent 0%, var(--glass-btop, var(--panel-border)) 28%, var(--edge-light, rgba(230,238,255,0.4)) 50%, var(--glass-btop, var(--panel-border)) 72%, transparent 100%);
 }
 .msg .role {
   font-size: 11px;
@@ -152,7 +174,7 @@ html, body {
   color: var(--text-faint);
   margin-bottom: 6px;
 }
-.msg.assistant .role { color: var(--accent-dim); }
+.msg.assistant .role { color: color-mix(in srgb, var(--accent) 70%, transparent); }
 
 /* Markdown rendering inside message bodies (white-space: pre-wrap while streaming, normal once formatted) */
 .msg .body { white-space: pre-wrap; }
@@ -194,7 +216,7 @@ html, body {
    fills, inset shadows and a tapered top edge (the per-message blur landmine stays buried).
    ============================================================ */
 .msg .body .codeblock {
-  --pane-radius: 10px;
+  --pane-radius: 6px;
   position: relative;
   margin: 0.2em 0 1.05em;
   border-radius: var(--pane-radius);
@@ -304,7 +326,7 @@ body:not(.pane-classic) .msg .body .codeblock-bar { display: none; }
 .msg .body .codeblock .whisper-tag {
   position: absolute; bottom: 7px; right: 12px;
   font: 10px var(--font-mono, monospace); letter-spacing: 0.14em; text-transform: uppercase;
-  color: var(--text-faint); opacity: 0.42; pointer-events: none;
+  color: var(--text-faint); opacity: 0.75; pointer-events: none;
 }
 
 /* --- telemetry tint tokens (see tintLogFence) --- */
@@ -445,7 +467,9 @@ body.pane-classic .msg .body .codeblock.prose .prose-content { font-size: inheri
    RESPONSE WINDOW — the frame around a reply (body.rw-* classes; assistant messages only).
    Gradient treatments only — real backdrop blur stays out of the message stream.
    ============================================================ */
-.msg.assistant .rwindow { border-radius: 14px; }
+/* One radius scale, each layer tighter than the one holding it: card 8 > window 6 > pane 6.
+   (The window used to be rounder than its own card.) */
+.msg.assistant .rwindow { border-radius: 6px; }
 body.rw-void .msg.assistant .rwindow {
   background: rgba(5, 7, 12, 0.88);
   border: 1px solid rgba(255,255,255,0.075);
@@ -455,7 +479,6 @@ body.rw-void .msg.assistant .rwindow {
 body.rw-soft .msg.assistant .rwindow {
   background: linear-gradient(180deg, rgba(11, 14, 24, 0.66) 0%, rgba(6, 8, 15, 0.78) 100%);
   border: 1px solid rgba(255,255,255,0.07);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
   padding: 14px 18px 16px;
 }
 body.rw-glass .msg.assistant .rwindow {
@@ -464,10 +487,24 @@ body.rw-glass .msg.assistant .rwindow {
   box-shadow: var(--glass-shadow, none);
   padding: 14px 18px 16px;
 }
+/* The window catches the light on its own top edge, whatever it is made of. */
+body.rw-glass .msg.assistant .rwindow { --win-light: var(--glass-btop, rgba(196,209,255,0.25)); }
+body.rw-void .msg.assistant .rwindow { --win-light: rgba(196,209,255,0.2); }
+body.rw-soft .msg.assistant .rwindow { --win-light: rgba(255,255,255,0.09); }
+body.rw-void .msg.assistant .rwindow::before,
+body.rw-soft .msg.assistant .rwindow::before,
 body.rw-glass .msg.assistant .rwindow::before {
   content: ''; display: block; height: 1px; margin: -14px -18px 14px;
-  background: linear-gradient(90deg, transparent 0%, var(--glass-btop, rgba(196,209,255,0.25)) 30%, rgba(230,238,255,0.35) 50%, var(--glass-btop, rgba(196,209,255,0.25)) 70%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, var(--win-light) 28%, var(--edge-light, rgba(230,238,255,0.4)) 50%, var(--win-light) 72%, transparent 100%);
 }
+/* With a window on, the window is the lit object: the card behind it becomes a quiet matte
+   (flat, no sheen, no drop shadow, no blur) instead of a second glossy surface. */
+body.rw-void .msg.assistant, body.rw-soft .msg.assistant, body.rw-glass .msg.assistant {
+  background: rgba(9, 12, 20, 0.6);
+  box-shadow: none;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+body.rw-void .msg.assistant::before, body.rw-soft .msg.assistant::before, body.rw-glass .msg.assistant::before { display: none; }
 
 /* --- wide panes: bleed toward the chat pane's edges (never past them — no h-scrollbar) --- */
 body:not(.pane-classic) .msg .body .codeblock.wide {
@@ -965,7 +1002,7 @@ input[type="checkbox"]:focus-visible { outline: 1px solid var(--accent-dim); out
   margin: 2px 0 12px;
   padding: 7px 12px;
   width: fit-content; max-width: 100%;
-  border-radius: 2px 9px 9px 2px;
+  border-radius: 2px 6px 6px 2px;
   border: none;
   border-left: 2px solid var(--accent-25);
   background: rgba(0,0,0,0.28);
@@ -1215,18 +1252,21 @@ input[type="checkbox"]:focus-visible { outline: 1px solid var(--accent-dim); out
 .story-constellation {
   position: fixed;
   right: max(14px, calc((100vw - var(--chat-col, 880px)) / 4 - 64px));
-  top: 16%;
-  width: 112px; height: 84px;
+  top: 15%;
+  width: 150px; height: 112px;
   z-index: 2; cursor: pointer;
-  opacity: 0.55; transition: opacity 1s ease;
+  opacity: 0.8; transition: opacity 1s ease;
   will-change: opacity;
 }
 .story-constellation:hover { opacity: 1; }
-.story-lines { fill: none; stroke: var(--accent-dim); stroke-width: 0.7; stroke-opacity: 0.6; }
-.story-dot { fill: #e6ecff; }
-.story-star.seed .story-dot { fill: var(--accent); }
-.story-halo { fill: var(--accent); opacity: 0; transition: opacity .6s; }
-.story-star.bookmarked .story-halo, .story-constellation:hover .story-halo { opacity: 0.4; }
+/* Luminous stars: white points with a breath of light, the bookmarked moments in the accent.
+   (Flat slate discs at 55% opacity read as a faint diagram, not as a sky.) */
+.story-lines { fill: none; stroke: var(--accent-dim); stroke-width: 0.5; stroke-opacity: 0.3; }
+.story-dot { fill: #fff; }
+.story-star.seed .story-dot { fill: #fff; }
+.story-halo { fill: #fff; opacity: 0.14; transition: opacity .6s; }
+.story-star.bookmarked .story-halo { fill: var(--accent); opacity: 0.3; }
+.story-constellation:hover .story-halo { opacity: 0.5; }
 .story-star.bookmarked { cursor: pointer; }
 .story-star.bookmarked .story-dot { fill: var(--accent); }
 .story-star.bookmarked:hover .story-halo { opacity: 0.75; }
@@ -1507,12 +1547,24 @@ body.chronicle-open .chronicle-tab { opacity: 0; pointer-events: none; }
 
 /* Color flare — ambient background glow driven by color words in the reply */
 @property --flare-color { syntax: '<color>'; inherits: false; initial-value: #000000; }
+/* Color glow: ONE soft light parked on the color word on screen (colorfx.js sets --flare-x/y
+   to the word's center), so the light follows the reading instead of sitting on the screen
+   edges. A fixed-size disc whose center is translated into place, so only transform and
+   opacity ever animate. Screen blend over the black sky adds light; the two falloff stops are
+   the Glow falloff setting. */
 #colorFlare {
-  position: fixed; inset: 0; pointer-events: none; opacity: 0; z-index: 0;
-  background:
-    radial-gradient(ellipse var(--flare-size, 35%) 80% at 0% 50%, var(--flare-color, #000) 0%, transparent 70%),
-    radial-gradient(ellipse var(--flare-size, 35%) 80% at 100% 50%, var(--flare-color, #000) 0%, transparent 70%);
-  transition: --flare-color .5s ease, opacity .4s ease;
+  position: fixed; left: 0; top: 0;
+  width: var(--flare-d, 1120px); height: var(--flare-d, 1120px);
+  margin: calc(var(--flare-d, 1120px) / -2) 0 0 calc(var(--flare-d, 1120px) / -2);
+  pointer-events: none; opacity: 0; z-index: 0;
+  mix-blend-mode: screen;
+  background: radial-gradient(circle,
+    var(--flare-color, #000) 0%,
+    color-mix(in srgb, var(--flare-color, #000) 34%, transparent) var(--flare-mid, 52%),
+    transparent var(--flare-end, 82%));
+  transform: translate3d(var(--flare-x, 50vw), var(--flare-y, 50vh), 0);
+  transition: --flare-color .6s ease, opacity .45s ease, transform .7s cubic-bezier(.3, .7, .2, 1);
+  will-change: transform, opacity;
 }
 
 /* Celestial color events — fire when a color word crosses the scan line */
@@ -1595,8 +1647,8 @@ body.chronicle-open .chronicle-tab { opacity: 0; pointer-events: none; }
   animation: fxNebula 7s ease-in-out forwards; }
 @keyframes fxNebula {
   0% { transform: scale(0.55); opacity: 0; }
-  35% { opacity: 0.15; }
-  70% { opacity: 0.11; }
+  35% { opacity: 0.3; }
+  70% { opacity: 0.24; }
   100% { transform: scale(1.15) translate(calc(var(--fx-dx, 100px) * 0.25), calc(var(--fx-dy, -60px) * 0.25)); opacity: 0; }
 }
 
@@ -2037,7 +2089,9 @@ select option { background: #0b0e16; color: var(--text); }
   text-shadow: 0 0 12px var(--accent-25);
 }
 /* The mark — a lamp-glow underline for the word a scene turns on. */
-.g-mark { background: linear-gradient(transparent 56%, var(--accent-40) 44%); box-decoration-break: clone; padding: 0 0.06em; }
+/* The mark is a soft wash behind the word. (It used to be an accent underline, which read
+   exactly like a link.) */
+.g-mark { background: linear-gradient(180deg, transparent 8%, var(--g-mark-bg) 30%, var(--g-mark-bg) 84%, transparent 100%); box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 0.02em 0.14em; border-radius: 3px; font-weight: 500; }
 /* Gated text — hidden until hovered, clicked, or drag-selected. */
 /* Redacted text: a diagonal "classified" hatch so the reader knows it's interactive,
    not a rendering glitch. Hover/click reveals (delegated .on toggle in chat.js). */
@@ -2071,7 +2125,8 @@ select option { background: #0b0e16; color: var(--text); }
 body {
   --g-alien-color: #aec6e8; --g-alien-shadow: 0 0 12px var(--accent-25);
   --g-impact-color: var(--text); --g-impact-track: 0.22em; --g-impact-size: 0.92em;
-  --g-boom-shadow: none; --g-boom-size: 1.02em; --g-boom-color: inherit;
+  --g-mark-bg: var(--accent-12);
+  --g-boom-shadow: none; --g-boom-size: 1.08em; --g-boom-track: 0.04em; --g-boom-color: color-mix(in srgb, var(--accent) 45%, var(--text));
   --g-lift-color: var(--accent); --g-lift-shift: -0.14em; --g-lift-tilt: -0.4deg;
   --g-spaced-track: 0.42em; --g-silence-track: 0.6em; --g-silence-space: 26px;
   --g-msg-bg: var(--accent-08); --g-msg-fg: var(--text); --g-msg-border: var(--panel-border);
@@ -2080,22 +2135,27 @@ body {
 }
 body.gs-stage {
   --g-impact-track: 0.3em; --g-impact-size: 1em;
+  --g-boom-size: 1.1em; --g-boom-track: 0.05em;
   --g-spaced-track: 0.5em; --g-silence-space: 34px;
 }
 body.gs-kinetic {
   --g-impact-color: var(--accent); --g-impact-track: 0.34em;
-  --g-boom-shadow: 0 0 14px var(--accent-25); --g-boom-size: 1.06em;
+  --g-mark-bg: var(--accent-16);
+  --g-boom-shadow: 0 0 14px var(--accent-25); --g-boom-size: 1.12em;
   --g-lift-shift: -0.22em; --g-lift-tilt: -1deg; --g-silence-track: 0.9em;
 }
 body.gs-ink {
   --g-alien-color: var(--text-dim); --g-alien-shadow: none;
   --g-impact-color: var(--text-dim);
+  --g-mark-bg: rgba(255,255,255,0.07);
   --g-boom-shadow: none; --g-boom-color: var(--text);
   --g-lift-color: var(--text);
   --g-msg-bg: rgba(255,255,255,0.05); --g-msg-fg: var(--text); --g-msg-border: var(--panel-border);
 }
 /* ++projected++ — vocal mass, a commanding presence. */
-.g-boom { font-weight: 700; letter-spacing: 0.012em; font-size: var(--g-boom-size); color: var(--g-boom-color); text-shadow: var(--g-boom-shadow); }
+/* Projected speech reads as projected: a step larger, lightly tracked, leaning toward the
+   accent. (It used to be identical to bold in every grammar style.) */
+.g-boom { font-weight: 700; letter-spacing: var(--g-boom-track); font-size: var(--g-boom-size); color: var(--g-boom-color); text-shadow: var(--g-boom-shadow); }
 /* ^^lifted^^ — a slight upward optical lift, airy tracking, light lyrical feel.
    (Strictly inline; the line-start single-caret drop-cap never sees it.) */
 .g-lift {
@@ -2113,7 +2173,7 @@ body.gs-ink {
   letter-spacing: var(--g-silence-track); margin: var(--g-silence-space) auto;
   animation: silenceBreath 3.2s ease-in-out infinite;
 }
-@keyframes silenceBreath { 0%, 100% { opacity: 0.28; } 50% { opacity: 0.68; } }
+@keyframes silenceBreath { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.85; } }
 @media (prefers-reduced-motion: reduce) { .msg .body .g-silence { animation: none; opacity: 0.45; } }
 /* Inline bracketed micro-beats — kinetic stage sparks, registered in peripheral vision. */
 .g-beat {
@@ -2440,7 +2500,7 @@ input.num::-webkit-outer-spin-button, input.num::-webkit-inner-spin-button { opa
 .msg .body li::marker { color: var(--accent-dim); }
 /* Blockquote — ONE definition (quotation voice: inset, italic, accent bar). */
 .msg .body blockquote {
-  border-left: 2px solid var(--accent-dim); border-radius: 0 8px 8px 0;
+  border-left: 2px solid var(--accent-dim); border-radius: 0 6px 6px 0;
   background: var(--accent-04);
   padding: 0.55em 1em; margin: 0.9em 0; color: var(--text);
   font-style: italic;
@@ -2450,7 +2510,7 @@ input.num::-webkit-outer-spin-button, input.num::-webkit-inner-spin-button { opa
 .msg .body :not(pre) > code {
   font-family: ui-monospace, Consolas, monospace; font-size: 0.88em;
   background: var(--accent-08); border: 1px solid var(--panel-border);
-  border-radius: 5px; padding: 0.1em 0.4em; color: #c9d8ff;
+  border-radius: 5px; padding: 0.1em 0.4em; color: color-mix(in srgb, var(--accent) 55%, var(--text));   /* follows the accent like the rest of the chrome */
 }
 .msg .body a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--accent-dim); }
 .msg .body a:hover { text-shadow: var(--glow); }
@@ -2604,11 +2664,11 @@ body.dlg-acoustic .msg.assistant .body .dlg .q { color: var(--accent); font-weig
 body.dlg-dramatis .msg.assistant .body p,
 body.dlg-dramatis .msg.assistant .body li {
   font-family: 'Newsreader', var(--font-prose-live, 'Literata'), Georgia, serif;
-  font-style: italic; color: #bfc7d8;
+  font-style: italic; color: #bfc7d8; font-size: 1.05em;   /* Newsreader italic sets smaller than Literata: optically match the dialogue */
 }
 body.dlg-dramatis .msg.assistant .body .dlg {
   font-family: var(--font-prose-live, 'Literata'), Georgia, serif;
-  font-style: normal; color: #f5f1e8; font-weight: 520;
+  font-style: normal; color: #f5f1e8; font-weight: 520; font-size: calc(1em / 1.05);   /* the dialogue itself keeps its size */
 }
 body.dlg-dramatis .msg.assistant .body .dlg .q { color: #dcb87a; font-weight: 600; }
 
@@ -2628,6 +2688,10 @@ body[class*='dlg-'] .msg.assistant .body b .dlg { font-weight: inherit; }
 body[class*='dlg-'] .msg.assistant .body em .dlg,
 body[class*='dlg-'] .msg.assistant .body i .dlg { font-style: inherit; }
 
+/* Speaker-accented quotes: the name itself carries the speaker's hue (md.js wraps it), so the
+   attribution is readable at a glance instead of a tint on two tiny quote marks. */
+.dlg-speaker { font-family: var(--font-ui); font-size: 0.78em; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; }
+
 /* Grammar registers out-rank voice color/weight — a whisper or alien word inside a
    quote still whispers. Restated at voice-beating specificity; the declarations are
    the same rules as the grammar block above. */
@@ -2635,9 +2699,9 @@ body[class*='dlg-'] .msg.assistant .body .dlg.g-whisper { font-size: 0.82em; col
 body[class*='dlg-'] .msg.assistant .body .dlg.g-alien { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 0.86em; color: var(--g-alien-color); letter-spacing: 0.08em; font-weight: inherit; text-shadow: var(--g-alien-shadow); }
 body[class*='dlg-'] .msg.assistant .body .dlg.g-smash { letter-spacing: -0.045em; white-space: nowrap; }
 body[class*='dlg-'] .msg.assistant .body .dlg.g-spaced { letter-spacing: 0.42em; margin-right: -0.42em; margin-left: 0.34em; white-space: nowrap; }
-body[class*='dlg-'] .msg.assistant .body .dlg.g-mark { background: linear-gradient(transparent 56%, var(--accent-40) 44%); padding: 0 0.06em; }
+body[class*='dlg-'] .msg.assistant .body .dlg.g-mark { background: linear-gradient(180deg, transparent 8%, var(--g-mark-bg) 30%, var(--g-mark-bg) 84%, transparent 100%); padding: 0.02em 0.14em; }
 body[class*='dlg-'] .msg.assistant .body .dlg.g-redact { background: var(--rd-bg); color: var(--rd-fg); filter: blur(var(--rd-blur)); border-radius: 3px; padding: 0.04em 0.32em; }
-body[class*='dlg-'] .msg.assistant .body .dlg.g-boom { font-weight: 700; letter-spacing: 0.012em; font-size: var(--g-boom-size); color: var(--g-boom-color); text-shadow: var(--g-boom-shadow); }
+body[class*='dlg-'] .msg.assistant .body .dlg.g-boom { font-weight: 700; letter-spacing: var(--g-boom-track); font-size: var(--g-boom-size); color: var(--g-boom-color); text-shadow: var(--g-boom-shadow); }
 body[class*='dlg-'] .msg.assistant .body .dlg.g-lift { font-style: italic; letter-spacing: 0.06em; }
 
 /* Cadence 2.0 — timing with direction. */
@@ -2729,7 +2793,7 @@ body.glass-frost {
   --glass-btop: color-mix(in srgb, color-mix(in srgb, var(--accent) 70%, white) 30%, transparent);
 }
 body.glass-tinted {
-  --glass-bg: rgba(13,18,34,0.55);
+  --glass-bg: color-mix(in srgb, var(--accent) 8%, rgba(10, 13, 24, 0.66));   /* washed with the accent, so this take belongs to the user's palette */
   --glass-backdrop: blur(10px);
   --glass-shadow: none;
   --glass-btop: color-mix(in srgb, color-mix(in srgb, var(--accent) 70%, white) 30%, transparent);

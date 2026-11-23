@@ -48,10 +48,10 @@ Constellation.storySky = (function () {
       const g = document.createElementNS(NS, 'g');
       g.setAttribute('class', 'story-star' + (i === 0 ? ' seed' : ''));
       const halo = document.createElementNS(NS, 'circle');
-      halo.setAttribute('cx', p[0]); halo.setAttribute('cy', p[1]); halo.setAttribute('r', i === 0 ? 5 : 4.2);
+      halo.setAttribute('cx', p[0]); halo.setAttribute('cy', p[1]); halo.setAttribute('r', i === 0 ? 6.2 : 5.4);
       halo.setAttribute('class', 'story-halo');
       const dot = document.createElementNS(NS, 'circle');
-      dot.setAttribute('cx', p[0]); dot.setAttribute('cy', p[1]); dot.setAttribute('r', i === 0 ? 1.8 : 1.4);
+      dot.setAttribute('cx', p[0]); dot.setAttribute('cy', p[1]); dot.setAttribute('r', i === 0 ? 2.2 : 1.8);
       dot.setAttribute('class', 'story-dot');
       g.appendChild(halo); g.appendChild(dot);
       svg.appendChild(g);

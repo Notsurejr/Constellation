@@ -1946,12 +1946,14 @@ Constellation.chat = (function () {
     autoGrow();
   }
   // Jump to the first message containing a search hit and flash it.
+  // Prose is displayed with curly quotes; a search typed with straight ones must still find it.
+  const searchKey = (s) => String(s || '').replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'").toLowerCase();
   function scrollToMatch(q) {
-    const query = String(q || '').toLowerCase().trim();
+    const query = searchKey(q).trim();
     if (!query) return;
     for (const el of Array.from(messagesEl.querySelectorAll('.msg'))) {
       const body = el.querySelector('.body');
-      if (body && body.textContent.toLowerCase().includes(query)) {
+      if (body && searchKey(body.textContent).includes(query)) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         el.classList.add('match-flash');
         setTimeout(() => el.classList.remove('match-flash'), 1600);

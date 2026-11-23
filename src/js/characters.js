@@ -135,7 +135,7 @@ Constellation.cast = (function () {
     const s = el('div', 'cast-detail-sec');
     s.appendChild(el('div', 'cast-detail-lbl', label));
     const body = el('div', 'cast-detail-md md');
-    body.innerHTML = (window.Constellation && window.Constellation.md) ? window.Constellation.md.render(mdText) : esc(mdText);
+    body.innerHTML = (window.Constellation && window.Constellation.md) ? window.Constellation.md.render(mdText, { quotes: false }) : esc(mdText);   // exactly as the model receives it — no smart quotes
     s.appendChild(body);
     return s;
   }

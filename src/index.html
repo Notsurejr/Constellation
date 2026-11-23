@@ -10,6 +10,9 @@
 </head>
 <body>
   <canvas id="starfield"></canvas>
+  <!-- Mood-weather horizon wash: a faint glow at the top of the sky in the story's mood color
+       (sits just above the stars; the color-glows layer in colorfx.js paints above it) -->
+  <div id="moodWash" aria-hidden="true"></div>
 
   <div class="app">
     <header class="topbar">
@@ -411,7 +414,7 @@
             <select id="glassStyleInput">
               <option value="gradient">Gradient — deep and solid, blur-free (default)</option>
               <option value="frost">Frosted — the classic translucent pane (blurs the sky)</option>
-              <option value="tinted">Tinted frost — cooler, deeper smear</option>
+              <option value="tinted">Tinted frost — translucent, washed with your accent color</option>
               <option value="smoked">Smoked — heavy tint, light blur</option>
               <option value="shelf">Hairline shelf — barely-there, stars shine through</option>
               <option value="vignette">Lantern — lit from above, no blur</option>
@@ -551,12 +554,11 @@
             <input type="range" id="flareSizeInput" min="20" max="100" step="5" value="35" />
           </label>
           <label class="field">
-            <span class="field-name">Glow blend</span>
+            <span class="field-name">Glow falloff <em class="hint-inline">how quickly the light fades from the color word</em></span>
             <select id="flareBlendInput">
-              <option value="screen">Screen (default)</option>
-              <option value="soft-light">Soft light</option>
-              <option value="overlay">Overlay</option>
-              <option value="normal">Normal</option>
+              <option value="soft">Soft — a wide, gradual fade (default)</option>
+              <option value="even">Even — a balanced pool of light</option>
+              <option value="tight">Tight — smaller, brighter, gone sooner</option>
             </select>
           </label>
         </div>

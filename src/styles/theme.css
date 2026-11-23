@@ -41,7 +41,7 @@
 
   --text: #e9eef9;                     /* main text */
   --text-dim: #8b94a8;                 /* secondary text */
-  --text-faint: #5a6172;               /* faint text */
+  --text-faint: #7b8397;               /* faint text: 3.1:1 on a message before, 5:1 now; the small labels that use it carry information */
 
   --accent: #9fb8ff;                   /* starlight accent */
   --accent-dim: color-mix(in srgb, var(--accent) 50%, transparent);
