@@ -247,6 +247,7 @@ function migrateConnectionsIfNeeded() {
   if (readConnections()) return;
   const s = getSettings();
   const models = [
+    { id: 'glm-5.4', label: 'glm-5.4 — Newest' },
     { id: 'glm-5.3', label: 'glm-5.3 — Flagship' },
     { id: 'glm-5.3-flash', label: 'glm-5.3-flash — Fast · Vision' },
     { id: 'glm-5.2', label: 'glm-5.2' },

@@ -15,6 +15,7 @@ Constellation.toast = function (msg, linger) {
 // Model options come from the ACTIVE CONNECTION's list (Settings → Connection); this
 // fallback seeds the dropdowns before the connection loads (first-boot / race cover).
 const FALLBACK_MODELS = [
+  { id: 'glm-5.4', label: 'glm-5.4 — Newest' },
   { id: 'glm-5.3', label: 'glm-5.3 — Flagship' },
   { id: 'glm-5.3-flash', label: 'glm-5.3-flash — Fast · Vision' },
   { id: 'glm-5.2', label: 'glm-5.2' },
