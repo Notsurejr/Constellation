@@ -119,7 +119,7 @@ You need two things: the installer and an API key.
 | **Connection** | GLM (Coding plan / General) · OpenRouter · Gemini · any OpenAI-compatible base URL + custom model ID · thinking effort mapped per provider |
 | **Organize** | Folders · pinned chats · hidden chats · full-text search with jump-to-match · drafts per chat · lifetime token usage per chat |
 | **The sky** | Color-word tints in prose (223 names) · margin glows + cosmic events (toggleable) · mood-weather starfield · parallax · twinkle & density controls |
-| **For tinkerers** | Opt-in localhost CLI server + `cli.js` — offline data inspection *and* a prompt lab (`dry --probe … --system-file candidate.txt` iterates system prompts statelessly, thinking digest included) · theme/star colors in plain CSS · three-layer test suite (unit / e2e / chaos — 174 checks) |
+| **For tinkerers** | Opt-in localhost CLI server + `cli.js` — offline data inspection *and* a prompt lab (`dry --probe … --system-file candidate.txt` iterates system prompts statelessly, thinking digest included) · theme/star colors in plain CSS · three-layer test suite (unit / e2e / chaos — 198 checks) |
 
 **Keyboard:** `Enter` send · `Shift+Enter` newline · `Esc` close panel · `?` cheat sheet.
 
@@ -171,8 +171,8 @@ Stack: Electron + vanilla JS (no build step), `marked` for markdown, `@huggingfa
 Three layers, no test-framework dependencies — `node:test` and `node:assert/strict` only, Node 20+.
 
 ```bash
-npm run test:unit    # 88 pure-Node tests — engines, compose, card compiler, parser, settings
-npm run test:e2e     # 60 end-to-end checks — boots the real app, drives it over CDP
+npm run test:unit    # 102 pure-Node tests — engines, compose, card compiler, parser, settings, appearance math
+npm run test:e2e     # 70 end-to-end checks — boots the real app, drives it over CDP
 npm run test:chaos   # 26 hostile-input checks — XSS, corrupt files, broken network
 npm run test:all     # all three
 ```

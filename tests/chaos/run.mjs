@@ -283,7 +283,14 @@ try {
     await app.ev(`(function(){ const m = document.getElementById('messages'); if (m) m.scrollTop = m.scrollHeight; })()`);
     await app.ev(`(function(){ document.getElementById('input').value = '${label} chaos'; document.getElementById('send').click(); })()`);
     let busy = false;
-    for (let i = 0; i < 30; i++) { busy = await app.ev(`document.getElementById('send').classList.contains('stop')`); if (busy) break; await sleep(120); }
+    for (let i = 0; i < 30; i++) {
+      // A send is accepted when the prompt box is cleared (send() empties it on the way out).
+      // The stop state alone is not enough to go by: the empty-choices stream can finish before
+      // the first look, so the button is never seen in it.
+      const s = await app.ev(`({ stop: document.getElementById('send').classList.contains('stop'), typed: document.getElementById('input').value })`);
+      if (s.stop || s.typed === '') { busy = true; break; }
+      await sleep(120);
+    }
     return busy;
   }
   async function waitSettled(maxMs) {
