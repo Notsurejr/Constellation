@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.12.10 — Starlight
+
+A polish pass on how the app reads — the color glow, color words, quotes, the sky, corner radii and the small text — plus a fix for overlay panels that had stopped scrolling, and glm-5.4 in the stock model list.
+
+### Fixed
+
+- **Overlay panels scroll again.** Lorebook, Bookmarks, Craft, Shortcuts, the Request inspector and the Sky map had stopped scrolling. Only Settings was built to scroll inside its panel; the others clipped anything taller than the panel, so the bottom of a long page was out of reach. Every panel now scrolls its body between a fixed header and footer.
+
+### New
+
+- **glm-5.4** is in the stock GLM model list. If you installed before this version, your connection keeps its own list: add it by hand under Settings → System → Connection → Models.
+
+### Changed
+
+- **The color glow follows the word.** Instead of bars along the window edges, one soft light sits on the color word, in a pastel of its hue. The setting is now Glow falloff (soft, even, tight) — the old soft-light and overlay blends emitted no light over the black sky, and screen looked the same as normal. A saved old value falls back to soft.
+- **Color words are a softer tint.** The hue stays, the saturation comes down, and no tint drops below 4.5:1 contrast. Everyday words (fog, dawn, wine, rose) only count as colors inside a clear color phrase, and a capitalized color word used as a name (“Amber said”) is left alone.
+- **Curly quotes in prose.** Quotes and apostrophes display as typographic marks. Code, panes and your stored text are untouched, and the Cast card view still shows a card exactly as the model receives it.
+- **A fuller sky.** About twice the stars at 1×, a hint of your accent in the tinted stars and the halos of bright ones, and a faint horizon wash that shifts with the mood. The story constellation is larger and luminous.
+- **One corner radius and one top light per layer** (card 8px, response window 6px, pane 6px). With a response window on, the card behind it is a quiet matte.
+- **Readable small text.** The faintest text tier goes from 3.1:1 to 5:1 contrast, and the language tag on a pane is easier to read.
+- **Speech and marks.** A marked word is a soft wash instead of an underline that reads as a link. Projected speech is larger, letter-spaced and tinted with the accent. A speaker's name carries its own hue, and Dramatis narration is size-matched to its dialogue.
+- **Inline code follows your accent** (a fixed lavender had survived earlier).
+- **Tinted frost** is washed with your accent, and **the nebula** has more presence.
+
+Cosmic events are unchanged.
+
+The automated test suite now runs 198 checks (102 unit, 70 end-to-end, 26 chaos). This release adds checks for the scrolling panels and for the appearance math.
+
+Upgrading is safe: chats, settings, keys, lorebooks and panes keep their state.
+
 ## v0.12.9 — Framed
 
 ### Fixed
@@ -7,6 +37,8 @@
 - **Sidebar portraits fit their frame.** Cast chat portraits in the sidebar rendered as a zoomed-in patch of the artwork — the scaling rule was on the wrong element. The avatar now scales to fill its 36×36 tile, cropped and centered like the Cast gallery tiles.
 
 Upgrading is safe: chats, settings, keys, lorebooks and panes keep their state.
+
+## v0.12.8 — Northern Lights
 
 A full visual polish pass — dark native controls, unified chrome with monochrome icons, a reworked sidebar, and a two-column Settings — plus the fix that makes drag-and-drop accept real OS file drags on the message canvas everywhere.
 
@@ -30,6 +62,8 @@ A full visual polish pass — dark native controls, unified chrome with monochro
 v0.12.6 added the automated test suite (167 checks across unit, end-to-end, and chaos) plus hardening fixes; v0.12.7 brought the Chat Importer for Claude, ChatGPT, Gemini, AI Studio, SillyTavern, Obsidian, and Constellation backups.
 
 Upgrading is safe: chats, settings, keys, lorebooks and panes keep their state.
+
+## v0.12.7 — Port of Call
 
 The chat importer arrives — bring conversations from other platforms into Constellation as native sessions ready to continue — alongside a three-layer automated test suite (167 checks) that now guards the whole app.
 
